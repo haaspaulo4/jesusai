@@ -152,22 +152,25 @@ async function downloadWhatsAppMedia(remoteJid, messageId) {
 }
 
 async function sendWhatsAppText(remoteJid, text) {
-  const isGroupJid = remoteJid.includes('@g.us');
-  const isLid = remoteJid.includes('@lid');
+  const resolvedJid = resolveJid(remoteJid) || remoteJid;
+  const isGroupJid = resolvedJid.includes('@g.us');
+  const isLid = resolvedJid.includes('@lid');
 
   if (isGroupJid || isLid) {
     try {
       return await evoRequest('POST', `/message/sendText/${EVO_INSTANCE}`, {
-        number: remoteJid,
+        number: resolvedJid,
         text,
       });
     } catch (err) {
       console.error('[WhatsApp] sendText to group/lid failed:', err.message);
+      if (isLid && remoteJid !== resolvedJid) {
+      }
       return null;
     }
   }
 
-  const number = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+  const number = resolvedJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
   try {
     return await evoRequest('POST', `/message/sendText/${EVO_INSTANCE}`, {
       number,
@@ -191,13 +194,14 @@ async function sendWhatsAppText(remoteJid, text) {
 }
 
 async function sendWhatsAppAudio(remoteJid, audioSource) {
-  const isLid = remoteJid.includes('@lid');
-  const isGroupJid = remoteJid.includes('@g.us');
+  const resolvedJid = resolveJid(remoteJid) || remoteJid;
+  const isLid = resolvedJid.includes('@lid');
+  const isGroupJid = resolvedJid.includes('@g.us');
   let number;
   if (isLid || isGroupJid) {
-    number = remoteJid;
+    number = resolvedJid;
   } else {
-    number = remoteJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+    number = resolvedJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
   }
 
   const sendWithNumber = async (num) => {

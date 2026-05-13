@@ -3,9 +3,12 @@ const KOKORO_URL = (process.env.KOKORO_URL || '').replace(/\/+$/, '') || 'http:/
 
 let healthCheckInterval = null;
 let isHealthy = false;
+let checking = false;
 
 async function checkHealth() {
-  if (TTS_MODE !== 'kokoro') return true;
+  if (checking) return isHealthy;
+  checking = true;
+  if (TTS_MODE !== 'kokoro') { checking = false; return true; }
 
   try {
     const controller = new AbortController();
@@ -20,6 +23,8 @@ async function checkHealth() {
     return res.ok;
   } catch {
     return false;
+  } finally {
+    checking = false;
   }
 }
 
@@ -77,7 +82,7 @@ function scheduleHealthCheck() {
     } else if (!healthy && wasHealthy) {
       console.warn('  [Kokoro] Server went offline — TTS will fallback to Edge TTS');
     }
-  }, 60000);
+  }, 120000);
 }
 
 function stopKokoroServer() {

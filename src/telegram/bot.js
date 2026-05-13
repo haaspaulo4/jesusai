@@ -136,26 +136,48 @@ async function sendLongMessage(bot, chatId, text, options = {}) {
 }
 
 async function callLLM(messages, stream = false) {
-  const response = await fetch(`${OLLAMA_BASE_URL}/chat`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(OLLAMA_API_KEY ? { Authorization: `Bearer ${OLLAMA_API_KEY}` } : {}),
-    },
-    body: JSON.stringify({
-      model: CHAT_MODEL,
-      messages,
-      stream,
-      options: { temperature: 0.7, num_predict: 1024 },
-    }),
-  });
+  const maxRetries = 2;
+  let lastError = null;
 
-  if (!response.ok) {
-    const errText = await response.text();
-    throw new Error(`API error ${response.status}: ${errText}`);
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      const response = await fetch(`${OLLAMA_BASE_URL}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(OLLAMA_API_KEY ? { Authorization: `Bearer ${OLLAMA_API_KEY}` } : {}),
+        },
+        body: JSON.stringify({
+          model: CHAT_MODEL,
+          messages,
+          stream,
+          options: { temperature: 0.7, num_predict: 1024 },
+        }),
+      });
+
+      if (response.status === 429 && attempt < maxRetries) {
+        const retryAfter = parseInt(response.headers.get('retry-after') || '5');
+        console.warn(`[Telegram] LLM rate limited, retrying in ${retryAfter}s...`);
+        await new Promise(r => setTimeout(r, retryAfter * 1000));
+        continue;
+      }
+
+      if (!response.ok) {
+        const errText = await response.text();
+        throw new Error(`API error ${response.status}: ${errText}`);
+      }
+
+      return response;
+    } catch (err) {
+      lastError = err;
+      if (err.message.includes('429') && attempt < maxRetries) {
+        await new Promise(r => setTimeout(r, 5000 * (attempt + 1)));
+        continue;
+      }
+      throw err;
+    }
   }
-
-  return response;
+  throw lastError;
 }
 
 async function handleTelegramMessage(bot, msg) {
