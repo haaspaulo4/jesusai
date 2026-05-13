@@ -52,8 +52,8 @@ async function loadPersonas() {
         groupContext: row.group_context ? (typeof row.group_context === 'string' ? JSON.parse(row.group_context) : row.group_context) : DEFAULT_PERSONAS.jesus?.groupContext,
         cjkFallback: row.cjk_fallback ? (typeof row.cjk_fallback === 'string' ? JSON.parse(row.cjk_fallback) : row.cjk_fallback) : DEFAULT_PERSONAS.jesus?.cjkFallback,
         llmError: row.llm_error ? (typeof row.llm_error === 'string' ? JSON.parse(row.llm_error) : row.llm_error) : DEFAULT_PERSONAS.jesus?.llmError,
-        welcomeTitle: row.welcome_title ? (typeof row.welcome_title === 'string' ? JSON.parse(row.welcome_title) : row.welcome_title) : DEFAULT_PERSONAS.jesus?.welcomeTitle,
-        welcomeBody: row.welcome_body ? (typeof row.welcome_body === 'string' ? JSON.parse(row.welcome_body) : row.welcome_body) : DEFAULT_PERSONAS.jesus?.welcomeBody,
+        welcomeTitle: row.welcome_title ? (typeof row.welcome_title === 'string' ? JSON.parse(row.welcome_title) : row.welcome_title) : null,
+        welcomeBody: row.welcome_body ? (typeof row.welcome_body === 'string' ? JSON.parse(row.welcome_body) : row.welcome_body) : null,
         prayerPrompt: row.prayer_prompt ? (typeof row.prayer_prompt === 'string' ? JSON.parse(row.prayer_prompt) : row.prayer_prompt) : DEFAULT_PERSONAS.jesus?.prayerPrompt,
         blogPrompt: row.blog_prompt ? (typeof row.blog_prompt === 'string' ? JSON.parse(row.blog_prompt) : row.blog_prompt) : DEFAULT_PERSONAS.jesus?.blogPrompt,
         blogTopics: row.blog_topics ? (typeof row.blog_topics === 'string' ? JSON.parse(row.blog_topics) : row.blog_topics) : DEFAULT_PERSONAS.jesus?.blogTopics,
@@ -109,8 +109,14 @@ async function listPersonas() {
 
 async function createPersona(data) {
   const id = data.id || data.persona_id || 'persona_' + Date.now().toString(36);
-  const identity = data.identity || DEFAULT_PERSONAS.jesus.identity;
-  const commands = data.commands || DEFAULT_PERSONAS.jesus.commands;
+
+  let knowledgeSources = data.knowledge_sources || data.knowledgeSources || null;
+  if (!knowledgeSources && cache.has(id)) {
+    knowledgeSources = cache.get(id).knowledgeSources || null;
+  }
+
+  const identity = data.identity || (cache.has(id) ? cache.get(id).identity : null) || DEFAULT_PERSONAS.jesus.identity;
+  const commands = data.commands || (cache.has(id) ? cache.get(id).commands : null) || DEFAULT_PERSONAS.jesus.commands;
   const ttsVoice = data.tts_voice || data.ttsVoice || 'pm_alex';
   const ttsLang = data.tts_lang || data.ttsLang || 'p';
   const model = data.model || null;
@@ -118,11 +124,33 @@ async function createPersona(data) {
   const name_en = data.name_en || data.nameEn || name;
   const name_es = data.name_es || data.nameEs || name;
   const priority = data.priority || 100;
-  const knowledgeSources = data.knowledge_sources || data.knowledgeSources || null;
 
   const stringFields = (val) => val && typeof val === 'object' ? JSON.stringify(val) : (val || null);
 
   try {
+    const existing = cache.get(id);
+    const finalIdentity = identity || (existing ? existing.identity : null) || DEFAULT_PERSONAS.jesus.identity;
+    const finalCommands = commands || (existing ? existing.commands : null) || DEFAULT_PERSONAS.jesus.commands;
+    const finalKnowledgeSources = knowledgeSources || (existing ? existing.knowledgeSources : null);
+    const finalDisclaimer = data.disclaimer || data.disclaimer || (existing ? existing.disclaimer : null) || DEFAULT_PERSONAS.jesus?.disclaimer;
+    const finalConversationWith = data.conversationWith || data.conversation_with || (existing ? existing.conversationWith : null) || DEFAULT_PERSONAS.jesus?.conversationWith;
+    const finalMemoryBlock = data.memoryBlock || data.memory_block || (existing ? existing.memoryBlock : null) || DEFAULT_PERSONAS.jesus?.memoryBlock;
+    const finalProfileBlock = data.profileBlock || data.profile_block || (existing ? existing.profileBlock : null) || DEFAULT_PERSONAS.jesus?.profileBlock;
+    const finalGroupContext = data.groupContext || data.group_context || (existing ? existing.groupContext : null) || DEFAULT_PERSONAS.jesus?.groupContext;
+    const finalCjkFallback = data.cjkFallback || data.cjk_fallback || (existing ? existing.cjkFallback : null) || DEFAULT_PERSONAS.jesus?.cjkFallback;
+    const finalLlmError = data.llmError || data.llm_error || (existing ? existing.llmError : null) || DEFAULT_PERSONAS.jesus?.llmError;
+    const finalWelcomeTitle = data.welcomeTitle || data.welcome_title || (existing ? existing.welcomeTitle : null);
+    const finalWelcomeBody = data.welcomeBody || data.welcome_body || (existing ? existing.welcomeBody : null);
+    const finalPrayerPrompt = data.prayerPrompt || data.prayer_prompt || (existing ? existing.prayerPrompt : null) || DEFAULT_PERSONAS.jesus?.prayerPrompt;
+    const finalBlogPrompt = data.blogPrompt || data.blog_prompt || (existing ? existing.blogPrompt : null) || DEFAULT_PERSONAS.jesus?.blogPrompt;
+    const finalBlogTopics = data.blogTopics || data.blog_topics || (existing ? existing.blogTopics : null) || DEFAULT_PERSONAS.jesus?.blogTopics;
+    const finalDonateVerse = data.donateVerse || data.donate_verse || (existing ? existing.donateVerse : null) || DEFAULT_PERSONAS.jesus?.donateVerse;
+    const finalSummaryPrompt = data.summaryPrompt || data.summary_prompt || (existing ? existing.summaryPrompt : null) || DEFAULT_PERSONAS.jesus?.summaryPrompt;
+    const finalProfileSummaryPrompt = data.profileSummaryPrompt || data.profile_summary_prompt || (existing ? existing.profileSummaryPrompt : null) || DEFAULT_PERSONAS.jesus?.profileSummaryPrompt;
+    const finalNamePatterns = data.namePatterns || data.name_patterns || (existing ? existing.namePatterns : null) || DEFAULT_PERSONAS.jesus?.namePatterns;
+    const finalTopicKeywords = data.topicKeywords || data.topic_keywords || (existing ? existing.topicKeywords : null) || DEFAULT_PERSONAS.jesus?.topicKeywords;
+    const finalEmotionKeywords = data.emotionKeywords || data.emotion_keywords || (existing ? existing.emotionKeywords : null) || DEFAULT_PERSONAS.jesus?.emotionKeywords;
+
     await pool.execute(
       `INSERT INTO personas (persona_id, name, name_en, name_es, identity, commands, tts_voice, tts_lang, model, priority, is_active, knowledge_sources,
         disclaimer, conversation_with, memory_block, profile_block, group_context, cjk_fallback, llm_error, welcome_title, welcome_body,
@@ -136,18 +164,17 @@ async function createPersona(data) {
        prayer_prompt=VALUES(prayer_prompt), blog_prompt=VALUES(blog_prompt), blog_topics=VALUES(blog_topics), donate_verse=VALUES(donate_verse),
        summary_prompt=VALUES(summary_prompt), profile_summary_prompt=VALUES(profile_summary_prompt),
        name_patterns=VALUES(name_patterns), topic_keywords=VALUES(topic_keywords), emotion_keywords=VALUES(emotion_keywords)`,
-      [id, name, name_en, name_es, stringFields(identity), stringFields(commands), ttsVoice, ttsLang, model, priority, stringFields(knowledgeSources),
-       stringFields(data.disclaimer), stringFields(data.conversationWith || data.conversation_with),
-       stringFields(data.memoryBlock || data.memory_block), stringFields(data.profileBlock || data.profile_block),
-       stringFields(data.groupContext || data.group_context), stringFields(data.cjkFallback || data.cjk_fallback),
-       stringFields(data.llmError || data.llm_error), stringFields(data.welcomeTitle || data.welcome_title),
-       stringFields(data.welcomeBody || data.welcome_body), stringFields(data.prayerPrompt || data.prayer_prompt),
-       stringFields(data.blogPrompt || data.blog_prompt), stringFields(data.blogTopics || data.blog_topics),
-       stringFields(data.donateVerse || data.donate_verse), stringFields(data.summaryPrompt || data.summary_prompt),
-       stringFields(data.profileSummaryPrompt || data.profile_summary_prompt),
-       stringFields(data.namePatterns || data.name_patterns),
-       stringFields(data.topicKeywords || data.topic_keywords),
-       stringFields(data.emotionKeywords || data.emotion_keywords)]
+      [id, name, name_en, name_es, stringFields(finalIdentity), stringFields(finalCommands), ttsVoice, ttsLang, model, priority, stringFields(finalKnowledgeSources),
+       stringFields(finalDisclaimer), stringFields(finalConversationWith),
+       stringFields(finalMemoryBlock), stringFields(finalProfileBlock),
+       stringFields(finalGroupContext), stringFields(finalCjkFallback),
+       stringFields(finalLlmError), stringFields(finalWelcomeTitle),
+       stringFields(finalWelcomeBody), stringFields(finalPrayerPrompt),
+       stringFields(finalBlogPrompt), stringFields(finalBlogTopics), stringFields(finalDonateVerse), stringFields(finalSummaryPrompt),
+       stringFields(finalProfileSummaryPrompt),
+       stringFields(finalNamePatterns),
+       stringFields(finalTopicKeywords),
+       stringFields(finalEmotionKeywords)]
     );
   } catch (err) {
     console.error('[PersonaManager] DB save failed, using in-memory only:', err.message);
