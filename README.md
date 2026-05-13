@@ -62,24 +62,39 @@ Mas não é só sobre Bíblia. **A arquitetura é pluggable** — troque o corpu
 
 ## Arquitetura Pluggable
 
+**Tudo é plug-and-play** — troque a identidade, memória, conhecimento e idioma sem reescrever código:
+
+| Camada | Arquivo | O que faz | Como trocar |
+|--------|---------|-----------|-------------|
+| **Identidade** | `src/persona/config.js` | Quem a IA é, regras, tom, emoções | Defina uma nova persona + `PERSONA=stoic` no `.env` |
+| **Conhecimento** | `src/knowledge/config.js` | O que a IA sabe (fontes de dados) | Adicione novas fontes + `npm run ingest` |
+| **Memória** | MySQL automático | Sessões e perfil por usuário | Já funciona, persiste entre conversas |
+| **Idioma** | `src/i18n/index.js` | Prompts, UI, erros em 3 idiomas | Adicione novas chaves de tradução |
+
 ```
-┌──────────────────────────────────────────────────────┐
-│                    PERSONA CONFIG                     │
-│            (Jesus, filósofo, guru, etc.)              │
-│   identity · rules · topics · emotions · templates    │
-└────────────────────┬─────────────────────────────────┘
+┌─────────────── TROCAR PERSONA ────────────────┐
+│  src/persona/config.js                         │
+│  identity · rules · topics · emotions          │
+│  → "Você é Jesus"  →  "Você é Sócrates"        │
+└────────────────────┬────────────────────────────┘
                      │
-┌────────────────────▼─────────────────────────────────┐
-│                 KNOWLEDGE CONFIG                       │
-│      (Bíblia, livros, PDFs, docs, APIs)               │
-│   sources · ingesters · search · context templates   │
-└────────────────────┬─────────────────────────────────┘
+┌────────────────────▼────────────────────────────┐
+│            TROCAR CONHECIMENTO                  │
+│  src/knowledge/config.js                        │
+│  sources · ingesters · search · context         │
+│  → Bíblia  →  Filosofia Estoica  →  Direito    │
+└────────────────────┬────────────────────────────┘
                      │
-┌────────────────────▼─────────────────────────────────┐
-│                  SERVER (Express)                      │
-│   Routes ──► Middleware ──► LLM ──► Response            │
-│   Memory · Profile · i18n · Auth · TTS/STT            │
-└────────────────────┬──────────┬──────────────────────┘
+┌────────────────────▼────────────────────────────┐
+│                  SERVER (Express)                │
+│   Routes ──► Middleware ──► LLM ──► Response     │
+│   Memory · Profile · i18n · Auth · TTS/STT      │
+│                                                  │
+│   ┌─────────────┐    ┌─────────────────────┐     │
+│   │  Memória    │    │   i18n (3 idiomas)   │     │
+│   │ (MySQL)     │    │   pt-BR · en · es    │     │
+│   └─────────────┘    └─────────────────────┘     │
+└────────────────────┬──────────┬──────────────────┘
           ┌─────────┘          └──────────┐
     ┌─────▼─────┐         ┌──────────────▼──────┐
     │  Telegram  │         │    WhatsApp Bot     │
@@ -87,23 +102,27 @@ Mas não é só sobre Bíblia. **A arquitetura é pluggable** — troque o corpu
     └────────────┘         └────────────────────┘
 ```
 
-### TTS Flow
+### Exemplo: De Jesus.AI → Sócrates.AI
 
-```
-Text → cleanTextForTTS (strip markdown, emojis, surrogates, control chars)
-     → splitTextForTTS (at sentence boundaries, 300 chars for bots, 5000 for web)
-     → per chunk: try Kokoro → fallback to Edge TTS (no voice mixing)
-     → Telegram: sendVoice per chunk with correct content-type (audio/wav or audio/mp3)
-     → WhatsApp: text first, then audio per chunk with correct mimetype
-     → Web: POST /api/tts returns full audio buffer
-```
-
-### Trocando o Corpus de Conhecimento
-
-O sistema usa `src/knowledge/config.js` para definir as fontes. Para trocar de Bíblia para outro corpus:
-
+1. **Persona** — `src/persona/config.js`:
 ```js
-// src/knowledge/config.js
+const PERSONAS = {
+  socrates: {
+    id: 'socrates',
+    name: 'Socrates.AI',
+    identity: {
+      'pt-BR': 'Você é Sócrates, o filósofo grego. Responde com perguntas provocativas (método socrático)...',
+      'en-US': 'You are Socrates, the Greek philosopher...',
+    },
+    topicKeywords: { /* estoicismo, virtude, justiça */ },
+    emotionKeywords: { /* em 3 idiomas */ },
+    namePatterns: { /* em 3 idiomas */ },
+  },
+};
+```
+
+2. **Conhecimento** — `src/knowledge/config.js`:
+```js
 const KNOWLEDGE_SOURCES = [
   {
     id: 'stoic-philosophy',
@@ -111,7 +130,7 @@ const KNOWLEDGE_SOURCES = [
     type: 'json-verses',
     enabled: true,
     dataPath: path.join(__dirname, '..', '..', 'data', 'stoic_documents.json'),
-    ingester: 'json',        // usa src/knowledge/sources/json.js
+    ingester: 'json',
     searchFields: ['reference', 'text'],
     contextTemplate: { /* templates por idioma */ },
     sourceFormat: (docs) => docs.map(d => `${d.reference}: "${d.text}"`).join('\n'),
@@ -119,36 +138,14 @@ const KNOWLEDGE_SOURCES = [
 ];
 ```
 
-**Ingesters disponíveis:**
-
-| Tipo | Arquivo | Descrição |
-|------|---------|-----------|
-| `bible` | `sources/bible.js` | Bíblia (NT local + OT via API) |
-| `json` | `sources/json.js` | Qualquer array JSON com `reference` e `text` |
-| `text` | `sources/text.js` | Diretório com .txt/.md, chunkeado automaticamente |
-
-### Trocando a Persona
-
-O sistema usa `src/persona/config.js` para definir quem a IA é. Para criar uma nova persona:
-
-```js
-// src/persona/config.js
-const PERSONAS = {
-  jesus: { /* persona completa — padrão */ },
-  stoic: {
-    id: 'stoic',
-    name: 'Stoic.AI',
-    identity: { /* prompts em 3 idiomas */ },
-    topicKeywords: { /* estoicismo */ },
-    emotionKeywords: { /* em 3 idiomas */ },
-    namePatterns: { /* em 3 idiomas */ },
-    // ... todos os templates
-  },
-};
-
-// Ative via .env:
-// PERSONA=stoic
+3. **Ativar** — `.env`:
 ```
+PERSONA=socrates
+```
+
+4. **Ingerir** — `npm run ingest`
+
+Pronto: mesma base, persona e conhecimento completamente diferentes.
 
 ## Setup
 
