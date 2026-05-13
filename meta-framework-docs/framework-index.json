@@ -1,0 +1,1172 @@
+{
+  "version": "1.0.0",
+  "total_modules": 73,
+  "schema": {
+    "id": "PREFIXO-NN (ex: CORE-01, BACK-04)",
+    "title": "Título semântico do módulo",
+    "priority": "CRITICO | ALTO | MEDIO | BAIXO | OPCIONAL",
+    "category": "core | backend | frontend | infra | ops | business | ai | advanced | shared",
+    "depends_on": [
+      "IDs dos quais este módulo depende"
+    ],
+    "blocks": [
+      "IDs que dependem deste módulo"
+    ],
+    "path": "caminho relativo da pasta do módulo",
+    "summary": "Uma frase descrevendo o propósito do módulo"
+  },
+  "modules": [
+    {
+      "id": "CORE-01",
+      "title": "Regras de Negocio",
+      "priority": "CRITICO",
+      "category": "core",
+      "depends_on": [],
+      "blocks": [
+        "CORE-02",
+        "CORE-03",
+        "CORE-07",
+        "BACK-04",
+        "BACK-05",
+        "BIZ-08",
+        "AI-09",
+        "BIZ-16"
+      ],
+      "path": "core/CORE-01-regras-negocio",
+      "summary": "Define o que o sistema faz: tipos de usuarios, RBAC, monetizacao, limites, estados, regras anti-abuso."
+    },
+    {
+      "id": "CORE-02",
+      "title": "Modelagem de Dados",
+      "priority": "CRITICO",
+      "category": "core",
+      "depends_on": [
+        "CORE-01"
+      ],
+      "blocks": [
+        "BACK-04",
+        "BACK-11",
+        "INFRA-18",
+        "CORE-31"
+      ],
+      "path": "core/CORE-02-modelagem-dados",
+      "summary": "Tabelas, campos, relacionamentos, indices, constraints e particionamento."
+    },
+    {
+      "id": "CORE-03",
+      "title": "Arquitetura do Sistema",
+      "priority": "CRITICO",
+      "category": "core",
+      "depends_on": [
+        "CORE-01",
+        "CORE-02"
+      ],
+      "blocks": [
+        "BACK-04",
+        "BACK-05",
+        "INFRA-19",
+        "OPS-22",
+        "SHRD-33",
+        "OPS-35"
+      ],
+      "path": "core/CORE-03-arquitetura",
+      "summary": "Stack tecnologico, estrutura de pastas, comunicacao entre camadas e padroes."
+    },
+    {
+      "id": "CORE-07",
+      "title": "Fluxos de Usuario",
+      "priority": "ALTO",
+      "category": "core",
+      "depends_on": [
+        "CORE-01",
+        "CORE-03",
+        "BACK-04"
+      ],
+      "blocks": [
+        "BACK-11",
+        "OPS-23"
+      ],
+      "path": "core/CORE-07-fluxos",
+      "summary": "Cadastro, login, execucao de agent, pagamento, LGPD e fluxos alternativos."
+    },
+    {
+      "id": "CORE-31",
+      "title": "Gestao de Organizacoes e Times",
+      "priority": "ALTO",
+      "category": "core",
+      "depends_on": [
+        "CORE-01",
+        "CORE-02",
+        "BACK-05"
+      ],
+      "blocks": [
+        "BIZ-08",
+        "ADV-17",
+        "FRONT-30"
+      ],
+      "path": "core/CORE-31-workspaces-teams",
+      "summary": "Organizacoes, times, convites, permissoes B2B e isolamento."
+    },
+    {
+      "id": "CORE-34",
+      "title": "Estrategia Arquitetural e Selecao de Padroes",
+      "priority": "CRITICO",
+      "category": "core",
+      "depends_on": [
+        "CORE-01",
+        "CORE-03"
+      ],
+      "blocks": [
+        "BACK-37",
+        "BACK-48"
+      ],
+      "path": "core/CORE-34-arquitetura-estrategica",
+      "summary": "Decisoes de padroes: Microservices, Edge, Monolito, Serverless, DDD."
+    },
+    {
+      "id": "CORE-47",
+      "title": "Resiliencia Descentralizada (Web3/P2P)",
+      "priority": "BAIXO",
+      "category": "core",
+      "depends_on": [
+        "CORE-03",
+        "SHRD-33",
+        "SHRD-44"
+      ],
+      "blocks": [],
+      "path": "core/CORE-47-resiliencia-web3",
+      "summary": "P2P, Blockchain, imutabilidade, tolerancia a censura e offline-first."
+    },
+    {
+      "id": "CORE-52",
+      "title": "Analytics e Plataforma de Experimentos",
+      "priority": "ALTO",
+      "category": "core",
+      "depends_on": [
+        "CORE-01",
+        "BACK-04",
+        "OPS-22"
+      ],
+      "blocks": [
+        "BIZ-57"
+      ],
+      "path": "core/CORE-52-analytics-experiments",
+      "summary": "A/B testing, feature flags com metricas, event tracking e cohort analysis."
+    },
+    {
+      "id": "BACK-04",
+      "title": "API: Rotas e Contratos",
+      "priority": "CRITICO",
+      "category": "backend",
+      "depends_on": [
+        "CORE-01",
+        "CORE-02",
+        "CORE-03"
+      ],
+      "blocks": [
+        "BACK-05",
+        "BACK-11",
+        "BACK-15",
+        "BACK-24",
+        "BACK-25",
+        "ADV-27",
+        "AI-12",
+        "FRONT-30",
+        "FRONT-26"
+      ],
+      "path": "backend/BACK-04-api",
+      "summary": "Endpoints, payloads, responses, paginacao, formatos padrao e OpenAPI base."
+    },
+    {
+      "id": "BACK-05",
+      "title": "Seguranca",
+      "priority": "CRITICO",
+      "category": "backend",
+      "depends_on": [
+        "CORE-01",
+        "CORE-03",
+        "BACK-04"
+      ],
+      "blocks": [
+        "INFRA-19",
+        "INFRA-21",
+        "OPS-23",
+        "SHRD-40",
+        "SHRD-56",
+        "CORE-31",
+        "ADV-17"
+      ],
+      "path": "backend/BACK-05-seguranca",
+      "summary": "JWT, RBAC, rate limit, headers de seguranca, hash, criptografia e LGPD."
+    },
+    {
+      "id": "BACK-11",
+      "title": "Estrategia de Testes",
+      "priority": "ALTO",
+      "category": "backend",
+      "depends_on": [
+        "CORE-02",
+        "BACK-04",
+        "CORE-07"
+      ],
+      "blocks": [
+        "OPS-29",
+        "INFRA-36"
+      ],
+      "path": "backend/BACK-11-testes",
+      "summary": "Unit/integration/e2e, CI, cobertura, mocks, TDD e estrategia de regressao."
+    },
+    {
+      "id": "BACK-15",
+      "title": "OpenAPI / Swagger Spec",
+      "priority": "MEDIO",
+      "category": "backend",
+      "depends_on": [
+        "BACK-04"
+      ],
+      "blocks": [
+        "BACK-24"
+      ],
+      "path": "backend/BACK-15-openapi",
+      "summary": "Spec OpenAPI 3.1.0, Swagger UI, SDK generation e contratos de API."
+    },
+    {
+      "id": "BACK-24",
+      "title": "API Versioning",
+      "priority": "MEDIO",
+      "category": "backend",
+      "depends_on": [
+        "BACK-04",
+        "BACK-15"
+      ],
+      "blocks": [],
+      "path": "backend/BACK-24-api-versioning",
+      "summary": "v1->v2, deprecation policy, sunset dates e backward compatibility."
+    },
+    {
+      "id": "BACK-25",
+      "title": "Catalogo Centralizado de Erros",
+      "priority": "ALTO",
+      "category": "backend",
+      "depends_on": [
+        "BACK-04",
+        "BACK-05"
+      ],
+      "blocks": [
+        "BACK-11",
+        "BIZ-28"
+      ],
+      "path": "backend/BACK-25-catalogo-erros",
+      "summary": "50+ codigos de erro (AUTH_*, AGENT_*, PAYMENT_*) padronizados com HTTP status."
+    },
+    {
+      "id": "BACK-37",
+      "title": "Quality Gates e Auditoria Automatica",
+      "priority": "ALTO",
+      "category": "backend",
+      "depends_on": [
+        "BACK-11",
+        "SHRD-33",
+        "CORE-34",
+        "INFRA-36"
+      ],
+      "blocks": [
+        "SHRD-41",
+        "AI-38"
+      ],
+      "path": "backend/BACK-37-quality-gates",
+      "summary": "Regua de qualidade, pre-commit hooks, SAST/DAST e auditoria automatizada."
+    },
+    {
+      "id": "BACK-48",
+      "title": "Ponte de Legado e Refatoracao Autonoma",
+      "priority": "MEDIO",
+      "category": "backend",
+      "depends_on": [
+        "BACK-04",
+        "CORE-34",
+        "BACK-37"
+      ],
+      "blocks": [],
+      "path": "backend/BACK-48-ponte-legado",
+      "summary": "Integracao com codigo legado, adapters, anti-corruption layer e migracao gradual."
+    },
+    {
+      "id": "BIZ-08",
+      "title": "Gateway de Pagamento",
+      "priority": "CRITICO",
+      "category": "business",
+      "depends_on": [
+        "CORE-01",
+        "BACK-04"
+      ],
+      "blocks": [
+        "ADV-14",
+        "BIZ-16",
+        "BIZ-28",
+        "CORE-31"
+      ],
+      "path": "business/BIZ-08-pagamentos",
+      "summary": "Webhooks, estados de pagamento, idempotencia, chargeback e anti-fraude."
+    },
+    {
+      "id": "BIZ-16",
+      "title": "Dashboard de Custo Real",
+      "priority": "ALTO",
+      "category": "business",
+      "depends_on": [
+        "CORE-01",
+        "AI-09"
+      ],
+      "blocks": [
+        "INFRA-20",
+        "BIZ-51"
+      ],
+      "path": "business/BIZ-16-custo-real",
+      "summary": "Precos reais de APIs, margem, alertas de custo e break-even analysis."
+    },
+    {
+      "id": "BIZ-28",
+      "title": "Email Templates",
+      "priority": "MEDIO",
+      "category": "business",
+      "depends_on": [
+        "BACK-04",
+        "BIZ-08",
+        "BACK-25"
+      ],
+      "blocks": [],
+      "path": "business/BIZ-28-email-templates",
+      "summary": "12 templates (verificacao, pagamento, recuperacao, notificacoes)."
+    },
+    {
+      "id": "BIZ-39",
+      "title": "Gestao de Produto e Agilidade",
+      "priority": "CRITICO",
+      "category": "business",
+      "depends_on": [
+        "CORE-01"
+      ],
+      "blocks": [
+        "BIZ-43",
+        "SHRD-44",
+        "BIZ-52"
+      ],
+      "path": "business/BIZ-39-prod",
+      "summary": "Discovery, Epics, Stories, Roadmaps, RICE e rituais ageis para IAs."
+    },
+    {
+      "id": "BIZ-43",
+      "title": "Simulacao de Mercado e Gemeos Digitais",
+      "priority": "MEDIO",
+      "category": "business",
+      "depends_on": [
+        "CORE-01",
+        "BIZ-39"
+      ],
+      "blocks": [
+        "BIZ-16",
+        "OPS-29"
+      ],
+      "path": "business/BIZ-43-simulacao",
+      "summary": "Simulacao de mercado, Digital Twins e stress test de negocio."
+    },
+    {
+      "id": "BIZ-51",
+      "title": "Cost Calculator",
+      "priority": "MEDIO",
+      "category": "business",
+      "depends_on": [
+        "BIZ-16"
+      ],
+      "blocks": [
+        "BIZ-55"
+      ],
+      "path": "business/BIZ-51-cost",
+      "summary": "Calculadora de viabilidade financeira por plano e break-even."
+    },
+    {
+      "id": "BIZ-52",
+      "title": "Brand e Posicionamento",
+      "priority": "MEDIO",
+      "category": "business",
+      "depends_on": [
+        "BIZ-39"
+      ],
+      "blocks": [
+        "BIZ-53",
+        "BIZ-54"
+      ],
+      "path": "business/BIZ-52-brand-posicionamento",
+      "summary": "Nicho, UVP, tom de voz, identidade e assets de marca."
+    },
+    {
+      "id": "BIZ-53",
+      "title": "Growth Engine",
+      "priority": "MEDIO",
+      "category": "business",
+      "depends_on": [
+        "BIZ-39",
+        "BIZ-52"
+      ],
+      "blocks": [
+        "BIZ-56",
+        "BIZ-57"
+      ],
+      "path": "business/BIZ-53-growth-engine",
+      "summary": "AARRR, viralizacao, onboarding ativado, cohort analysis."
+    },
+    {
+      "id": "BIZ-54",
+      "title": "Market Research e Inteligencia Competitiva",
+      "priority": "MEDIO",
+      "category": "business",
+      "depends_on": [
+        "BIZ-39",
+        "BIZ-52"
+      ],
+      "blocks": [
+        "BIZ-55"
+      ],
+      "path": "business/BIZ-54-market-research",
+      "summary": "Analise SWOT, JTBD, tendencias e benchmarking competitivo."
+    },
+    {
+      "id": "BIZ-55",
+      "title": "Psicologia de Precos",
+      "priority": "MEDIO",
+      "category": "business",
+      "depends_on": [
+        "BIZ-39",
+        "BIZ-51"
+      ],
+      "blocks": [
+        "BIZ-56"
+      ],
+      "path": "business/BIZ-55-pricing-psychology",
+      "summary": "Estrategia de precos, ancoragem, decoy e gatilhos psicologicos."
+    },
+    {
+      "id": "BIZ-56",
+      "title": "Sales Enablement e CRM",
+      "priority": "MEDIO",
+      "category": "business",
+      "depends_on": [
+        "BIZ-39",
+        "BIZ-53"
+      ],
+      "blocks": [],
+      "path": "business/BIZ-56-sales-crm",
+      "summary": "Funil de vendas, lead scoring, CRM e materiais de vendas."
+    },
+    {
+      "id": "BIZ-57",
+      "title": "Metricas e KPIs de Negocio",
+      "priority": "MEDIO",
+      "category": "business",
+      "depends_on": [
+        "BIZ-08",
+        "BIZ-16",
+        "BIZ-53",
+        "CORE-52"
+      ],
+      "blocks": [],
+      "path": "business/BIZ-57-metrics-kpi",
+      "summary": "AARRR, LTV, CAC, Churn, dashboards e north star metric."
+    },
+    {
+      "id": "INFRA-18",
+      "title": "Migration Strategy",
+      "priority": "ALTO",
+      "category": "infra",
+      "depends_on": [
+        "CORE-02"
+      ],
+      "blocks": [
+        "INFRA-19"
+      ],
+      "path": "infra/INFRA-18-migrations",
+      "summary": "Prisma migrate, zero downtime migrations, backfill e rollback."
+    },
+    {
+      "id": "INFRA-19",
+      "title": "Deploy e Infraestrutura",
+      "priority": "CRITICO",
+      "category": "infra",
+      "depends_on": [
+        "CORE-03",
+        "BACK-05",
+        "INFRA-18"
+      ],
+      "blocks": [
+        "INFRA-20",
+        "INFRA-21",
+        "OPS-22",
+        "OPS-35",
+        "OPS-50",
+        "SHRD-58"
+      ],
+      "path": "infra/INFRA-19-deploy-infra",
+      "summary": "VPS, Docker, NGINX, SSL, CI/CD, backup e scripts de deploy."
+    },
+    {
+      "id": "INFRA-20",
+      "title": "SLO / SLA",
+      "priority": "ALTO",
+      "category": "infra",
+      "depends_on": [
+        "INFRA-19",
+        "OPS-22"
+      ],
+      "blocks": [
+        "OPS-23"
+      ],
+      "path": "infra/INFRA-20-slo-sla",
+      "summary": "SLIs, SLOs, error budget, compensacao e acordos de nivel de servico."
+    },
+    {
+      "id": "INFRA-21",
+      "title": "Disaster Recovery",
+      "priority": "ALTO",
+      "category": "infra",
+      "depends_on": [
+        "BACK-05",
+        "INFRA-19"
+      ],
+      "blocks": [
+        "OPS-23"
+      ],
+      "path": "infra/INFRA-21-disaster-recovery",
+      "summary": "Recovery por cenario, runbooks, RTO/RPO e plano de contingencia."
+    },
+    {
+      "id": "INFRA-36",
+      "title": "DevSecOps e Pipeline de Entrega Segura",
+      "priority": "ALTO",
+      "category": "infra",
+      "depends_on": [
+        "BACK-05",
+        "BACK-11",
+        "INFRA-19",
+        "SHRD-33"
+      ],
+      "blocks": [
+        "INFRA-20",
+        "OPS-23",
+        "BACK-37"
+      ],
+      "path": "infra/INFRA-36-devsecops",
+      "summary": "CI/CD seguro, SAST/DAST, Canary deploy e supply chain security."
+    },
+    {
+      "id": "INFRA-60",
+      "title": "Capacity Planning",
+      "priority": "MEDIO",
+      "category": "infra",
+      "depends_on": [
+        "CORE-03",
+        "INFRA-19",
+        "OPS-29"
+      ],
+      "blocks": [],
+      "path": "infra/INFRA-60-capacity",
+      "summary": "Planejamento de capacidade, tiers de escala e hardware."
+    },
+    {
+      "id": "OPS-22",
+      "title": "Observabilidade",
+      "priority": "ALTO",
+      "category": "ops",
+      "depends_on": [
+        "CORE-03",
+        "INFRA-19"
+      ],
+      "blocks": [
+        "INFRA-20",
+        "OPS-23",
+        "OPS-29",
+        "OPS-42"
+      ],
+      "path": "ops/OPS-22-observabilidade",
+      "summary": "Logs (Pino), metricas (Prometheus), traces (OpenTelemetry) e dashboards."
+    },
+    {
+      "id": "OPS-23",
+      "title": "Incident Response",
+      "priority": "ALTO",
+      "category": "ops",
+      "depends_on": [
+        "BACK-05",
+        "CORE-07",
+        "INFRA-21",
+        "OPS-22"
+      ],
+      "blocks": [],
+      "path": "ops/OPS-23-incident-response",
+      "summary": "SEV-1 a 4, runbooks, post-mortem, on-call e escalacao."
+    },
+    {
+      "id": "OPS-29",
+      "title": "Performance Targets",
+      "priority": "MEDIO",
+      "category": "ops",
+      "depends_on": [
+        "BACK-11",
+        "OPS-22"
+      ],
+      "blocks": [
+        "INFRA-60"
+      ],
+      "path": "ops/OPS-29-performance",
+      "summary": "Targets por rota, k6 load tests, latencia p50/p95/p99."
+    },
+    {
+      "id": "OPS-35",
+      "title": "FinOps e Otimizacao de Recursos",
+      "priority": "ALTO",
+      "category": "ops",
+      "depends_on": [
+        "CORE-03",
+        "INFRA-19",
+        "OPS-22"
+      ],
+      "blocks": [
+        "OPS-42"
+      ],
+      "path": "ops/OPS-35-finops",
+      "summary": "Gestao de custos nuvem/IA, auto-scaling, tagging e otimizacao."
+    },
+    {
+      "id": "OPS-42",
+      "title": "Auto-Cura e Resiliencia Autonoma (AIOps)",
+      "priority": "ALTO",
+      "category": "ops",
+      "depends_on": [
+        "OPS-22",
+        "OPS-23",
+        "OPS-35"
+      ],
+      "blocks": [
+        "INFRA-20",
+        "INFRA-21"
+      ],
+      "path": "ops/OPS-42-auto-cura",
+      "summary": "AIOps, auto-patching, sistemas auto-regenerativos e anomaly detection."
+    },
+    {
+      "id": "OPS-50",
+      "title": "Operational Runbooks",
+      "priority": "ALTO",
+      "category": "ops",
+      "depends_on": [
+        "INFRA-19",
+        "OPS-22"
+      ],
+      "blocks": [
+        "OPS-23"
+      ],
+      "path": "ops/OPS-50-runbooks",
+      "summary": "Guia pratico de resolucao: add provider, scaling, debug pipeline."
+    },
+    {
+      "id": "FRONT-26",
+      "title": "Upload Pipeline",
+      "priority": "MEDIO",
+      "category": "frontend",
+      "depends_on": [
+        "BACK-04",
+        "BACK-05"
+      ],
+      "blocks": [
+        "FRONT-30"
+      ],
+      "path": "frontend/FRONT-26-upload-pipeline",
+      "summary": "Presigned URL, S3, malware scan, CDN e validacao de arquivos."
+    },
+    {
+      "id": "FRONT-30",
+      "title": "Frontend Design System (UI/UX)",
+      "priority": "ALTO",
+      "category": "frontend",
+      "depends_on": [
+        "BACK-04",
+        "AI-12",
+        "ADV-27"
+      ],
+      "blocks": [
+        "FRONT-46",
+        "FRONT-26",
+        "FRONT-52",
+        "FRONT-53",
+        "FRONT-55"
+      ],
+      "path": "frontend/FRONT-30-frontend-design",
+      "summary": "Tokens, componentes, layouts, mobile, dark mode e acessibilidade."
+    },
+    {
+      "id": "FRONT-46",
+      "title": "Design Emocional e Psicologia do Usuario",
+      "priority": "MEDIO",
+      "category": "frontend",
+      "depends_on": [
+        "FRONT-30"
+      ],
+      "blocks": [],
+      "path": "frontend/FRONT-46-design-emocional",
+      "summary": "Nudges, gatilhos, economia comportamental e microinteractions."
+    },
+    {
+      "id": "FRONT-52",
+      "title": "UX Research e User Journey Mapping",
+      "priority": "ALTO",
+      "category": "frontend",
+      "depends_on": [
+        "FRONT-30",
+        "CORE-01"
+      ],
+      "blocks": [
+        "FRONT-55"
+      ],
+      "path": "frontend/FRONT-52-ux-research",
+      "summary": "Entrevistas, personas, journey maps, heuristicas e testes de usabilidade."
+    },
+    {
+      "id": "FRONT-53",
+      "title": "Copywriting e Microcopy de Conversao",
+      "priority": "ALTO",
+      "category": "frontend",
+      "depends_on": [
+        "FRONT-30",
+        "BIZ-52"
+      ],
+      "blocks": [
+        "FRONT-54"
+      ],
+      "path": "frontend/FRONT-53-copywriting",
+      "summary": "Landing pages, CTA, UX Writing, AIDA e microcopy de produto."
+    },
+    {
+      "id": "FRONT-54",
+      "title": "SEO e Content Strategy",
+      "priority": "MEDIO",
+      "category": "frontend",
+      "depends_on": [
+        "FRONT-30",
+        "FRONT-53"
+      ],
+      "blocks": [],
+      "path": "frontend/FRONT-54-seo-content",
+      "summary": "SEO tecnico, structured data, content marketing e link building."
+    },
+    {
+      "id": "FRONT-55",
+      "title": "Onboarding e Ativacao de Usuarios",
+      "priority": "ALTO",
+      "category": "frontend",
+      "depends_on": [
+        "FRONT-30",
+        "FRONT-52"
+      ],
+      "blocks": [
+        "FRONT-56"
+      ],
+      "path": "frontend/FRONT-55-onboarding-ativacao",
+      "summary": "Primeiro valor (aha moment), walkthroughs, gamificacao e reengajamento."
+    },
+    {
+      "id": "FRONT-56",
+      "title": "Sistema de Indicacao e Gamificacao",
+      "priority": "MEDIO",
+      "category": "frontend",
+      "depends_on": [
+        "FRONT-30",
+        "FRONT-55"
+      ],
+      "blocks": [
+        "BIZ-57"
+      ],
+      "path": "frontend/FRONT-56-referral-gamification",
+      "summary": "Referral loops, recompensas, ranking, badges e anti-fraude."
+    },
+    {
+      "id": "AI-09",
+      "title": "Gerenciamento de APIs de Terceiros",
+      "priority": "CRITICO",
+      "category": "ai",
+      "depends_on": [
+        "CORE-01",
+        "ADV-06"
+      ],
+      "blocks": [
+        "AI-10",
+        "AI-12",
+        "BIZ-16",
+        "AI-32"
+      ],
+      "path": "ai/AI-09-gerenciamento-apis",
+      "summary": "Provider gateway, circuit breaker, roteamento e fallback de LLMs."
+    },
+    {
+      "id": "AI-10",
+      "title": "Seguranca em IA",
+      "priority": "CRITICO",
+      "category": "ai",
+      "depends_on": [
+        "BACK-05",
+        "AI-09"
+      ],
+      "blocks": [
+        "AI-12",
+        "AI-32",
+        "SHRD-40"
+      ],
+      "path": "ai/AI-10-seguranca-ia",
+      "summary": "Prompt injection, jailbreak, sandbox, output filter e sanitizacao."
+    },
+    {
+      "id": "AI-12",
+      "title": "Streaming API (Server-Sent Events)",
+      "priority": "ALTO",
+      "category": "ai",
+      "depends_on": [
+        "BACK-04",
+        "AI-09",
+        "AI-10"
+      ],
+      "blocks": [
+        "FRONT-30",
+        "AI-32"
+      ],
+      "path": "ai/AI-12-streaming",
+      "summary": "SSE, pre-authorize, typewriter effect e abort controller."
+    },
+    {
+      "id": "AI-32",
+      "title": "Estrategia de RAG e Memoria Avancada",
+      "priority": "ALTO",
+      "category": "ai",
+      "depends_on": [
+        "AI-09",
+        "AI-10"
+      ],
+      "blocks": [
+        "AI-12",
+        "FRONT-30",
+        "AI-38"
+      ],
+      "path": "ai/AI-32-rag-memory",
+      "summary": "Busca vetorial, ingestao, memoria longa e context window management."
+    },
+    {
+      "id": "AI-38",
+      "title": "Orquestracao de Subagentes e Times de IA",
+      "priority": "ALTO",
+      "category": "ai",
+      "depends_on": [
+        "CORE-01",
+        "AI-32",
+        "BACK-37"
+      ],
+      "blocks": [
+        "SHRD-41",
+        "AI-58"
+      ],
+      "path": "ai/AI-38-orquestracao",
+      "summary": "Coordenacao de multiplos agentes/times, delegacao e consenso."
+    },
+    {
+      "id": "ADV-06",
+      "title": "Integracoes Externas",
+      "priority": "ALTO",
+      "category": "advanced",
+      "depends_on": [
+        "CORE-01",
+        "CORE-03"
+      ],
+      "blocks": [
+        "AI-09",
+        "AI-12"
+      ],
+      "path": "advanced/ADV-06-integracoes",
+      "summary": "Providers, riscos, fallback, cache e custos reais de integracao."
+    },
+    {
+      "id": "ADV-13",
+      "title": "Feature Flags",
+      "priority": "MEDIO",
+      "category": "advanced",
+      "depends_on": [
+        "CORE-02",
+        "BACK-04"
+      ],
+      "blocks": [
+        "INFRA-19"
+      ],
+      "path": "advanced/ADV-13-feature-flags",
+      "summary": "Canary, kill switch, rollout % e segmentacao por usuario."
+    },
+    {
+      "id": "ADV-14",
+      "title": "Dead Letter Queue",
+      "priority": "MEDIO",
+      "category": "advanced",
+      "depends_on": [
+        "BACK-04",
+        "BIZ-08"
+      ],
+      "blocks": [
+        "OPS-22",
+        "OPS-23"
+      ],
+      "path": "advanced/ADV-14-dlq",
+      "summary": "Retry, alertas, admin API e reprocessamento de falhas."
+    },
+    {
+      "id": "ADV-17",
+      "title": "Estrategia Multi-Tenant",
+      "priority": "OPCIONAL",
+      "category": "advanced",
+      "depends_on": [
+        "CORE-01",
+        "CORE-02",
+        "BACK-04"
+      ],
+      "blocks": [],
+      "path": "advanced/ADV-17-multi-tenant",
+      "summary": "Isolamento, RLS, BYOK e arquitetura multi-tenant."
+    },
+    {
+      "id": "ADV-27",
+      "title": "Notificacoes Real-Time (WebSocket)",
+      "priority": "MEDIO",
+      "category": "advanced",
+      "depends_on": [
+        "BACK-04",
+        "OPS-22"
+      ],
+      "blocks": [
+        "FRONT-30"
+      ],
+      "path": "advanced/ADV-27-notificacoes",
+      "summary": "WebSocket, Redis Pub/Sub, canais e notificacoes push."
+    },
+    {
+      "id": "SHRD-33",
+      "title": "Cybersecurity & Data Privacy Framework (LGPD/GDPR)",
+      "priority": "CRITICO",
+      "category": "shared",
+      "depends_on": [
+        "CORE-01",
+        "CORE-03",
+        "BACK-05"
+      ],
+      "blocks": [
+        "SHRD-56",
+        "SHRD-57",
+        "SHRD-58",
+        "SHRD-61",
+        "INFRA-36",
+        "BACK-37"
+      ],
+      "path": "shared/SHRD-33",
+      "summary": "Zero Trust, LGPD, criptografia, auditoria e privacidade por design."
+    },
+    {
+      "id": "SHRD-40",
+      "title": "Anti-Patterns (O que NAO fazer)",
+      "priority": "MEDIO",
+      "category": "shared",
+      "depends_on": [
+        "BACK-05",
+        "AI-10"
+      ],
+      "blocks": [],
+      "path": "shared/SHRD-40-anti-patterns",
+      "summary": "Padroes comuns que causam divida tecnica e como evita-los."
+    },
+    {
+      "id": "SHRD-41",
+      "title": "Framework Evolutivo (Self-Evolution)",
+      "priority": "ALTO",
+      "category": "shared",
+      "depends_on": [
+        "BACK-37",
+        "AI-38"
+      ],
+      "blocks": [],
+      "path": "shared/SHRD-41-framework-evolutivo",
+      "summary": "Auto-atualizacao, aprendizado continuo e evolucao do framework."
+    },
+    {
+      "id": "SHRD-44",
+      "title": "Guardiao Etico e Conformidade Legal Automatica",
+      "priority": "ALTO",
+      "category": "shared",
+      "depends_on": [
+        "SHRD-33",
+        "BIZ-39"
+      ],
+      "blocks": [
+        "CORE-47"
+      ],
+      "path": "shared/SHRD-44-guardiao-etico",
+      "summary": "IA etica, conformidade juridica, transparencia e accountability."
+    },
+    {
+      "id": "SHRD-45",
+      "title": "Engenharia de Contexto e Otimizacao de Tokens",
+      "priority": "ALTO",
+      "category": "shared",
+      "depends_on": [],
+      "blocks": [],
+      "path": "shared/SHRD-45-engenharia-contexto",
+      "summary": "Otimizacao de prompts para IAs, compressao de contexto e token economy."
+    },
+    {
+      "id": "SHRD-49",
+      "title": "Architecture Decision Records (ADRs)",
+      "priority": "ALTO",
+      "category": "shared",
+      "depends_on": [
+        "CORE-03"
+      ],
+      "blocks": [
+        "CORE-34"
+      ],
+      "path": "shared/SHRD-49-adrs",
+      "summary": "Registro de decisoes arquiteturais, contexto, trade-offs e consequencias."
+    },
+    {
+      "id": "SHRD-56",
+      "title": "Threat Model",
+      "priority": "CRITICO",
+      "category": "shared",
+      "depends_on": [
+        "BACK-05"
+      ],
+      "blocks": [
+        "AI-10",
+        "INFRA-21",
+        "OPS-23"
+      ],
+      "path": "shared/SHRD-56-threat-model",
+      "summary": "Modelagem de ameacas com STRIDE, trust boundaries e matriz de risco."
+    },
+    {
+      "id": "SHRD-57",
+      "title": "Data Flow Diagram (PII + Trust Boundaries)",
+      "priority": "CRITICO",
+      "category": "shared",
+      "depends_on": [
+        "CORE-01",
+        "BACK-05"
+      ],
+      "blocks": [
+        "AI-38",
+        "SHRD-61"
+      ],
+      "path": "shared/SHRD-57-data-flow",
+      "summary": "Fluxo de dados, classificacao de PII e mapeamento de trust boundaries."
+    },
+    {
+      "id": "SHRD-58",
+      "title": "Developer Onboarding",
+      "priority": "ALTO",
+      "category": "shared",
+      "depends_on": [
+        "CORE-03",
+        "SHRD-33",
+        "INFRA-19"
+      ],
+      "blocks": [],
+      "path": "shared/SHRD-58-onboarding",
+      "summary": "Como novos membros entram no projeto: setup, convenções e fluxo."
+    },
+    {
+      "id": "SHRD-59",
+      "title": "Glossario",
+      "priority": "MEDIO",
+      "category": "shared",
+      "depends_on": [],
+      "blocks": [
+        "CORE-34"
+      ],
+      "path": "shared/SHRD-59-glossario",
+      "summary": "Glossario do projeto: termos tecnicos, siglas e definicoes."
+    },
+    {
+      "id": "SHRD-61",
+      "title": "LGPD Compliance Detalhado",
+      "priority": "MEDIO",
+      "category": "shared",
+      "depends_on": [
+        "BACK-05",
+        "SHRD-57"
+      ],
+      "blocks": [],
+      "path": "shared/SHRD-61-lgpd",
+      "summary": "Compliance LGPD detalhado: base legal, dados coletados, direitos do titular."
+    },
+    {
+      "id": "SHRD-62",
+      "title": "Acessibilidade e Inclusao Digital",
+      "priority": "ALTO",
+      "category": "shared",
+      "depends_on": [
+        "FRONT-30",
+        "SHRD-33"
+      ],
+      "blocks": [],
+      "path": "shared/SHRD-62-accessibility-inclusion",
+      "summary": "WCAG 2.1, leitor de tela, inclusao cultural e localizacao."
+    },
+    {
+      "id": "SHRD-63",
+      "title": "Conformidade Global (GDPR, CCPA, HIPAA)",
+      "priority": "ALTO",
+      "category": "shared",
+      "depends_on": [
+        "SHRD-33",
+        "SHRD-61",
+        "CORE-01"
+      ],
+      "blocks": [],
+      "path": "shared/SHRD-63-compliance-global",
+      "summary": "Multi-jurisdicao, transferencia de dados e direitos do titular global."
+    },
+    {
+      "id": "AI-58",
+      "title": "Capabilities, Skills e Progressão de Agentes",
+      "priority": "ALTO",
+      "category": "ai",
+      "depends_on": [
+        "AI-38",
+        "CORE-01",
+        "CORE-02"
+      ],
+      "blocks": [
+        "AI-59",
+        "OPS-42"
+      ],
+      "path": "ai/AI-58-agent-capabilities",
+      "summary": "Skills, proficiência, progressão de XP e matchmaking de agentes de IA."
+    },
+    {
+      "id": "AI-59",
+      "title": "Controle de Execucao (Stop, Escalate, Rollback)",
+      "priority": "CRITICO",
+      "category": "ai",
+      "depends_on": [
+        "AI-38",
+        "AI-58",
+        "BACK-05"
+      ],
+      "blocks": [
+        "OPS-23",
+        "SHRD-41"
+      ],
+      "path": "ai/AI-59-execution-control",
+      "summary": "Maquina de estados de execucao, kill conditions, escalation protocol e rollback."
+    }
+  ]
+}

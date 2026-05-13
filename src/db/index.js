@@ -20,9 +20,12 @@ CREATE TABLE IF NOT EXISTS users (
   avatar TEXT,
   ollama_api_key TEXT,
   telegram_chat_id VARCHAR(50),
+  role VARCHAR(20) DEFAULT 'user',
+  persona_id VARCHAR(60) DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY idx_users_email (email),
-  KEY idx_users_google_id (google_id)
+  KEY idx_users_google_id (google_id),
+  KEY idx_users_role (role)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -31,6 +34,7 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_name VARCHAR(255),
   user_context JSON,
   summary TEXT,
+  persona_id VARCHAR(60) DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY idx_sessions_user (user_id)
@@ -113,6 +117,178 @@ CREATE TABLE IF NOT EXISTS contact_messages (
   status VARCHAR(20) DEFAULT 'new',
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS settings (
+  setting_key VARCHAR(255) PRIMARY KEY,
+  setting_value TEXT,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS api_keys (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  service_type VARCHAR(50) NOT NULL,
+  api_key TEXT,
+  base_url VARCHAR(500) DEFAULT '',
+  model VARCHAR(100) DEFAULT '',
+  label VARCHAR(255) DEFAULT '',
+  priority INT DEFAULT 100,
+  is_active TINYINT(1) DEFAULT 1,
+  extra_config JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_api_keys_type (service_type),
+  KEY idx_api_keys_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS personas (
+  persona_id VARCHAR(60) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  name_en VARCHAR(255),
+  name_es VARCHAR(255),
+  identity JSON,
+  commands JSON,
+  topic_keywords JSON,
+  emotion_keywords JSON,
+  name_patterns JSON,
+  disclaimer JSON,
+  conversation_with JSON,
+  memory_block JSON,
+  profile_block JSON,
+  group_context JSON,
+  cjk_fallback JSON,
+  llm_error JSON,
+  welcome_title JSON,
+  welcome_body JSON,
+  prayer_prompt JSON,
+  blog_prompt JSON,
+  blog_topics JSON,
+  donate_verse JSON,
+  summary_prompt JSON,
+  profile_summary_prompt JSON,
+  tts_voice VARCHAR(100) DEFAULT 'pm_alex',
+  tts_lang VARCHAR(10) DEFAULT 'p',
+  model VARCHAR(100) DEFAULT NULL,
+  knowledge_sources JSON,
+  priority INT DEFAULT 100,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS mcp_servers (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  command VARCHAR(500) NOT NULL,
+  args JSON,
+  env_vars JSON,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS rate_limits (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  service_type VARCHAR(50) NOT NULL,
+  request_count INT DEFAULT 0,
+  window_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_rate_limits_user_service (user_id, service_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS surveys (
+  id VARCHAR(60) PRIMARY KEY,
+  title VARCHAR(500) NOT NULL,
+  description TEXT,
+  questions JSON NOT NULL,
+  is_active TINYINT(1) DEFAULT 1,
+  trigger_type VARCHAR(50) DEFAULT 'manual',
+  trigger_config JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS survey_responses (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  survey_id VARCHAR(60) NOT NULL,
+  user_id VARCHAR(60) NOT NULL,
+  session_id VARCHAR(80),
+  answers JSON NOT NULL,
+  completed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_responses_survey (survey_id),
+  KEY idx_responses_user (user_id),
+  FOREIGN KEY (survey_id) REFERENCES surveys(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS ratings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  session_id VARCHAR(80),
+  message_id INT,
+  rating TINYINT NOT NULL,
+  feedback TEXT,
+  category VARCHAR(50) DEFAULT 'general',
+  source VARCHAR(30) DEFAULT 'web',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_ratings_user (user_id),
+  KEY idx_ratings_category (category)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS follow_ups (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  session_id VARCHAR(80),
+  type VARCHAR(50) NOT NULL,
+  question TEXT NOT NULL,
+  response TEXT,
+  status VARCHAR(20) DEFAULT 'pending',
+  scheduled_at TIMESTAMP NULL,
+  sent_at TIMESTAMP NULL,
+  responded_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_followups_user (user_id),
+  KEY idx_followups_status (status),
+  KEY idx_followups_type (type),
+  KEY idx_followups_scheduled (scheduled_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS bot_instances (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  platform ENUM('telegram', 'whatsapp') NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  token VARCHAR(500) DEFAULT NULL,
+  webhook_url VARCHAR(500) DEFAULT NULL,
+  instance_name VARCHAR(255) DEFAULT NULL,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  is_active TINYINT(1) DEFAULT 1,
+  config JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_bot_platform (platform),
+  KEY idx_bot_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS onboarding_steps (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  step_key VARCHAR(100) NOT NULL,
+  step_order INT DEFAULT 0,
+  question TEXT NOT NULL,
+  question_en TEXT,
+  question_es TEXT,
+  field VARCHAR(100) NOT NULL,
+  field_type ENUM('text','choice','email','phone','number') DEFAULT 'text',
+  choices JSON,
+  required TINYINT(1) DEFAULT 1,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_onboarding (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  step_key VARCHAR(100) NOT NULL,
+  answer TEXT,
+  answered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_onboarding_user_step (user_id, step_key),
+  KEY idx_onboarding_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
 async function initDatabase() {
@@ -120,7 +296,13 @@ async function initDatabase() {
   for (const stmt of statements) {
     await pool.execute(stmt);
   }
-  console.log('Database schema initialized');
+
+  try { await pool.execute("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD COLUMN persona_id VARCHAR(60) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE sessions ADD COLUMN persona_id VARCHAR(60) DEFAULT NULL"); } catch {}
+  try { await pool.execute('CREATE INDEX idx_users_role ON users (role)'); } catch {}
+
+  console.log('Database schema initialized (with migrations)');
 }
 
 module.exports = { pool, initDatabase };

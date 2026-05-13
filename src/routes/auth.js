@@ -1,6 +1,6 @@
 const express = require('express');
-const { generateToken, authMiddleware } = require('../auth');
-const { register, login, getUser, updateUser, findOrCreateFromGoogle } = require('../auth/index');
+const { generateToken, authMiddleware, getUser, updateUser, findOrCreateFromGoogle } = require('../auth');
+const { register, login } = require('../auth/index');
 
 const router = express.Router();
 
@@ -18,7 +18,7 @@ router.post('/register', async (req, res) => {
     const user = await register(email, password, name);
     const token = generateToken(user);
 
-    res.json({ user, token });
+    res.json({ user: { id: user.id, email: user.email, name: user.name, role: 'user' }, token });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -32,10 +32,12 @@ router.post('/login', async (req, res) => {
       return res.status(400).json({ error: 'Email e senha são obrigatórios' });
     }
 
-    const user = await login(email, password);
-    const token = generateToken(user);
+    const { id, email: userEmail, name } = await login(email, password);
+    const { getUserWithRole } = require('../auth');
+    const fullUser = await getUserWithRole(id);
+    const token = generateToken(fullUser);
 
-    res.json({ user, token });
+    res.json({ user: { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, avatar: fullUser.avatar }, token });
   } catch (err) {
     res.status(401).json({ error: err.message });
   }
@@ -56,10 +58,12 @@ router.post('/google', async (req, res) => {
       avatar: avatar || null,
     });
 
-    const token = generateToken({ id: user.id, email: user.email });
+    const { getUserWithRole } = require('../auth');
+    const fullUser = await getUserWithRole(user.id);
+    const token = generateToken(fullUser);
 
     res.json({
-      user: { id: user.id, email: user.email, name: user.name, avatar: user.avatar },
+      user: { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, avatar: fullUser.avatar },
       token,
     });
   } catch (err) {
@@ -69,7 +73,8 @@ router.post('/google', async (req, res) => {
 });
 
 router.get('/me', authMiddleware, async (req, res) => {
-  const user = await getUser(req.userId);
+  const { getUserWithRole } = require('../auth');
+  const user = await getUserWithRole(req.userId);
   if (!user) {
     return res.status(404).json({ error: 'Usuário não encontrado' });
   }

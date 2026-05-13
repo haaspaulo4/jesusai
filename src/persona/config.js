@@ -458,7 +458,7 @@ function buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, use
   const identity = persona.identity[lang] || persona.identity['pt-BR'];
   let prompt = `CRITICAL: You MUST respond in the SAME LANGUAGE the person is using. If they write in English, respond in English. If they write in Portuguese, respond in Portuguese. If they write in Spanish, respond in Spanish. NEVER output Chinese characters. This is an absolute rule.\n\n${identity.core}\n\n${identity.rules}`;
 
-  const source = require('./knowledge/config').getPrimarySource();
+  const source = require('../knowledge/config').getPrimarySource();
   if (contextStr && source) {
     const contextBlock = (source.contextTemplate && source.contextTemplate[lang])
       || source.contextTemplate?.['pt-BR']

@@ -307,6 +307,7 @@ async function generateAudioBuffer(text, options = {}) {
 
   const buffers = [];
   let fellBack = false;
+  let fallbackEngine = null;
 
   for (const chunk of chunks) {
     if (!fellBack) {
@@ -320,7 +321,12 @@ async function generateAudioBuffer(text, options = {}) {
       } catch {}
     }
 
-    fellBack = true;
+    if (!fellBack) {
+      fellBack = true;
+      fallbackEngine = 'edge';
+      console.warn(`[TTS] Primary engine failed, falling back to Edge TTS for remaining chunks`);
+    }
+
     try {
       const buf = await generateEdgeTTSBuffer(chunk, { ...options, lang: ttsLang });
       if (buf && buf.length > 0) {
@@ -331,6 +337,35 @@ async function generateAudioBuffer(text, options = {}) {
   }
 
   if (buffers.length === 0) return null;
+
+  if (buffers.length === 1) {
+    buffers[0].contentType = fellBack ? 'audio/mp3' : contentType;
+    return buffers[0];
+  }
+
+  const mixedFormats = buffers.some(b => b.contentType === 'audio/wav') && buffers.some(b => b.contentType === 'audio/mp3');
+  if (mixedFormats) {
+    console.warn('[TTS] Mixed audio formats detected, regenerating all chunks with Edge TTS for consistency');
+    const fallbackBuffers = [];
+    for (const chunk of chunks) {
+      try {
+        const buf = await generateEdgeTTSBuffer(chunk, { ...options, lang: ttsLang });
+        if (buf && buf.length > 0) {
+          buf.contentType = 'audio/mp3';
+          fallbackBuffers.push(buf);
+        }
+      } catch {}
+    }
+    if (fallbackBuffers.length === 0) return null;
+    if (fallbackBuffers.length === 1) {
+      fallbackBuffers[0].contentType = 'audio/mp3';
+      return fallbackBuffers[0];
+    }
+    const result = Buffer.concat(fallbackBuffers);
+    result.contentType = 'audio/mp3';
+    return result;
+  }
+
   const result = Buffer.concat(buffers);
   result.contentType = fellBack ? 'audio/mp3' : contentType;
   return result;

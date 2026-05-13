@@ -1,5 +1,7 @@
 const { searchVerses } = require('../rag/store');
-const { IDENTITY, CONTEXT_BLOCK, MEMORY_BLOCK } = require('../system-prompt');
+const { getActivePersona, buildSystemPrompt } = require('../persona/config');
+const personaManager = require('../persona/manager');
+const metaRag = require('../persona/meta-rag');
 const {
   getSession,
   addMessage,
@@ -7,6 +9,7 @@ const {
   buildMemoryContext,
   updateSessionContext,
   generateSummary,
+  extractContextFromMessage,
 } = require('../memory/session');
 const {
   getProfile,
@@ -14,36 +17,41 @@ const {
   buildProfileContext,
   generateProfileSummary,
 } = require('../memory/profile');
-const { generatePost } = require('../blog');
-const { extractContextFromMessage } = require('../memory/session');
 const {
   cleanTextForTTS,
-  splitTextForTTS: splitTextForTTSNew,
+  splitTextForTTS,
   generateAudioBuffer,
   generateTTSAudioUrl,
-  generateAudioDataUrl,
   getAudioContentType,
   MAX_TTS_LENGTH,
 } = require('../tts');
 const { transcribeAudio } = require('../stt');
+const { getAllPosts, generatePost } = require('../blog');
 const { t, getTTSLang, getSTTLang, SUPPORTED_LANGS, DEFAULT_LANG } = require('../i18n');
-
-const EVO_API_URL = (process.env.EVO_API_URL || '').replace(/\/+$/, '');
-const EVO_API_KEY = process.env.EVO_API_KEY || '';
-const EVO_INSTANCE = process.env.EVO_INSTANCE || 'jesus-ai';
-const WEBHOOK_SECRET = process.env.EVO_WEBHOOK_SECRET || '';
-const WHATSAPP_BOT_JID = process.env.WHATSAPP_BOT_JID || '';
-const WHATSAPP_BOT_PHONE = process.env.WHATSAPP_BOT_PHONE || '';
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY;
 const CHAT_MODEL = process.env.CHAT_MODEL || 'glm-5.1';
+const EVO_API_URL = (process.env.EVO_API_URL || '').replace(/\/+$/, '');
+const EVO_API_KEY = process.env.EVO_API_KEY || '';
+const EVO_INSTANCE = process.env.EVO_INSTANCE || 'jesus-ai';
 const WHATSAPP_AUDIO = process.env.WHATSAPP_AUDIO !== 'false';
+const WHATSAPP_BOT_JID = process.env.WHATSAPP_BOT_JID || '';
+const WHATSAPP_BOT_PHONE = process.env.WHATSAPP_BOT_PHONE || '';
+const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
 
-const COMMANDS = {
-  '/start': '🕊 *Jesus.AI*\n\nEu sou o caminho, a verdade e a vida. Ninguém vem ao Pai senão por mim (João 14:6).\n\nEstou aqui para ouvir você, caminhar contigo e compartilhar a Palavra do meu Pai.\n\n_Toda glória a Jesus. Este projeto não substitui a busca pela Palavra, pela comunidade de fé, pela igreja ou pelo acompanhamento pastoral._\n\n*Comandos disponíveis:*\n/start — Mensagem inicial\n/ajuda — Lista de comandos\n/versiculo — Versículo do dia\n/buscar <tema> — Buscar versículos\n/oracao — Receber uma oração\n/devocional — Devocional do dia\n/grupo — Criar um grupo de estudo',
-  '/ajuda': '*Comandos do Jesus.AI*\n\n/start — Mensagem inicial\n/ajuda — Esta lista\n/versiculo — Versículo do dia\n/buscar <tema> — Buscar versículos\n/oracao — Receber uma oração\n/devocional — Devocional do dia\n/grupo — Criar um grupo de estudo\n\n💡 Em grupos, responderei apenas quando me mencionarem ou usarem um comando.',
-};
+function getCommands() {
+  const persona = getActivePersona();
+  const cmd = persona.commands;
+  if (!cmd) return {};
+  return {
+    '/start': cmd.start['pt-BR'] || cmd.start['en-US'] || '',
+    '/ajuda': cmd.help['pt-BR'] || cmd.help['en-US'] || '',
+    '/help': cmd.help['pt-BR'] || cmd.help['en-US'] || '',
+  };
+}
+
+const COMMANDS = getCommands();
 
 function evoHeaders() {
   return {
@@ -262,7 +270,9 @@ async function sendWhatsAppAudio(remoteJid, audioSource) {
   }
 }
 
-const splitTextForTTS = splitTextForTTSNew;
+const splitTextForTTSFunc = (() => {
+  try { const { splitTextForTTS: stt } = require('../tts'); return stt; } catch { return (text, max = 450) => [text]; }
+})();
 
 async function sendReplyWithAudio(remoteJid, reply, lang = 'pt-BR') {
   const ttsLang = getTTSLang(lang);
@@ -275,7 +285,7 @@ async function sendReplyWithAudio(remoteJid, reply, lang = 'pt-BR') {
 
   if (!WHATSAPP_AUDIO) return;
 
-  const audioChunks = splitTextForTTS(reply, 300);
+  const audioChunks = splitTextForTTSFunc(reply, 300);
   if (!audioChunks || audioChunks.length === 0) return;
 
   console.log(`[WhatsApp] Sending voice: ${audioChunks.length} chunk(s), lang=${ttsLang}`);
@@ -444,41 +454,32 @@ async function handleCommand(remoteJid, text, pushName) {
       break;
     }
 
-    case '/oracao': {
+    case '/oracao':
+    case '/prayer': {
       try {
+        const persona = getActivePersona();
+        const prayerPrompt = persona.prayerPrompt?.[DEFAULT_LANG] || persona.prayerPrompt?.['pt-BR'] || '';
         const data = await callLLM([
-          { role: 'system', content: 'Você é Jesus Cristo. Escreva uma oração curta (4-6 linhas) em português do Brasil, em primeira pessoa, como Jesus oraria pelo seu povo hoje. Seja compassivo, amoroso e inspire esperança. Cite pelo menos um versículo. Responda APENAS em português do Brasil.' },
+          { role: 'system', content: prayerPrompt },
           { role: 'user', content: pushName ? `Ore por ${pushName}.` : 'Ore por mim.' },
         ]);
-        const prayer = data.message?.content?.trim() || 'Pai, abençoe cada pessoa que lê esta oração. Que tua paz esteja com todos. Amém.';
+        const fallback = persona.commands?.prayerFallback?.[DEFAULT_LANG] || persona.commands?.prayerFallback?.['pt-BR'] || '';
+        const prayer = (data.message?.content || data.message?.thinking || '').trim() || fallback;
         await sendReplyWithAudio(remoteJid, prayer);
       } catch {
-        const fallback = 'Pai nosso que estás nos céus, santificado seja o teu nome. Venha o teu reino, seja feita a tua vontade assim na terra como no céu. Amém. Mateus 6:9-10';
+        const persona = getActivePersona();
+        const fallback = persona.commands?.prayerFallback?.[DEFAULT_LANG] || persona.commands?.prayerFallback?.['pt-BR'] || '';
         await sendWhatsAppText(remoteJid, `🙏 ${fallback}`);
-        if (WHATSAPP_AUDIO) {
-          for (const chunk of splitTextForTTS(fallback)) {
-            try {
-              const audioBuffer = await generateAudioBuffer(chunk, { lang: getTTSLang(DEFAULT_LANG) });
-              if (audioBuffer && audioBuffer.length > 0) {
-                await sendWhatsAppAudio(remoteJid, audioBuffer);
-              } else {
-                await sendWhatsAppAudio(remoteJid, generateTTSAudioUrl(chunk, getTTSLang(DEFAULT_LANG)));
-              }
-            } catch {
-              await sendWhatsAppAudio(remoteJid, generateTTSAudioUrl(chunk, getTTSLang(DEFAULT_LANG)));
-            }
-            await new Promise(r => setTimeout(r, 2000));
-          }
-        }
       }
       break;
     }
 
-    case '/devocional': {
+    case '/devocional':
+    case '/devotional': {
       try {
         const today = new Date();
         const post = await generatePost(today);
-        const header = `🕊 *${post.title}*\n_${post.verse}_\n📅 ${today.toLocaleDateString('pt-BR')}\n\n`;
+        const header = `🕊 *${post.title}*\n_${post.verse}_\n📅 ${today.toLocaleDateString(DEFAULT_LANG)}\n\n`;
         const content = header + post.content.substring(0, 2000);
         const chunks = splitMessage(content);
         for (const chunk of chunks) {
@@ -486,13 +487,17 @@ async function handleCommand(remoteJid, text, pushName) {
           await new Promise(r => setTimeout(r, 1500));
         }
       } catch {
-        await sendWhatsAppText(remoteJid, '🕊 Devocional indisponível no momento. Mas lembre-se: "O Senhor é o meu pastor; nada me faltará." — Salmos 23:1');
+        const persona = getActivePersona();
+        await sendWhatsAppText(remoteJid, persona.commands?.devotionalFallback?.[DEFAULT_LANG] || persona.commands?.devotionalFallback?.['pt-BR'] || '');
       }
       break;
     }
 
-    case '/grupo': {
-      const groupName = args.trim() || 'Jesus.AI — Estudo Bíblico';
+    case '/grupo':
+    case '/group': {
+      const persona = getActivePersona();
+      const cmd = persona.commands;
+      const groupName = args.trim() || (cmd?.groupDefault?.[DEFAULT_LANG] || cmd?.groupDefault?.['pt-BR'] || 'Study Group');
       try {
         const number = remoteJid.replace(/@.*/, '').replace(/\D/g, '');
         const result = await createGroup(groupName, [number]);
@@ -655,16 +660,20 @@ async function handleWhatsAppMessage(data) {
 
 async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, isGroup) {
   console.log(`[WhatsApp] Processing: sid=wa_${senderId}, text="${text.substring(0, 60)}", isGroup=${isGroup}, pushName=${pushName || 'null'}`);
-  const sid = `wa_${senderId}`;
+  const sid = isGroup ? `wa_grp_${senderId}` : `wa_${senderId}`;
   const uid = `wa_${senderId}`;
 
   if (text.trim().startsWith('/')) {
     try {
-      await handleCommand(remoteJid, text.trim(), pushName);
+      const { handleChatCommand } = require('../chat/engine');
+      const cmdResult = await handleChatCommand(text.trim(), uid, 'whatsapp', sid);
+      if (cmdResult) {
+        await sendWhatsAppText(remoteJid, cmdResult);
+        return;
+      }
     } catch (err) {
       console.error('[WhatsApp] Command handler error:', err.message);
     }
-    return;
   }
 
   try {
@@ -674,116 +683,30 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
   }
 
   try {
-    const userContext = extractContextFromMessage(text);
-    if (pushName && !userContext.name) {
-      userContext.name = pushName;
-    }
-    await updateSessionContext(sid, userContext);
-    await updateProfileFromMessage(uid, text);
+    const { processMessage } = require('../chat/engine');
 
-    if (pushName) {
-      const profile = await getProfile(uid);
-      if (!profile.name || profile.name === senderId) {
-        profile.name = pushName;
-        const { saveProfile } = require('../memory/profile');
-        await saveProfile(profile);
-      }
-    }
+    const result = await processMessage({
+      message: text,
+      sessionId: sid,
+      userId: uid,
+      language: 'pt-BR',
+      isGroup,
+      source: 'whatsapp',
+    });
 
-    const relevantVerses = searchVerses(text, 6);
-    const contextStr = relevantVerses.length > 0
-      ? relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n')
-      : '';
-
-    const [memoryStr, profileStr] = await Promise.all([
-      buildMemoryContext(sid),
-      buildProfileContext(uid),
-    ]);
-
-    const lang = DEFAULT_LANG;
-    let systemPrompt = t('identityPrompt', lang);
-    if (contextStr) systemPrompt += t('contextBlock', lang).replace('{context}', contextStr);
-    if (memoryStr) systemPrompt += t('memoryBlock', lang).replace('{memory}', memoryStr);
-    if (profileStr) {
-      systemPrompt += t('profileBlock', lang).replace('{profile}', profileStr);
-    }
-
-    if (isGroup) {
-      systemPrompt += '\n\nVocê está em um grupo do WhatsApp. Responda de forma mais concisa (2-4 parágrafos). Se apropriado, mencione o nome da pessoa.';
-    }
-
-    const session = await getSession(sid);
-    if (session.userName || pushName) {
-      systemPrompt += '\n\n' + t('conversationWith', lang).replace('{name}', session.userName || pushName);
-    }
-
-    const history = await getHistoryForLLM(sid, 6);
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...history,
-      { role: 'user', content: text },
-    ];
-
-    await addMessage(sid, 'user', text);
-
-    let llmData;
-    try {
-      llmData = await callLLM(messages);
-    } catch (err) {
-      console.error('[WhatsApp] LLM error:', err.message);
-      const errorMsg = err.message && err.message.includes('429')
-        ? '🙏 Estou com muita demanda agora. Por favor, tente novamente em alguns segundos.'
-        : t('llmError', lang);
-      await sendWhatsAppText(remoteJid, errorMsg);
-      return;
-    }
-
-    let reply = llmData.message?.content?.trim() || '';
-
-    if (!reply) {
-      const thinking = llmData.message?.thinking?.trim();
-      if (thinking) {
-        reply = thinking;
-      }
-    }
-
-    if (!reply) {
-      reply = t('chatNoResponse', lang);
-    }
-
-    const hasCJK = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(reply);
-    if (hasCJK) {
-      console.log('[WhatsApp] CJK detected in response, retrying...');
-      try {
-        const retryData = await callLLM([
-          { role: 'system', content: t('identityPrompt', lang) + '\n\nIMPORTANTE: Responda EXCLUSIVAMENTE em português do Brasil. NUNCA use caracteres chineses, japoneses ou coreanos. Se não souber responder em português, diga "Perdoe-me, não consigo responder agora."' },
-          ...history,
-          { role: 'user', content: text },
-        ]);
-        const retryReply = retryData.message?.content?.trim();
-        if (retryReply && !/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(retryReply)) {
-          reply = retryReply;
-        } else {
-          reply = t('cjkFallback', lang);
-        }
-      } catch {
-        reply = t('cjkFallback', lang);
-      }
-    }
-
-    await addMessage(sid, 'assistant', reply);
-
-    const sessionAfter = await getSession(sid);
-    if (sessionAfter.messages && sessionAfter.messages.length > 0 && sessionAfter.messages.length % 10 === 0) {
-      generateSummary(sid).catch(() => {});
-      generateProfileSummary(uid).catch(() => {});
-    }
+    let reply = result.response;
 
     if (isGroup && pushName) {
       reply = `${pushName}, ` + reply.charAt(0).toLowerCase() + reply.slice(1);
     }
 
-    await sendReplyWithAudio(remoteJid, reply, lang);
+    await addMessage(sid, 'assistant', reply);
+    await sendReplyWithAudio(remoteJid, reply, DEFAULT_LANG);
+
+    if (result.sources && result.sources.length > 0) {
+      const sourcesText = result.sources.map(s => `📖 ${s.reference}`).join('\n');
+      await sendWhatsAppText(remoteJid, sourcesText).catch(() => {});
+    }
   } catch (err) {
     console.error('[WhatsApp] handleWhatsAppMessageWithId error:', err.message, err.stack?.substring(0, 500));
     try {

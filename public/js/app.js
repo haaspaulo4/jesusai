@@ -383,62 +383,50 @@ chatForm.addEventListener('submit', async (e) => {
       body: JSON.stringify({ message, sessionId, userId: currentUserId, language: currentLang }),
     });
 
+    if (response.status === 403) {
+      removeTyping(contentEl);
+      contentEl.innerHTML = `<p>⛔ Conta suspensa. Entre em contato com o suporte.</p>`;
+      isStreaming = false;
+      return;
+    }
+
+    if (response.status === 429) {
+      const data = await response.json().catch(() => ({}));
+      removeTyping(contentEl);
+      contentEl.innerHTML = `<p>⏳ ${escapeHtml(data.error || 'Limite de mensagens atingido. Tente novamente mais tarde.')}</p>`;
+      isStreaming = false;
+      return;
+    }
+
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
 
+    const data = await response.json();
     removeTyping(contentEl);
-    let fullText = '';
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+    const fullText = data.response || '';
+    contentEl.innerHTML = formatText(fullText);
+    scrollToBottom();
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      buffer += decoder.decode(value, { stream: true });
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue;
-        const data = line.slice(6).trim();
-        if (!data) continue;
-
-        try {
-          const parsed = JSON.parse(data);
-
-          if (parsed.content) {
-            fullText += parsed.content;
-            contentEl.innerHTML = formatText(fullText);
-            scrollToBottom();
-          }
-
-          if (parsed.done) {
-            if (parsed.sources && parsed.sources.length > 0) {
-              showSources(parsed.sources);
-            }
-            if (parsed.sessionId) {
-              sessionId = parsed.sessionId;
-              localStorage.setItem('jesus_ai_session_id', sessionId);
-            }
-            chatHistory.push({ role: 'assistant', content: fullText });
-
-            addTTSButton(botMsgEl, fullText);
-
-            loadConversations();
-          }
-
-          if (parsed.error) {
-            contentEl.innerHTML = `<p>Perdoe-me, irmão. Houve uma dificuldade: ${escapeHtml(parsed.error)}</p>`;
-          }
-        } catch {}
-      }
+    if (data.sessionId) {
+      sessionId = data.sessionId;
+      localStorage.setItem('jesus_ai_session_id', sessionId);
     }
 
-    if (!fullText) {
-      contentEl.innerHTML = `<p>Não foi possível gerar uma resposta agora. Tente novamente em breve.</p>`;
+    chatHistory.push({ role: 'assistant', content: fullText });
+
+    if (data.sources && data.sources.length > 0) {
+      showSources(data.sources);
     }
+
+    if (data.personaName) {
+      const personaEl = document.createElement('div');
+      personaEl.className = 'persona-badge';
+      personaEl.textContent = `🎭 ${data.personaName}`;
+      contentEl.appendChild(personaEl);
+    }
+
+    addTTSButton(botMsgEl, fullText);
+    loadConversations();
   } catch (err) {
     removeTyping(contentEl);
     console.error('Chat error:', err);

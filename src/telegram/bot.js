@@ -1,6 +1,7 @@
 const { searchVerses } = require('../rag/store');
-const { IDENTITY, CONTEXT_BLOCK, MEMORY_BLOCK } = require('../system-prompt');
-const { getActivePersona } = require('../persona/config');
+const { getActivePersona, buildSystemPrompt } = require('../persona/config');
+const personaManager = require('../persona/manager');
+const metaRag = require('../persona/meta-rag');
 const {
   getSession,
   addMessage,
@@ -215,21 +216,9 @@ async function handleTelegramMessage(bot, msg) {
     const contextStr = relevantVerses.length > 0 ? relevantVerses.map((v) => `${v.reference}: "${v.text}"`).join('\n') : '';
     const [memoryStr, profileStr] = await Promise.all([buildMemoryContext(sid), buildProfileContext(uid)]);
 
-    let systemPrompt = t('identityPrompt', lang);
-    if (contextStr) systemPrompt += t('contextBlock', lang).replace('{context}', contextStr);
-    if (memoryStr) systemPrompt += t('memoryBlock', lang).replace('{memory}', memoryStr);
-    if (profileStr) {
-      systemPrompt += t('profileBlock', lang).replace('{profile}', profileStr);
-    }
-
-    if (isGroup) {
-      systemPrompt += '\n\nVocê está em um grupo do Telegram. Responda de forma mais concisa (2-4 parágrafos). Se apropriado, mencione o nome da pessoa.';
-    }
-
-    const session = await getSession(sid);
-    if (session.userName || userName) {
-      systemPrompt += '\n\n' + t('conversationWith', lang).replace('{name}', session.userName || userName);
-    }
+    const persona = getActivePersona();
+    const userNameFinal = userName || (await getSession(sid)).userName || null;
+    let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, userNameFinal, isGroup);
 
     const history = await getHistoryForLLM(sid, 6);
     const messages = [
@@ -242,7 +231,7 @@ async function handleTelegramMessage(bot, msg) {
 
     const response = await callLLM(messages);
     const data = await response.json();
-    let reply = data.message?.content?.trim() || 'Perdoe-me, não consegui responder agora. Tente novamente.';
+    let reply = (data.message?.content || data.message?.thinking || '').trim() || 'Perdoe-me, não consegui responder agora. Tente novamente.';
 
     if (/[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(reply)) {
       console.warn('Telegram: CJK detected in response, using fallback');
@@ -358,7 +347,7 @@ ${escapeMarkdown(verse.text)}`, { parse_mode: 'Markdown' });
         const response = await callLLM(messages);
         const data = await response.json();
         const fallback = cmd.prayerFallback[lang] || cmd.prayerFallback['pt-BR'];
-        const prayer = data.message?.content?.trim() || fallback;
+        const prayer = (data.message?.content || data.message?.thinking || '').trim() || fallback;
         await sendLongMessage(bot, chatId, prayer);
         await sendTelegramVoice(bot, chatId, prayer, getTTSLang(lang));
       } catch {

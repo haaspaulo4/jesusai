@@ -1,13 +1,10 @@
 require('dotenv').config();
 const express = require('express');
-const { searchVerses } = require('../rag/store');
-const { IDENTITY, CONTEXT_BLOCK, MEMORY_BLOCK } = require('../system-prompt');
 const {
   getSession,
   addMessage,
   getHistoryForLLM,
   buildMemoryContext,
-  extractContextFromMessage,
   updateSessionContext,
   generateSummary,
   saveSession,
@@ -16,10 +13,8 @@ const {
 } = require('../memory/session');
 const {
   getProfile,
-  saveProfile,
   updateProfileFromMessage,
   buildProfileContext,
-  generateProfileSummary,
 } = require('../memory/profile');
 const { authMiddleware, getUser } = require('../auth');
 const { pool } = require('../db');
@@ -27,119 +22,16 @@ const multer = require('multer');
 const { transcribeAudio } = require('../stt');
 const { t, getTranslations, getTTSLang, getSTTLang, SUPPORTED_LANGS, DEFAULT_LANG } = require('../i18n');
 const { generateAudioBuffer, getAudioContentType } = require('../tts');
+const surveyEngine = require('../survey');
+const personaManager = require('../persona/manager');
+const metaRag = require('../persona/meta-rag');
+const chatEngine = require('../chat/engine');
 
 const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } });
-
 const router = express.Router();
-
-const DEFAULT_OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
-const DEFAULT_OLLAMA_API_KEY = process.env.OLLAMA_API_KEY;
-const CHAT_MODEL = process.env.CHAT_MODEL || 'glm-5.1';
 const PIX_KEY = process.env.PIX_KEY || '';
 const PIX_TYPE = process.env.PIX_TYPE || 'email';
 const STRIPE_URL = process.env.STRIPE_URL || '';
-
-async function getUserApiKey(userId) {
-  const user = await getUser(userId);
-  return user?.ollamaApiKey || null;
-}
-
-function getApiConfig(userId) {
-  const userKey = null;
-  if (userKey) {
-    return { baseUrl: DEFAULT_OLLAMA_BASE_URL, apiKey: userKey };
-  }
-  return { baseUrl: DEFAULT_OLLAMA_BASE_URL, apiKey: DEFAULT_OLLAMA_API_KEY };
-}
-
-async function ollamaChatStream(messages, userId) {
-  let apiKey = DEFAULT_OLLAMA_API_KEY;
-  if (userId) {
-    const key = await getUserApiKey(userId);
-    if (key) apiKey = key;
-  }
-
-  const maxRetries = 2;
-  let lastError = null;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-
-      const response = await fetch(`${DEFAULT_OLLAMA_BASE_URL}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(apiKey ? { Authorization: `Bearer ${apiKey}` } : {}),
-        },
-        body: JSON.stringify({
-          model: CHAT_MODEL,
-          messages,
-          stream: true,
-          options: { temperature: 0.7, num_predict: 4096 },
-        }),
-        signal: controller.signal,
-      });
-
-      clearTimeout(timeout);
-
-      if (!response.ok) {
-        const errText = await response.text();
-        lastError = new Error(`API error ${response.status}: ${errText}`);
-        if (response.status >= 500 && attempt < maxRetries) {
-          console.warn(`Attempt ${attempt + 1} failed, retrying...`, lastError.message);
-          await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-          continue;
-        }
-        throw lastError;
-      }
-
-      return response;
-    } catch (err) {
-      lastError = err;
-      if (err.name === 'AbortError') {
-        lastError = new Error('Tempo esgotado. O servidor demorou muito para responder.');
-      }
-      if (attempt < maxRetries) {
-        console.warn(`Attempt ${attempt + 1} failed, retrying...`, err.message);
-        await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-        continue;
-      }
-    }
-  }
-  throw lastError;
-}
-
-async function* parseOllamaStream(response) {
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = '';
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() || '';
-
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-
-      try {
-        const data = JSON.parse(trimmed);
-        if (data.done) return;
-        if (data.message && data.message.content) {
-          yield data.message.content;
-        }
-      } catch {
-        continue;
-      }
-    }
-  }
-}
 
 router.post('/stt', upload.single('audio'), async (req, res) => {
   try {
@@ -177,107 +69,35 @@ router.post('/chat', async (req, res) => {
   const sid = sessionId || 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
 
   try {
-    await updateProfileFromMessage(uid, message);
+    const result = await chatEngine.processMessage({
+      message,
+      sessionId: sid,
+      userId: uid,
+      language: lang,
+      isGroup: false,
+      source: 'web',
+    });
 
-    const userContext = extractContextFromMessage(message);
-    await updateSessionContext(sid, userContext);
-
-    const relevantVerses = searchVerses(message, 8);
-
-    const contextStr = relevantVerses
-      .map(v => `${v.reference}: "${v.text}"`)
-      .join('\n');
-
-    const memoryStr = await buildMemoryContext(sid);
-    const profileStr = await buildProfileContext(uid);
-
-    let systemPrompt = t('identityPrompt', lang);
-
-    if (contextStr) {
-      systemPrompt += t('contextBlock', lang).replace('{context}', contextStr);
+    if (result.banned) {
+      return res.status(403).json({ error: 'Conta suspensa. Entre em contato com o suporte.', banned: true });
+    }
+    if (result.rateLimited) {
+      return res.status(429).json({ error: result.response, rateLimited: true, limit: result.rateLimit?.limit, resetIn: result.rateLimit?.resetIn });
     }
 
-    if (memoryStr) {
-      systemPrompt += t('memoryBlock', lang).replace('{memory}', memoryStr);
-    }
-
-    if (profileStr) {
-      systemPrompt += t('profileBlock', lang).replace('{profile}', profileStr);
-    }
-
-    const session = await getSession(sid);
-    const userName = session.userName || session.userContext?.name;
-
-    if (userName) {
-      systemPrompt += '\n\n' + t('conversationWith', lang).replace('{name}', userName);
-    }
-
-    const history = await getHistoryForLLM(sid, 10);
-
-    const messages = [
-      { role: 'system', content: systemPrompt },
-      ...history,
-      { role: 'user', content: message },
-    ];
-
-    await addMessage(sid, 'user', message);
-
-    if (uid && userId) {
-      session.userId = uid;
-      await saveSession(session);
-    }
-
-    res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
-    res.setHeader('Connection', 'keep-alive');
-    res.setHeader('X-Session-Id', sid);
-
-    const ollamaResponse = await ollamaChatStream(messages, uid);
-
-    let fullResponse = '';
-    for await (const chunk of parseOllamaStream(ollamaResponse)) {
-      fullResponse += chunk;
-      res.write(`data: ${JSON.stringify({ content: chunk })}\n\n`);
-    }
-
-    const hasCJK = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(fullResponse);
-    if (hasCJK) {
-      console.warn('Response contains CJK characters, discarding');
-      fullResponse = t('cjkFallback', lang);
-      res.write(`data: ${JSON.stringify({ content: '\n' + fullResponse })}\n\n`);
-    }
-
-    await addMessage(sid, 'assistant', fullResponse);
-
-    const updatedSession = await getSession(sid);
-    if (updatedSession.messages.length % 10 === 0) {
-      generateSummary(sid).catch(() => {});
-    }
-
-    updateProfileFromMessage(uid, fullResponse);
-
-    if (updatedSession.messages.length % 15 === 0) {
-      generateProfileSummary(uid).catch(() => {});
-    }
-
-    const sources = relevantVerses.slice(0, 4).map(v => ({
-      reference: v.reference,
-      text: v.text.substring(0, 120) + (v.text.length > 120 ? '...' : ''),
-    }));
-
-    res.write(`data: ${JSON.stringify({ sources, sessionId: sid, language: lang, done: true })}\n\n`);
-    res.end();
+    res.json({
+      response: result.response,
+      sessionId: result.sessionId,
+      sources: result.sources,
+      language: result.language,
+      personaId: result.personaId,
+      personaName: result.personaName,
+    });
   } catch (err) {
     console.error('Chat error:', err);
-    if (!res.headersSent) {
-      res.status(500).json({ error: 'Failed to generate response' });
-    } else {
-      res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
-      res.end();
-    }
+    res.status(500).json({ error: 'Failed to generate response' });
   }
 });
-
 router.get('/sessions', async (req, res) => {
   try {
     const userId = req.query.userId || null;
@@ -352,14 +172,17 @@ router.put('/profile/:userId', async (req, res) => {
 });
 
 router.get('/donate', (req, res) => {
+  const persona = getActivePersona();
+  const lang = SUPPORTED_LANGS.includes(req.query.lang) ? req.query.lang : DEFAULT_LANG;
+  const donateVerse = persona.donateVerse?.[lang] || persona.donateVerse?.['pt-BR'] || '';
   res.json({
     pix: {
       key: PIX_KEY,
       type: PIX_TYPE,
-      name: 'Jesus.AI - Contribuição Voluntária',
+      name: `${persona.name} - Contribuição Voluntária`,
     },
     stripe: STRIPE_URL || null,
-    message: '"Cada um dê conforme decidiu em seu coração, não com tristeza ou por obrigação, pois Deus ama quem dá com alegria." — 2 Coríntios 9:7',
+    message: donateVerse,
   });
 });
 
@@ -455,6 +278,144 @@ router.post('/tts', async (req, res) => {
   } catch (err) {
     console.error('[TTS] Server-side TTS error:', err.message);
     res.status(500).json({ error: 'TTS generation failed' });
+  }
+});
+
+// ========== PERSONAS ==========
+
+router.get('/personas', async (req, res) => {
+  try {
+    const personas = await metaRag.listAvailablePersonas();
+    res.json(personas);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to list personas' });
+  }
+});
+
+router.post('/persona/switch', async (req, res) => {
+  try {
+    const { personaId, sessionId, userId } = req.body;
+    if (!personaId) return res.status(400).json({ error: 'personaId is required' });
+
+    const result = await metaRag.switchPersona(userId || 'user_default', sessionId, personaId);
+    const persona = await personaManager.getPersona(personaId);
+    res.json({
+      ...result,
+      welcomeTitle: persona.welcomeTitle,
+      welcomeBody: persona.welcomeBody,
+    });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/persona/create', authMiddleware, async (req, res) => {
+  try {
+    const { description } = req.body;
+    if (!description) return res.status(400).json({ error: 'description is required' });
+
+    const persona = await metaRag.createPersonaFromDescription(description, req.userId);
+    res.json(persona);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/persona/current', async (req, res) => {
+  try {
+    const { sessionId, userId } = req.query;
+    const persona = await require('../chat/engine').getPersonaForContext(sessionId, userId);
+    res.json({
+      id: persona.id,
+      name: persona.name,
+      nameEn: persona.nameEn || persona.name,
+      nameEs: persona.nameEs || persona.name,
+      ttsVoice: persona.ttsVoice,
+      ttsLang: persona.ttsLang,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get current persona' });
+  }
+});
+
+// ========== RATINGS ==========
+
+router.post('/rating', async (req, res) => {
+  try {
+    const { userId, sessionId, messageId, rating, feedback, category, source } = req.body;
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
+    }
+
+    await surveyEngine.createRating({
+      userId: userId || 'anonymous',
+      sessionId,
+      messageId,
+      rating,
+      feedback,
+      category: category || 'general',
+      source: source || 'web',
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to save rating' });
+  }
+});
+
+// ========== SURVEYS ==========
+
+router.get('/surveys/active', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    const survey = userId ? await surveyEngine.shouldTriggerSurvey(userId, req.query.sessionId) : null;
+    res.json(survey || null);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to check surveys' });
+  }
+});
+
+router.post('/surveys/:id/respond', async (req, res) => {
+  try {
+    const { userId, sessionId, answers } = req.body;
+    if (!answers) return res.status(400).json({ error: 'answers is required' });
+
+    await surveyEngine.submitSurveyResponse({
+      surveyId: req.params.id,
+      userId: userId || 'anonymous',
+      sessionId,
+      answers,
+    });
+
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to submit survey response' });
+  }
+});
+
+// ========== FOLLOW-UPS ==========
+
+router.get('/followups/pending', async (req, res) => {
+  try {
+    const { userId } = req.query;
+    if (!userId) return res.json([]);
+
+    const followUp = await surveyEngine.shouldTriggerFollowUp(userId, req.query.sessionId);
+    res.json(followUp || null);
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to check follow-ups' });
+  }
+});
+
+router.post('/followups/:id/respond', async (req, res) => {
+  try {
+    const { response } = req.body;
+    if (!response) return res.status(400).json({ error: 'response is required' });
+
+    await surveyEngine.respondFollowUp(parseInt(req.params.id), response);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to respond to follow-up' });
   }
 });
 

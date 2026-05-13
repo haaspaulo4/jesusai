@@ -24,6 +24,8 @@ function rowToUser(row) {
     avatar: row.avatar,
     ollamaApiKey: row.ollama_api_key,
     telegramChatId: row.telegram_chat_id,
+    role: row.role || 'user',
+    personaId: row.persona_id || null,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
   };
 }
@@ -98,7 +100,7 @@ async function findOrCreateFromGoogle(googleUser) {
 }
 
 function generateToken(user) {
-  return jwt.sign({ id: user.id, email: user.email }, JWT_SECRET, { expiresIn: '30d' });
+  return jwt.sign({ id: user.id, email: user.email, role: user.role || 'user' }, JWT_SECRET, { expiresIn: '30d' });
 }
 
 function verifyToken(token) {
@@ -152,7 +154,36 @@ function authMiddleware(req, res, next) {
     return res.status(401).json({ error: 'Token inválido' });
   }
   req.userId = decoded.id;
+  req.userRole = decoded.role || 'user';
   next();
+}
+
+async function roleMiddleware(...roles) {
+  return async (req, res, next) => {
+    if (!req.userId) return res.status(401).json({ error: 'Não autorizado' });
+    const userRole = req.userRole;
+    if (!roles.includes(userRole)) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+    next();
+  };
+}
+
+async function getUserRole(userId) {
+  try {
+    const [rows] = await pool.execute('SELECT role FROM users WHERE id = ?', [userId]);
+    return rows.length > 0 ? rows[0].role : 'user';
+  } catch {
+    return 'user';
+  }
+}
+
+async function getUserWithRole(userId) {
+  const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [userId]);
+  if (rows.length === 0) return null;
+  const user = rowToUser(rows[0]);
+  const { password, ...safe } = user;
+  return safe;
 }
 
 module.exports = {
@@ -163,6 +194,16 @@ module.exports = {
   getUser,
   updateUser,
   authMiddleware,
+  roleMiddleware,
+  getUserRole,
+  getUserWithRole,
   findOrCreateFromGoogle,
   getUserByGoogleId,
+  pool,
+  createUser: async function(id, name, role = 'user') {
+    const [existing] = await pool.execute('SELECT id FROM users WHERE id = ?', [id]);
+    if (existing.length > 0) return existing[0].id;
+    await pool.execute('INSERT INTO users (id, email, name, role) VALUES (?, ?, ?, ?)', [id, `${id}@bot`, name || id, role]);
+    return id;
+  },
 };
