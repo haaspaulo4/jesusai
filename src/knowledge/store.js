@@ -190,6 +190,33 @@ function searchVerses(query, topK) {
   return store.search(query, topK);
 }
 
+function searchMultiSource(query, sourceIds, topK) {
+  const { getKnowledgeConfig } = require('./config');
+  if (!sourceIds || sourceIds.length === 0) {
+    return searchVerses(query, topK);
+  }
+
+  const allResults = [];
+  const kPerSource = Math.ceil((topK || 8) / sourceIds.length);
+
+  for (const sourceId of sourceIds) {
+    const config = getKnowledgeConfig(sourceId);
+    if (!config) continue;
+
+    let store = stores.get(sourceId);
+    if (!store) {
+      store = new KnowledgeStore(config);
+      stores.set(sourceId, store);
+    }
+
+    const results = store.search(query, kPerSource);
+    allResults.push(...results.map(r => ({ ...r, sourceId })));
+  }
+
+  allResults.sort((a, b) => (a.distance || 1) - (b.distance || 1));
+  return allResults.slice(0, topK || 8);
+}
+
 function getVerseCount() {
   const store = getStore();
   if (!store) return 0;
@@ -208,11 +235,56 @@ function buildIndex() {
   return store.buildIndex();
 }
 
+function clearStoreCache(sourceId) {
+  if (sourceId) {
+    stores.delete(sourceId);
+  } else {
+    stores.clear();
+  }
+}
+
+function getAllSourceStats() {
+  const { getAllEnabledSources } = require('./config');
+  const sources = getAllEnabledSources();
+  return sources.map(source => {
+    const dataPath = source.dataPath || path.join(KNOWLEDGE_DIR, `${source.id}_documents.json`);
+    const indexPath = source.indexPath || path.join(KNOWLEDGE_DIR, `${source.id}_index.json`);
+    let docCount = 0;
+    let indexExists = false;
+    let dataExists = false;
+
+    try {
+      if (fs.existsSync(dataPath)) {
+        dataExists = true;
+        const data = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+        docCount = data.length;
+      }
+    } catch {}
+
+    try {
+      indexExists = fs.existsSync(indexPath);
+    } catch {}
+
+    return {
+      id: source.id,
+      name: source.name,
+      ingester: source.ingester,
+      enabled: source.enabled,
+      documentCount: docCount,
+      dataExists,
+      indexExists,
+    };
+  });
+}
+
 module.exports = {
   KnowledgeStore,
   getStore,
   searchVerses,
+  searchMultiSource,
   getVerseCount,
   loadVerses,
   buildIndex,
+  clearStoreCache,
+  getAllSourceStats,
 };

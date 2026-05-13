@@ -125,9 +125,11 @@ async function ensureUser(userId, userName, source = 'web') {
   if (rows.length > 0) return userId;
 
   const name = userName || userId.replace(/^(wa_|tg_|user_)/, '');
+  const email = `${userId}@${source}.bot`;
+  const role = 'user';
   await pool.execute(
-    'INSERT INTO users (id, email, name, role) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE name = COALESCE(NULLIF(?, ""), name)',
-    [userId, `${userId}@${source}.bot`, name, name]
+    'INSERT INTO users (id, email, name, role) VALUES (?, ?, ?, ?)',
+    [userId, email, name, role]
   );
   return userId;
 }

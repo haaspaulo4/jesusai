@@ -44,6 +44,8 @@ const DEFAULTS = {
   onboarding_greeting: '',
   onboarding_greeting_en: '',
   onboarding_greeting_es: '',
+  message_chunk_size: '200',
+  audio_chunk_size: '200',
 };
 
 async function loadSettings() {

@@ -454,16 +454,38 @@ function getActivePersona() {
   return getPersona(process.env.PERSONA || 'jesus');
 }
 
-function buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, userName, isGroup) {
-  const identity = persona.identity[lang] || persona.identity['pt-BR'];
-  let prompt = `CRITICAL: You MUST respond in the SAME LANGUAGE the person is using. If they write in English, respond in English. If they write in Portuguese, respond in Portuguese. If they write in Spanish, respond in Spanish. NEVER output Chinese characters. This is an absolute rule.\n\n${identity.core}\n\n${identity.rules}`;
+function buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, userName, isGroup, knowledgeSources) {
+  const identityRaw = persona.identity[lang] || persona.identity['pt-BR'] || persona.identity;
+  const identityIsString = typeof identityRaw === 'string';
+  const identityCore = identityIsString ? identityRaw : (identityRaw.core || '');
+  const identityRules = identityIsString ? '' : (identityRaw.rules || '');
 
-  const source = require('../knowledge/config').getPrimarySource();
-  if (contextStr && source) {
-    const contextBlock = (source.contextTemplate && source.contextTemplate[lang])
-      || source.contextTemplate?.['pt-BR']
-      || persona.identity['pt-BR'].rules;
-    prompt += '\n\n' + contextBlock.replace('{context}', contextStr);
+  let prompt = `CRITICAL: You MUST respond in the SAME LANGUAGE the person is using. If they write in English, respond in English. If they write in Portuguese, respond in Portuguese. If they write in Spanish, respond in Spanish. NEVER output Chinese characters. This is an absolute rule.\n\n${identityCore}`;
+  if (identityRules) {
+    prompt += '\n\n' + identityRules;
+  }
+
+  if (contextStr) {
+    const sourcesConfig = require('../knowledge/config').getAllEnabledSources();
+    let contextTemplate = null;
+    if (knowledgeSources && knowledgeSources.length > 0) {
+      const matchingSource = sourcesConfig.find(s => knowledgeSources.includes(s.id));
+      if (matchingSource && matchingSource.contextTemplate) {
+        contextTemplate = matchingSource.contextTemplate[lang] || matchingSource.contextTemplate['pt-BR'];
+      }
+    }
+    if (!contextTemplate) {
+      const primarySource = sourcesConfig[0];
+      if (primarySource && primarySource.contextTemplate) {
+        contextTemplate = primarySource.contextTemplate[lang] || primarySource.contextTemplate['pt-BR'];
+      }
+    }
+    if (!contextTemplate) {
+      const fallbackIdentity = persona.identity['pt-BR'] || persona.identity;
+      const fallbackRules = typeof fallbackIdentity === 'string' ? '' : (fallbackIdentity.rules || '');
+      contextTemplate = fallbackRules || 'CONTEXT:\n{context}';
+    }
+    prompt += '\n\n' + contextTemplate.replace('{context}', contextStr);
   }
 
   if (memoryStr) {

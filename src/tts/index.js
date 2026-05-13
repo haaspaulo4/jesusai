@@ -40,6 +40,16 @@ const KOKORO_VOICE_MAP = {
   alex: 'pm_alex',
 };
 
+const KOKORO_EDGE_VOICE_MAP = {
+  'pm_alex': 'pt-BR-AntonioNeural',
+  'pf_dora': 'pt-BR-FranciscaNeural',
+  'am_adam': 'en-US-GuyNeural',
+  'af_bella': 'en-US-JennyNeural',
+  'am_michael': 'en-US-GuyNeural',
+  'af_nova': 'en-US-AriaNeural',
+  'af_heart': 'pt-BR-ThalitaNeural',
+};
+
 const LANG_VOICES = {
   'pt-BR': { default: 'pt-BR-AntonioNeural', voices: ['pt-BR-AntonioNeural', 'pt-BR-FranciscaNeural', 'pt-BR-ThalitaNeural'] },
   'en-US': { default: 'en-US-GuyNeural', voices: ['en-US-GuyNeural', 'en-US-JennyNeural', 'en-US-AriaNeural'] },
@@ -135,7 +145,12 @@ function generateTTSAudioUrl(text, lang = 'pt-BR') {
 
 async function generateEdgeTTSBuffer(text, options = {}) {
   const langConfig = LANG_VOICES[options.lang] || LANG_VOICES['pt-BR'];
-  let voice = options.voice ? VOICES[options.voice] : null;
+  let voice = null;
+  if (options.kokoroVoice && KOKORO_EDGE_VOICE_MAP[options.kokoroVoice]) {
+    voice = KOKORO_EDGE_VOICE_MAP[options.kokoroVoice];
+  } else if (options.voice) {
+    voice = VOICES[options.voice] || options.voice;
+  }
   if (!voice) {
     if (options.lang && LANG_VOICES[options.lang]) {
       voice = LANG_VOICES[options.lang].default;
@@ -403,6 +418,8 @@ module.exports = {
   generateAudioDataUrl,
   getAudioContentType,
   VOICES,
+  KOKORO_VOICES,
+  KOKORO_VOICE_MAP,
   LANG_VOICES,
   DEFAULT_VOICE,
   DEFAULT_RATE,

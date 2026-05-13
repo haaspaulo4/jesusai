@@ -56,8 +56,7 @@ async function listUsers(opts = {}) {
     params.push(`%${search}%`, `%${search}%`);
   }
 
-  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-  params.push(limit, offset);
+  query += ` ORDER BY created_at DESC LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
 
   const [rows] = await pool.execute(query, params);
 
@@ -170,34 +169,14 @@ async function setSettings(key, value) {
 
 async function getKnowledgeStats() {
   try {
-    const fs = require('fs');
-    const path = require('path');
-
-    const indexFile = path.join(__dirname, '../../data/bible_index.json');
-    const versesFile = path.join(__dirname, '../../data/bible_verses.json');
-
-    let indexSize = 0;
-    let versesSize = 0;
-    let verseCount = 0;
-
-    try {
-      const stat = fs.statSync(indexFile);
-      indexSize = stat.size;
-    } catch {}
-
-    try {
-      const stat = fs.statSync(versesFile);
-      versesSize = stat.size;
-      const data = JSON.parse(fs.readFileSync(versesFile, 'utf8'));
-      verseCount = data.length;
-    } catch {}
-
+    const { getAllSourceStats } = require('../knowledge/store');
+    const sources = getAllSourceStats();
+    let totalDocuments = 0;
+    for (const s of sources) totalDocuments += s.documentCount;
     return {
-      indexSize,
-      versesSize,
-      verseCount,
-      indexExists: fs.existsSync(indexFile),
-      versesExists: fs.existsSync(versesFile),
+      sources,
+      totalDocuments,
+      totalSources: sources.length,
     };
   } catch (err) {
     return { error: err.message };
@@ -205,9 +184,11 @@ async function getKnowledgeStats() {
 }
 
 async function reindexKnowledge() {
-  const { execSync } = require('child_process');
   try {
-    execSync('node scripts/ingest.js', { stdio: 'inherit', cwd: path.join(__dirname, '../..') });
+    const { runIngestion } = require('../knowledge/ingester');
+    const { invalidateCache } = require('../knowledge/config');
+    invalidateCache();
+    await runIngestion();
     return { success: true, message: 'Knowledge reindexed successfully' };
   } catch (err) {
     return { success: false, error: err.message };

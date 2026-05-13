@@ -88,46 +88,95 @@ loadTranslations(currentLang);
 
 // ========== ONBOARDING ==========
 const onboardingOverlay = document.getElementById('onboardingOverlay');
-const onboardingSteps = document.querySelectorAll('.onboarding-step');
-const onboardingDots = document.querySelectorAll('.onboarding-dot');
-let currentOnboardingStep = 0;
+let onboardStepData = null;
+
+async function checkServerOnboarding() {
+  if (!currentUserId || currentUserId === 'user_default') return;
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: '', sessionId: sessionId || generateId(), userId: currentUserId, language: currentLang }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.onboarding) {
+        showOnboardingPrompt(data.response);
+      }
+    }
+  } catch {}
+}
+
+async function submitOnboardingAnswer(answer) {
+  if (!currentUserId) return;
+  try {
+    const res = await fetch('/api/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: answer, sessionId: sessionId || generateId(), userId: currentUserId, language: currentLang }),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.onboardingDone || data.onboarding === false) {
+        localStorage.setItem('jesus_ai_onboarded', 'true');
+        hideOnboarding();
+        return null;
+      }
+      if (data.onboarding) {
+        showOnboardingPrompt(data.response);
+        return data.response;
+      }
+      return null;
+    }
+  } catch {}
+  return null;
+}
+
+function showOnboardingPrompt(question) {
+  if (!onboardingOverlay) return;
+  onboardingOverlay.classList.add('active');
+  const container = onboardingOverlay.querySelector('.onboarding-content') || onboardingOverlay;
+  container.innerHTML = `
+    <div class="onboarding-card">
+      <h2>Bem-vindo!</h2>
+      <p id="onboardingQuestion">${question}</p>
+      <input type="text" id="onboardingAnswerInput" class="input" placeholder="Sua resposta..." autofocus>
+      <div class="onboarding-actions">
+        <button id="onboardingSubmitBtn" class="btn btn-primary">Enviar</button>
+        <button id="onboardingSkipBtn" class="btn">Pular</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('onboardingSubmitBtn').addEventListener('click', async () => {
+    const input = document.getElementById('onboardingAnswerInput');
+    if (input && input.value.trim()) {
+      await submitOnboardingAnswer(input.value.trim());
+    }
+  });
+  document.getElementById('onboardingAnswerInput').addEventListener('keydown', async (e) => {
+    if (e.key === 'Enter') {
+      const input = document.getElementById('onboardingAnswerInput');
+      if (input && input.value.trim()) {
+        await submitOnboardingAnswer(input.value.trim());
+      }
+    }
+  });
+  document.getElementById('onboardingSkipBtn').addEventListener('click', () => {
+    localStorage.setItem('jesus_ai_onboarded', 'true');
+    hideOnboarding();
+  });
+}
+
+function hideOnboarding() {
+  if (onboardingOverlay) onboardingOverlay.classList.remove('active');
+}
 
 function showOnboarding() {
   if (localStorage.getItem('jesus_ai_onboarded')) return;
-  if (onboardingOverlay) {
-    onboardingOverlay.classList.add('active');
-    showOnboardingStep(0);
-  }
+  checkServerOnboarding();
 }
 
-function showOnboardingStep(step) {
-  currentOnboardingStep = step;
-  onboardingSteps.forEach((s, i) => s.classList.toggle('active', i === step));
-  onboardingDots.forEach((d, i) => d.classList.toggle('active', i === step));
-}
-
-function nextOnboarding() {
-  if (currentOnboardingStep < onboardingSteps.length - 1) {
-    showOnboardingStep(currentOnboardingStep + 1);
-  }
-}
-
-function finishOnboarding() {
-  const nameInput = document.getElementById('onboardingName');
-  if (nameInput && nameInput.value.trim()) {
-    profileName.value = nameInput.value.trim();
-    saveProfile();
-  }
-  localStorage.setItem('jesus_ai_onboarded', 'true');
-  onboardingOverlay.classList.remove('active');
-}
-
-function skipOnboarding() {
-  localStorage.setItem('jesus_ai_onboarded', 'true');
-  onboardingOverlay.classList.remove('active');
-}
-
-setTimeout(showOnboarding, 500);
+setTimeout(showOnboarding, 1000);
 
 // ========== HELPERS ==========
 function generateId() {
@@ -407,6 +456,19 @@ chatForm.addEventListener('submit', async (e) => {
     contentEl.innerHTML = formatText(fullText);
     scrollToBottom();
 
+    if (data.onboarding) {
+      const onboardingBadge = document.createElement('div');
+      onboardingBadge.className = 'onboarding-indicator';
+      onboardingBadge.textContent = '📋 Onboarding';
+      onboardingBadge.style.cssText = 'font-size:0.75rem;color:var(--primary);margin-top:4px;';
+      contentEl.appendChild(onboardingBadge);
+    }
+
+    if (data.onboardingDone) {
+      hideOnboarding();
+      localStorage.setItem('jesus_ai_onboarded', 'true');
+    }
+
     if (data.sessionId) {
       sessionId = data.sessionId;
       localStorage.setItem('jesus_ai_session_id', sessionId);
@@ -425,6 +487,10 @@ chatForm.addEventListener('submit', async (e) => {
       contentEl.appendChild(personaEl);
     }
 
+    if (data.ttsVoice) {
+      currentTTSVoice = data.ttsVoice;
+    }
+
     addTTSButton(botMsgEl, fullText);
     loadConversations();
   } catch (err) {
@@ -439,6 +505,7 @@ chatForm.addEventListener('submit', async (e) => {
 
 // ========== TTS ==========
 let currentTTSBtn = null;
+let currentTTSVoice = null;
 
 function addTTSButton(messageEl, text) {
   if (!('speechSynthesis' in window) || !text) return;
@@ -489,6 +556,8 @@ async function speakText(text, btn) {
   currentTTSBtn = btn;
 
   const clean = cleanTextForTTS(text);
+  const maxTtsLength = 200;
+  const ttsText = text.length > maxTtsLength ? text.substring(0, maxTtsLength) : text;
   const langMap = { 'pt-BR': 'pt-BR', 'en-US': 'en-US', 'es-ES': 'es-ES' };
   const ttsLang = langMap[currentLang] || 'pt-BR';
 
@@ -496,7 +565,7 @@ async function speakText(text, btn) {
     const res = await fetch('/api/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, lang: ttsLang }),
+      body: JSON.stringify({ text: ttsText, lang: ttsLang, voice: currentTTSVoice || undefined }),
     });
 
     if (res.ok) {

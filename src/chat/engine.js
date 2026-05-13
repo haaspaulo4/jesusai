@@ -4,7 +4,7 @@ const { extractContent } = require('../llm');
 const { buildSystemPrompt } = require('../persona/config');
 const personaManager = require('../persona/manager');
 const metaRag = require('../persona/meta-rag');
-const { searchVerses } = require('../knowledge/store');
+const { searchVerses, searchMultiSource } = require('../knowledge/store');
 const {
   getSession, addMessage, getHistoryForLLM, buildMemoryContext,
   extractContextFromMessage, updateSessionContext, generateSummary, saveSession,
@@ -43,6 +43,51 @@ async function checkOnboarding(uid, lang) {
     return onboarding.formatOnboardingQuestion(nextStep, lang);
   } catch {
     return null;
+  }
+}
+
+async function processOnboardingAnswer(uid, message, lang) {
+  try {
+    const status = await onboarding.getUserOnboardingStatus(uid);
+    if (!status || !status.nextStep) {
+      return null;
+    }
+
+    const step = status.nextStep;
+    const parsedAnswer = onboarding.parseOnboardingAnswer(step, message);
+    const result = await onboarding.saveOnboardingAnswer(uid, step.step_key, parsedAnswer);
+
+    if (result.done) {
+      return { done: true, message: 'Onboarding completo! Como posso ajudar?' };
+    }
+
+    const nextQuestion = onboarding.formatOnboardingQuestion(result.nextStep, lang);
+    return { done: false, message: nextQuestion };
+  } catch (err) {
+    console.error('[Onboarding] processOnboardingAnswer error:', err.message);
+    return null;
+  }
+}
+
+async function processMessage({ message, sessionId, userId, language, isGroup, source, userName }) {
+  const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
+  const uid = userId || 'user_default';
+  const sid = sessionId || 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+
+  if (uid && uid !== 'user_default' && !isGroup) {
+    try {
+      await onboarding.ensureUser(uid, userName || uid.replace(/^(wa_|tg_|user_)/, ''), source || 'web');
+    } catch {}
+  }
+
+  if (uid && uid !== 'user_default') {
+    const role = await getUserRole(uid);
+    if (role === 'banned') {
+      return { response: 'Conta suspensa. Entre em contato com o suporte.', sessionId: sid, sources: [], language: lang, banned: true };
+    }
+    const rateResult = await checkRateLimit(uid, role);
+    if (!rateResult.allowed) {
+      return { response: `Limite de mensagens atingido (${rateResult.limit}/dia). Tente novamente em ${rateResult.resetIn} minutos.`, sessionId: sid, sources: [], language: lang, rateLimited: true };
     }
   }
 
@@ -74,22 +119,31 @@ async function checkOnboarding(uid, lang) {
   const userContext = extractContextFromMessage(message);
   await updateSessionContext(sid, userContext);
 
+  const persona = await getPersonaForContext(sid, uid);
   const numVerses = parseInt(await getSetting('search_verses_count', '8')) || 8;
-  const relevantVerses = searchVerses(message, numVerses);
+  const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
+    ? persona.knowledgeSources
+    : null;
+  const relevantVerses = personaSources
+    ? searchMultiSource(message, personaSources, numVerses)
+    : searchVerses(message, numVerses);
   const contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
 
   const memoryStr = await buildMemoryContext(sid);
   const profileStr = await buildProfileContext(uid);
 
-  const persona = await getPersonaForContext(sid, uid);
   const session = await getSession(sid);
-  const userName = session.userName || session.userContext?.name;
+  const displayName = userName || session.userName || session.userContext?.name;
 
-  let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, userName, isGroup);
+  let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources);
+
+  console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : 'bible'}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}`);
 
   const toolsEnabled = await getSetting('tools_enabled', 'true') === 'true';
   const historyLimit = parseInt(await getSetting('history_limit', '10')) || 10;
   const history = await getHistoryForLLM(sid, historyLimit);
+
+  console.log(`[ChatEngine] historyLen=${history.length}, firstMsg=${history.length > 0 ? history[0].role + ':' + history[0].content?.substring(0, 50) : 'none'}`);
 
   const messages = [
     { role: 'system', content: systemPrompt },
@@ -186,7 +240,7 @@ async function checkOnboarding(uid, lang) {
 
   surveyEngine.autoCreateFollowUp(uid, sid).catch(() => {});
 
-  const result = {
+  return {
     response: fullResponse,
     sessionId: sid,
     sources,
@@ -194,9 +248,9 @@ async function checkOnboarding(uid, lang) {
     toolCallsUsed: toolRounds > 0 ? toolRounds : 0,
     personaId: persona.id,
     personaName: persona.name,
+    ttsVoice: persona.ttsVoice,
+    ttsLang: persona.ttsLang,
   };
-
-  return result;
 }
 
 async function processMessageStream({ message, sessionId, userId, language, isGroup, source }, onChunk) {
@@ -222,18 +276,23 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   const userContext = extractContextFromMessage(message);
   await updateSessionContext(sid, userContext);
 
+  const persona = await getPersonaForContext(sid, uid);
   const numVerses = parseInt(await getSetting('search_verses_count', '8')) || 8;
-  const relevantVerses = searchVerses(message, numVerses);
+  const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
+    ? persona.knowledgeSources
+    : null;
+  const relevantVerses = personaSources
+    ? searchMultiSource(message, personaSources, numVerses)
+    : searchVerses(message, numVerses);
 
   const contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
   const memoryStr = await buildMemoryContext(sid);
   const profileStr = await buildProfileContext(uid);
 
-  const persona = await getPersonaForContext(sid, uid);
   const session = await getSession(sid);
-  const userName = session.userName || session.userContext?.name;
+  const displayName = (source === 'whatsapp' || source === 'telegram') ? undefined : (session.userName || session.userContext?.name);
 
-  let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, userName, isGroup);
+  let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources);
 
   const historyLimit = parseInt(await getSetting('history_limit', '10')) || 10;
   const history = await getHistoryForLLM(sid, historyLimit);
@@ -302,7 +361,7 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
       text: v.text.substring(0, 120) + (v.text.length > 120 ? '...' : ''),
     }));
 
-    return { response: fullResponse, sessionId: sid, sources, language: lang, personaId: persona.id, personaName: persona.name };
+    return { response: fullResponse, sessionId: sid, sources, language: lang, personaId: persona.id, personaName: persona.name, ttsVoice: persona.ttsVoice, ttsLang: persona.ttsLang };
 
   } catch (err) {
     console.error('[ChatEngine] Stream error:', err.message);
@@ -417,10 +476,11 @@ async function handleChatCommand(text, userId, source, sessionId) {
         }
       }
 
-      const targetPersona = args.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+      const targetPersona = args.trim().toLowerCase();
       try {
         const result = await metaRag.switchPersona(uid, sessionId, targetPersona);
-        return metaRag.formatPersonaSwitchMessage(await personaManager.getPersona(targetPersona), 'pt-BR');
+        const freshPersona = await personaManager.getPersona(targetPersona);
+        return metaRag.formatPersonaSwitchMessage(freshPersona, 'pt-BR');
       } catch (err) {
         return `❌ Persona "${args}" não encontrada. Use /persona para listar.`;
       }
@@ -517,6 +577,22 @@ async function handleChatCommand(text, userId, source, sessionId) {
       const totalKeys = Object.values(integStatus).reduce((acc, v) => acc + (v.total || 0), 0);
       const personas = await personaManager.listPersonas();
       return `👑 Painel Admin:\n• Usuários: ${userCount[0].total}\n• Mensagens: ${msgCount[0].total}\n• Sessões: ${sessionCount[0].total}\n• Personas: ${personas.length}\n• Integrações: ${okCount}/${totalKeys} OK\n\nComandos:\n/persona - Gerenciar personas\n/keys, /addkey - Integrações\n/settings, /set - Config\n/users, /promote, /ban - Usuários\n/survey - Pesquisas\n/ratings - Avaliações\n/health - Saúde`;
+    }
+
+    case '/voice': {
+      const { KOKORO_VOICES: kv } = require('../tts');
+      const voiceList = Object.entries(kv).map(([lang, cfg]) => `  ${lang}: ${cfg.voice}`).join('\n');
+      if (!args) {
+        return `🔊 Voz atual: ${persona.ttsVoice || 'pm_alex'}\n\nVozes Kokoro disponíveis:\n${voiceList}\n\nUse: /voice <nome_da_voz>\nExemplo: /voice pm_alex, /voice pf_dora`;
+      }
+      const newVoice = args.trim();
+      try {
+        await personaManager.createPersona({ id: persona.id, tts_voice: newVoice });
+        personaManager.invalidateCache();
+        return `✅ Voz da persona "${persona.name}" alterada para: ${newVoice}`;
+      } catch (err) {
+        return `❌ Erro: ${err.message}`;
+      }
     }
 
     case '/users': {

@@ -7,6 +7,11 @@ const INGESTERS = {
   bible: require('./sources/bible'),
   json: require('./sources/json'),
   text: require('./sources/text'),
+  pdf: require('./sources/pdf'),
+  docx: require('./sources/docx'),
+  image: require('./sources/image'),
+  audio: require('./sources/audio'),
+  api: require('./sources/api'),
 };
 
 async function runIngestion(sourceConfigs) {
@@ -75,4 +80,60 @@ async function runIngestion(sourceConfigs) {
   }
 }
 
-module.exports = { runIngestion, INGESTERS };
+async function ingestUploadedFile(filePath, sourceId, fileType) {
+  const { getKnowledgeConfig } = require('./config');
+
+  const ingesterMap = {
+    'application/pdf': 'pdf',
+    'pdf': 'pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document': 'docx',
+    'docx': 'docx',
+    'image/png': 'image',
+    'image/jpeg': 'image',
+    'image/jpg': 'image',
+    'image/webp': 'image',
+    'image/tiff': 'image',
+    'image/bmp': 'image',
+    'image': 'image',
+    'audio/mpeg': 'audio',
+    'audio/mp3': 'audio',
+    'audio/wav': 'audio',
+    'audio/ogg': 'audio',
+    'audio/webm': 'audio',
+    'audio/m4a': 'audio',
+    'audio/flac': 'audio',
+    'audio': 'audio',
+    'application/json': 'json',
+    'json': 'json',
+    'text/plain': 'text',
+    'text/markdown': 'text',
+    'text': 'text',
+  };
+
+  const ingesterType = ingesterMap[fileType] || path.extname(filePath).replace('.', '') || 'text';
+  const ingester = INGESTERS[ingesterType];
+
+  if (!ingester) {
+    throw new Error(`Unsupported file type: ${fileType} (resolved to: ${ingesterType})`);
+  }
+
+  const sourceConfig = {
+    filePath,
+    id: sourceId,
+    name: sourceId,
+    chunkSize: 1500,
+    chunkOverlap: 300,
+    searchFields: ['reference', 'text'],
+    contextTemplate: {
+      'pt-BR': 'CONTEXTO ENCONTRADO:\n{context}\n\nUse esta informação como base para sua resposta.',
+      'en-US': 'CONTEXT FOUND:\n{context}\n\nUse this information as the basis for your response.',
+      'es-ES': 'CONTEXTO ENCONTRADO:\n{context}\n\nUsa esta información como base para tu respuesta.',
+    },
+    sourceFormat: (docs) => docs.map(d => `${d.reference}: "${d.text}"`).join('\n'),
+  };
+
+  const documents = await ingester(sourceConfig);
+  return documents;
+}
+
+module.exports = { runIngestion, ingestUploadedFile, INGESTERS };

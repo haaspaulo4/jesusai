@@ -1,8 +1,8 @@
 <div align="center">
 
-# ✝ Jesus.AI
+# ✝ Jesus.AI — Whitelabel AI Platform
 
-**Converse com Jesus. Respostas baseadas na Bíblia Sagrada.**
+**Plataforma whitelabel de assistentes virtuais com RAG multimodal, multi-persona com Meta-RAG, onboarding automático, e gestão completa.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-c9a227.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)](https://nodejs.org/)
@@ -16,136 +16,81 @@
 
 ## O que é?
 
-Jesus.AI é um assistente virtual **open source** onde a IA responde **como Jesus Cristo**, utilizando exclusivamente a Bíblia como fonte de verdade através de **RAG** (Retrieval-Augmented Generation).
+Jesus.AI é uma **plataforma whitelabel** de assistentes virtuais. Serve qualquer nicho — religioso, saúde, educação, negócios, coaching. A persona padrão é Jesus, mas você pode criar qualquer IA com `/persona create <descrição>`.
 
-Mas não é só sobre Bíblia. **A arquitetura é pluggable** — troque o corpus de conhecimento e a persona, e você tem um assistente sobre qualquer tema: filosofia estoica, direito constitucional, medicina, literatura clássica. O conhecimento define o domínio. A persona define o tom.
+Tudo é gerenciável via admin API, chat commands, ou painel web. Personas definem identidade, skills, conhecimento, onboarding, follow-ups, e marca whitelabel.
 
 ### Destaques
 
-- **RAG local com TF-IDF** — Sem ChromaDB, sem Docker, sem embeddings pagos. Funciona offline.
-- **Persona configurável** — Jesus é a persona padrão, mas a arquitetura suporta qualquer personagem.
-- **Corpus plug-and-play** — Bíblia (padrão), livros, PDFs, APIs, documentos de texto. Troque o conhecimento, troque o domínio.
-- **Memória persistente** — Lembra seu nome, temas, emoções. Constrói relacionamento.
-- **3 idiomas** — pt-BR, en-US, es-ES com prompts, TTS e STT adaptados.
-- **3 plataformas** — Web (SSE streaming), Telegram Bot, WhatsApp Bot (Evolution API v2).
-- **Voz nativa pt-BR** — Kokoro TTS (pm_alex, voz masculina natural) com Edge TTS como fallback.
-- **Speech-to-Text** — Groq Whisper (primary) + OpenAI Whisper (fallback).
-- **TTS inteligente** — Fallback automático sem misturar vozes. Content-type correto (WAV/MP3).
-- **Devocional diário** — Blog gerado por LLM com 31 temas rotativos.
-- **Newsletter com double opt-in** — Nodemailer SMTP.
-- **Auth completa** — Email/senha (bcrypt + JWT) + Google OAuth.
-- **100% open source** — Código aberto. Modifique, adapte, auto-hospede.
+- **Multi-Persona com Meta-RAG** — Crie personas via LLM a partir de uma descrição. Troque com `/persona <id>`. Cada persona pode ter conhecimento, voz e regras próprias.
+- **RAG Multimodal** — Bíblia, PDF, DOCX, imagens (OCR), áudio (STT), JSON, texto, APIs. Fontes plug-and-play.
+- **Onboarding Automático** — Novo usuário? A IA pergunta nome, interesse, sentimento, email. State machine configurável em 3 idiomas.
+- **Follow-ups Automáticos** — A IA envia perguntas de acompanhamento a cada N mensagens. Tipos: espiritual, devocional, oração, custom.
+- **Surveys & Ratings** — Pesquisas com triggers, avaliações 1-5 estrelas com categorias.
+- **Role-Based Access** — guest (5/dia), user (30/dia), premium (100/dia), admin (999/dia), banned (403).
+- **Multi-Bot** — Múltiplas instâncias Telegram + WhatsApp, cada uma com persona própria.
+- **Whitelabel** — Marca, cores, logo, saudações — tudo configurável via settings.
+- **3 idiomas** — pt-BR (default), en-US, es-ES. Prompts, UI, TTS, onboarding.
+- **3 plataformas** — Web, Telegram Bot, WhatsApp Bot (Evolution API v2).
+- **Voz natural pt-BR** — Kokoro TTS (pm_alex) + Edge TTS fallback.
+- **Speech-to-Text** — Groq Whisper + OpenAI Whisper fallback + web mic.
+- **Blog automático** — Devocionais gerados por LLM diariamente.
+- **Auth completa** — Email/senha, Google OAuth, JWT com role.
 
 ## Stack
 
-| Camada | Tecnologia | Crédito |
-|--------|-----------|---------|
-| Runtime | Node.js 18+ | [nodejs.org](https://nodejs.org) |
-| Web Framework | Express | [expressjs.com](https://expressjs.com) |
-| Database | MySQL 8.4 | [mysql.com](https://www.mysql.com) |
-| LLM | GLM-5.1 via Ollama Cloud API | [ollama.com](https://ollama.com) |
-| RAG | TF-IDF local (custom) | — |
-| Bible NT | Biblia Litúrgica Tradução (BLT) | [bible-api](https://github.com/seven1m/bible_api) — MIT |
-| Bible OT | Almeida via bible-api.com | [bible-api.com](https://bible-api.com) — MIT |
-| Auth | bcryptjs + JWT + Google OAuth | — |
-| Telegram | node-telegram-bot-api | [npm](https://www.npmjs.com/package/node-telegram-bot-api) — MIT |
-| WhatsApp | Evolution API v2 | [github.com/EvolutionAPI](https://github.com/EvolutionAPI/evolution-api) — AGPL v3 |
-| TTS | Kokoro-82M (primary) | [github.com/hexgrad/kokoro](https://github.com/hexgrad/kokoro) — Apache 2.0 |
-| TTS Fallback | Edge TTS (pt-BR, en-US, es-ES) | [github.com/rany2/edge-tts](https://github.com/rany2/edge-tts) — GPL v3 |
-| TTS Fallback 2 | Google Translate TTS | [translate.google.com](https://translate.google.com) |
-| STT | Groq Whisper | [groq.com](https://groq.com) |
-| STT Fallback | OpenAI Whisper | [openai.com](https://openai.com) |
-| Email | Nodemailer (SMTP) | [nodemailer.com](https://nodemailer.com) — MIT |
-| Tunnel | Cloudflare Tunnel | [cloudflare.com](https://developers.cloudflare.com/cloudflare-one/) |
+| Camada | Tecnologia |
+|--------|-----------|
+| Runtime | Node.js 18+ + Express |
+| Database | MySQL 8.4 (mysql2/promise) |
+| LLM | GLM-5.1 via Ollama Cloud API (OpenAI-compatible, multi-key fallback) |
+| RAG | TF-IDF pluggable + multimodal ingestion |
+| Auth | JWT + bcrypt + Google OAuth + role-based + rate limiting |
+| Telegram | Multi-instance via bot manager |
+| WhatsApp | Multi-instance via Evolution API v2 |
+| TTS | Kokoro-82M (primary) + Edge TTS + Google Translate (fallback) |
+| STT | Groq Whisper + OpenAI Whisper (fallback) |
+| i18n | pt-BR, en-US, es-ES |
 
-**Créditos completos**: [`CREDITS.md`](CREDITS.md)
-
-## Arquitetura Pluggable
-
-**Tudo é plug-and-play** — troque a identidade, memória, conhecimento e idioma sem reescrever código:
-
-| Camada | Arquivo | O que faz | Como trocar |
-|--------|---------|-----------|-------------|
-| **Identidade** | `src/persona/config.js` | Quem a IA é, regras, tom, emoções | Defina uma nova persona + `PERSONA=stoic` no `.env` |
-| **Conhecimento** | `src/knowledge/config.js` | O que a IA sabe (fontes de dados) | Adicione novas fontes + `npm run ingest` |
-| **Memória** | MySQL automático | Sessões e perfil por usuário | Já funciona, persiste entre conversas |
-| **Idioma** | `src/i18n/index.js` | Prompts, UI, erros em 3 idiomas | Adicione novas chaves de tradução |
+## Arquitetura
 
 ```
-┌─────────────── TROCAR PERSONA ────────────────┐
-│  src/persona/config.js                         │
-│  identity · rules · topics · emotions          │
-│  → "Você é Jesus"  →  "Você é Sócrates"        │
-└────────────────────┬────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────┐
-│            TROCAR CONHECIMENTO                  │
-│  src/knowledge/config.js                        │
-│  sources · ingesters · search · context         │
-│  → Bíblia  →  Filosofia Estoica  →  Direito    │
-└────────────────────┬────────────────────────────┘
-                     │
-┌────────────────────▼────────────────────────────┐
-│                  SERVER (Express)                │
-│   Routes ──► Middleware ──► LLM ──► Response     │
-│   Memory · Profile · i18n · Auth · TTS/STT      │
-│                                                  │
-│   ┌─────────────┐    ┌─────────────────────┐     │
-│   │  Memória    │    │   i18n (3 idiomas)   │     │
-│   │ (MySQL)     │    │   pt-BR · en · es    │     │
-│   └─────────────┘    └─────────────────────┘     │
-└────────────────────┬──────────┬──────────────────┘
-          ┌─────────┘          └──────────┐
-    ┌─────▼─────┐         ┌──────────────▼──────┐
-    │  Telegram  │         │    WhatsApp Bot     │
-    │    Bot     │         │  (Evolution API)    │
-    └────────────┘         └────────────────────┘
+User message → Rate limit check + Ban check
+             → Onboarding check (new user? → ask questions)
+             → Persona resolution (session → user → default)
+             → Chat command? → handleChatCommand
+             → Extract context + Search knowledge + Build memory + Build profile
+             → buildSystemPrompt(persona, lang, ...)
+             → LLM call via IntegrationManager (with tools if enabled)
+             → Tool calls loop (bible_lookup, user_stats, etc.)
+             → CJK check → Save message → Auto follow-up scheduling
+             → Return response + sources + persona info
 ```
 
-### Exemplo: De Jesus.AI → Sócrates.AI
-
-1. **Persona** — `src/persona/config.js`:
-```js
-const PERSONAS = {
-  socrates: {
-    id: 'socrates',
-    name: 'Socrates.AI',
-    identity: {
-      'pt-BR': 'Você é Sócrates, o filósofo grego. Responde com perguntas provocativas (método socrático)...',
-      'en-US': 'You are Socrates, the Greek philosopher...',
-    },
-    topicKeywords: { /* estoicismo, virtude, justiça */ },
-    emotionKeywords: { /* em 3 idiomas */ },
-    namePatterns: { /* em 3 idiomas */ },
-  },
-};
+### Onboarding (Whitelabel)
+```
+New user → shouldOnboard(uid) → returns next step question
+User answers → processOnboardingAnswer(uid, message) → save to profile + DB
+              → next step? → return question
+              → done? → welcome message from persona
+Steps configurable via /api/admin/onboarding: name, interest, feeling, email, custom
 ```
 
-2. **Conhecimento** — `src/knowledge/config.js`:
-```js
-const KNOWLEDGE_SOURCES = [
-  {
-    id: 'stoic-philosophy',
-    name: 'Stoic Philosophy',
-    type: 'json-verses',
-    enabled: true,
-    dataPath: path.join(__dirname, '..', '..', 'data', 'stoic_documents.json'),
-    ingester: 'json',
-    searchFields: ['reference', 'text'],
-    contextTemplate: { /* templates por idioma */ },
-    sourceFormat: (docs) => docs.map(d => `${d.reference}: "${d.text}"`).join('\n'),
-  },
-];
+### Multi-Persona + Meta-RAG
+```
+/persona create <description> → LLM generates FULL persona config
+/persona <id> → switch per-session, per-user, or per-bot-instance
+Meta-RAG: LLM creates personas from any description — biblical figure, health coach, business consultant, etc.
+Each persona: own knowledge sources, skills, onboarding questions, follow-up style, brand whitelabel
 ```
 
-3. **Ativar** — `.env`:
+### RAG Knowledge (Multimodal)
 ```
-PERSONA=socrates
+Sources: Bible verses, PDF, DOCX, images (OCR), audio (STT), text, JSON, API endpoints
+Ingestion: npm run ingest → reads all sources → TF-IDF index
+Per-persona: personas.knowledge_sources selects which sources to search
+Upload: POST /api/admin/knowledge/upload (PDF, DOCX, image, audio, text, JSON)
 ```
-
-4. **Ingerir** — `npm run ingest`
-
-Pronto: mesma base, persona e conhecimento completamente diferentes.
 
 ## Setup
 
@@ -154,173 +99,162 @@ git clone https://github.com/anomalyco/jesus-ai.git
 cd jesus-ai
 npm install
 cp .env.example .env
-# Edite .env com sua OLLAMA_API_KEY
-npm run ingest   # Primeira vez: indexar o corpus de conhecimento
-npm start        # ou npm run dev (watch mode)
+# Configure OLLAMA_API_KEY in .env
+npm run ingest   # First time: index knowledge corpus
+npm start        # or npm run dev
 ```
 
 Acesse `http://localhost:3000`
 
 ### Kokoro TTS (voz natural pt-BR)
-
 ```bash
-# Instalar dependências Python
-npm run tts:install
-
-# Iniciar servidor Kokoro (porta 8001)
-npm run tts:start
-
-# Verificar se está rodando
-npm run tts:check
+npm run tts:install   # Install Python dependencies
+npm run tts:start     # Start Kokoro server on port 8001
+npm run tts:check     # Check if Kokoro is running
 ```
 
-O Kokoro TTS roda como processo separado na porta 8001. O Node.js detecta automaticamente via health check a cada 120s.
-
 ### Pré-requisitos
-
-1. **MySQL 8.4** rodando em localhost (root, sem senha, database `jesus_ai`)
-2. **OLLAMA_API_KEY** configurada no `.env`
-3. Rodar `npm run ingest` antes do primeiro uso
-4. Schema do banco é criado automaticamente no startup
-5. **Kokoro TTS** (obrigatório para voz natural): `npm run tts:install` → `npm run tts:start`
-6. *(Opcional)* Edge TTS: `pip install edge-tts`
+1. **MySQL 8.4** em localhost (root, sem senha, database `jesus_ai`)
+2. **OLLAMA_API_KEY** no `.env`
+3. `npm run ingest` antes do primeiro uso
+4. Schema criado automaticamente no startup
+5. **Kokoro TTS**: `npm run tts:install` → `npm run tts:start`
 
 ### Variáveis de Ambiente
 
-Veja [`.env.example`](.env.example) para a lista completa. As essenciais:
+Veja [`.env.example`](.env.example) para a lista completa:
 
 | Variável | Descrição |
 |---------|-----------|
 | `OLLAMA_API_KEY` | Chave da Ollama Cloud API (**obrigatória**) |
 | `JWT_SECRET` | Secret para JWT (**obrigatória em produção**) |
-| `DB_HOST/USER/PASSWORD/NAME` | Configuração MySQL |
-| `PERSONA` | ID da persona (`jesus` é o padrão) |
-| `TELEGRAM_TOKEN` | Token do bot Telegram (opcional) |
-| `EVO_API_URL/EVO_API_KEY` | Evolution API para WhatsApp (opcional) |
-| `GROQ_API_KEY` | Para STT via Whisper (opcional) |
-| `TTS_MODE` | Engine TTS: `kokoro` (padrão), `edge-tts`, `multivozes` |
-| `TTS_VOICE` | Voz TTS: `pm_alex` (padrão Kokoro pt-BR masculina) |
-| `KOKORO_URL` | URL do servidor Kokoro (padrão: `http://localhost:8001`) |
-| `SMTP_*` | Configuração de email (opcional) |
+| `DB_HOST/USER/PASSWORD/NAME` | MySQL config |
+| `PERSONA` | Persona padrão (`jesus`) |
+| `TELEGRAM_TOKEN` | Token do bot Telegram |
+| `EVO_API_URL/KEY` | Evolution API para WhatsApp |
+| `GROQ_API_KEY` | Para STT via Whisper |
+| `TTS_MODE/VOICE` | Engine e voz TTS |
+
+## Comandos
+
+| Comando | Descrição |
+|---------|-----------|
+| `npm start` | Start the server |
+| `npm run dev` | Start with watch mode |
+| `npm run ingest` | Index knowledge sources |
+| `npm run ngrok` | Cloudflare tunnel para WhatsApp webhook |
+| `npm run tts:start` | Start Kokoro TTS server |
+| `npm run tts:install` | Install Kokoro Python deps |
+
+## Chat Commands
+
+| Command | Access | Description |
+|---|---|---|
+| `/admin` | admin | Admin dashboard |
+| `/stats` | user | Suas estatísticas |
+| `/myprofile` | user | Seu perfil |
+| `/persona` | anyone | Listar personas |
+| `/persona <id>` | anyone | Trocar persona |
+| `/persona create <desc>` | admin | Criar persona via Meta-RAG |
+| `/persona edit <id> <campo> <valor>` | admin | Editar persona |
+| `/persona delete <id>` | admin | Deletar persona |
+| `/survey` | admin | Gerenciar pesquisas |
+| `/ratings` | admin | Estatísticas de avaliação |
+| `/followups` | admin | Status de follow-ups |
+| `/keys` | admin | Chaves de integração |
+| `/settings /set` | admin | Configurações |
+| `/users /promote /ban` | admin | Gestão de usuários |
+| `/health` | anyone | Saúde das integrações |
+| `/tools` | anyone | Ferramentas disponíveis |
+
+## API Endpoints
+
+### Público
+| Método | Rota | Descrição |
+|---|---|---|
+| POST | `/api/chat` | Chat (rate-limited, persona-aware) |
+| POST | `/api/chat/stt` | Speech-to-text |
+| POST | `/api/chat/tts` | Text-to-speech |
+| POST | `/api/chat/rating` | Submit rating |
+| GET | `/api/chat/personas` | List personas |
+| POST | `/api/chat/persona/switch` | Switch persona |
+| POST | `/api/chat/persona/create` | Meta-RAG create |
+| GET | `/api/chat/surveys/active` | Check active survey |
+| POST | `/api/chat/surveys/:id/respond` | Survey response |
+| GET | `/api/chat/followups/pending` | Check pending follow-up |
+| POST | `/api/chat/followups/:id/respond` | Respond follow-up |
+| POST | `/api/auth/register` | Register |
+| POST | `/api/auth/login` | Login (returns role) |
+| POST | `/api/auth/google` | Google OAuth |
+| GET | `/api/auth/me` | Current user (with role) |
+
+### Admin
+| Método | Rota | Descrição |
+|---|---|---|
+| GET/POST/PUT/DELETE | `/api/admin/users/*` | User management |
+| GET/POST | `/api/admin/personas` | List/create personas |
+| POST | `/api/admin/personas/generate` | Meta-RAG generate |
+| GET/PUT/DELETE | `/api/admin/personas/:id` | Get/update/delete persona |
+| GET/POST | `/api/admin/surveys` | Survey CRUD |
+| GET | `/api/admin/ratings` | Rating stats |
+| GET/POST | `/api/admin/followups` | Follow-up management |
+| GET/POST | `/api/admin/bots` | Bot instance CRUD |
+| POST | `/api/admin/bots/:id/start` | Start bot |
+| GET/POST | `/api/admin/integrations` | Integration management |
+| GET/PUT | `/api/admin/settings` | Settings management |
+| GET/POST | `/api/admin/knowledge/*` | Knowledge management |
 
 ## Estrutura do Projeto
 
 ```
 src/
-  server.js               — Express entry point + DB init + scheduling
-  persona/
-    config.js             — Persona definitions (Jesus, stoic, etc.)
-  knowledge/
-    config.js             — Knowledge source definitions (Bible, books, etc.)
-    store.js              — Pluggable TF-IDF search engine
-    ingester.js           — Multi-source ingestion orchestrator
-    sources/
-      bible.js            — Bible ingester (NT local + OT API)
-      json.js             — JSON document ingester
-      text.js             — Text file ingester (auto-chunk)
-  i18n/
-    index.js              — Internationalization (pt-BR, en-US, es-ES)
-  routes/
-    chat.js               — Chat API (SSE, sessions, profiles, STT, TTS)
-    auth.js               — Auth API (register, login, Google OAuth)
-    blog.js               — Blog API (posts, comments, search)
-    whatsapp.js           — WhatsApp webhook + group management
-    email.js              — Email API (newsletter, contact)
-  telegram/
-    bot.js                — Telegram bot (commands, chat, voice, groups)
-  whatsapp/
-    bot.js                — WhatsApp bot (Evolution API v2, groups, audio)
-  tts/
-    index.js              — TTS engine (Kokoro → Edge TTS fallback, content-type tracking)
-    kokoro-manager.js     — Kokoro health check (120s, state-change-only logs, warmup)
-  stt/
-    index.js              — STT engine (Groq Whisper + OpenAI Whisper fallback)
-  rag/
-    store.js              — Backward-compatible re-export (delegates to knowledge/)
-    ingester.js           — Legacy ingester (backward-compatible)
-  memory/
-    session.js            — Session management (MySQL-backed)
-    profile.js            — Profile management (MySQL-backed)
-  blog/
-    index.js              — Blog engine (generate, MySQL storage, comments)
+  server.js              — Express entry point + DB init + scheduling
+  chat/engine.js          — Central chat engine (rate limit, onboarding, persona, tools, follow-ups)
   auth/
-    index.js              — Auth core (bcrypt, JWT, Google OAuth)
-  email/
-    index.js              — Email core (Nodemailer, templates, newsletter)
-  db/
-    index.js              — MySQL connection pool + schema init
-  utils/
-    bible.js              — Bible data reader (local + API)
+    index.js              — Auth core (register, login, Google, JWT, role-based, createUser)
+    rateLimit.js          — Rate limiting per role + ban enforcement
+  onboarding/index.js     — Whitelabel onboarding state machine (3 langs)
+  survey/index.js         — Surveys, ratings, follow-ups engine
+  persona/
+    config.js             — Default persona definitions (hardcoded fallback)
+    manager.js             — Multi-persona system with DB, per-user/session persona
+    meta-rag.js            — Meta-RAG persona generation via LLM
+  bot/manager.js           — Multi-instance bot manager (Telegram + WhatsApp)
+  telegram/
+    handler.js             — Telegram handler factory (persona per instance)
+    bot.js                 — Telegram bot with commands, chat, voice, groups
+  whatsapp/
+    handler.js             — WhatsApp handler factory (persona per instance)
+    bot.js                 — WhatsApp bot (Evolution API v2, groups, audio)
+  llm/
+    index.js               — Central LLM service
+    integrationManager.js  — Multi-key fallback for ALL integrations
+    tools.js               — AI tool definitions for function calling
+  knowledge/
+    config.js               — Knowledge source definitions (multimodal)
+    store.js                — Pluggable TF-IDF search engine
+    ingester.js             — Multi-source ingestion orchestrator
+  memory/
+    session.js              — Session management (MySQL-backed)
+    profile.js              — Profile management (MySQL-backed)
+  settings/index.js         — Runtime settings (DB-backed, cached) + whitelabel
+  admin/index.js             — Admin logic (stats, users, personas, surveys, ratings, follow-ups, bots)
+  routes/
+    chat.js                  — Chat API (JSON, personas, ratings, surveys, onboarding)
+    admin.js                 — Admin API (full CRUD for all entities)
+    auth.js                  — Auth API (register, login, Google, profile with role)
+    blog.js                  — Blog API
+    whatsapp.js              — WhatsApp webhook
+    email.js                 — Email API
+  tts/                        — TTS engine (Kokoro → Edge → Google)
+  stt/                        — STT engine (Groq + OpenAI fallback)
+  i18n/index.js               — Internationalization (pt-BR, en-US, es-ES)
+  db/index.js                 — MySQL pool + schema + auto-migration
 public/
-  index.html              — Landing page + auth + chat SPA
-  css/style.css           — Dark premium theme, glassmorphism
-  js/app.js               — Frontend logic (SSE, i18n, auth, chat, blog, TTS)
-data/
-  bible_verses.json       — Processed documents (generated by ingest)
-  bible_index.json        — TF-IDF index (generated by ingest)
-  bible-api/              — Local Bible data (git cloned)
-tts-server/
-  kokoro_server.py        — Kokoro TTS Python server (FastAPI + uvicorn, WAV/MP3)
-  requirements.txt        — Python deps: kokoro, soundfile, numpy, fastapi, uvicorn
+  index.html                  — Landing page + auth + chat SPA
+  css/style.css               — Dark premium theme, glassmorphism
+  js/app.js                    — Frontend logic (chat, auth, i18n, persona, ratings)
 ```
-
-## API Endpoints
-
-| Método | Rota | Descrição |
-|--------|------|-----------|
-| `POST` | `/api/chat` | Chat streaming (SSE) |
-| `POST` | `/api/stt` | Speech-to-Text |
-| `POST` | `/api/tts` | Text-to-Speech (returns audio buffer) |
-| `GET` | `/api/config` | Bot URLs e configuração |
-| `GET` | `/api/health/tts` | Kokoro TTS server health status |
-| `GET` | `/api/translations/:lang` | Traduções i18n |
-| `POST` | `/api/auth/register` | Registrar usuário |
-| `POST` | `/api/auth/login` | Login |
-| `POST` | `/api/auth/google` | Login com Google |
-| `GET/PUT` | `/api/auth/me` | Perfil do usuário |
-| `GET/DELETE` | `/api/session/:id` | Gerenciar sessão |
-| `POST` | `/api/session` | Criar nova sessão |
-| `GET/PUT` | `/api/profile/:userId` | Gerenciar perfil |
-| `POST` | `/api/feedback` | Enviar feedback |
-| `GET/PUT` | `/api/settings/apikey` | API key do usuário |
-| `GET` | `/api/donate` | Info de doação (PIX/Stripe) |
-| `GET` | `/api/blog/posts` | Listar posts |
-| `GET` | `/api/blog/posts/:slug` | Detalhe do post |
-| `POST` | `/api/blog/posts/:slug/comments` | Comentar |
-| `GET` | `/api/blog/search?q=` | Buscar versículos/documentos |
-| `GET` | `/api/blog/books` | Lista de livros bíblicos |
-| `POST` | `/api/email/subscribe` | Newsletter |
-| `GET` | `/api/email/confirm/:token` | Confirmar email |
-| `GET` | `/api/email/unsubscribe/:token` | Cancelar inscrição |
-| `POST` | `/api/email/contact` | Formulário de contato |
-| `POST` | `/api/email/daily-devotional` | Enviar devocional (admin) |
-| `POST` | `/api/whatsapp/webhook` | WhatsApp webhook |
-
-## Bots
-
-### Telegram
-- Comandos: `/start`, `/ajuda`, `/versiculo`, `/buscar`, `/oracao`, `/devocional`, `/grupo`
-- Suporte a grupos: responde apenas quando mencionado ou comandado
-- TTS com voz natural (Kokoro pm_alex, WAV) com fallback Edge TTS (MP3)
-- Áudio enviado em chunks de 300 chars via sendVoice
-- STT para mensagens de voz do usuário (Groq Whisper)
-- Sessões por usuário em grupos: `tg_{chatId}_{userId}`
-
-### WhatsApp
-- Webhook via Evolution API v2 (`POST /api/whatsapp/webhook`) + polling fallback
-- Mesmos comandos do Telegram
-- Suporte a grupos com detecção automática de menção
-- TTS com Kokoro (WAV) / Edge TTS (MP3) — content-type correto por engine
-- Áudio em chunks de 300 chars com fallback para Google Translate TTS
-- LID resolution: converte `@lid` para `@s.whatsapp.net` via cache
-- Rejeita chamadas automaticamente
-
-## Princípios
-
-1. **Acesso livre** — Todos podem conversar, gratuitamente
-2. **Transparência** — Código aberto, custos abertos
-3. **Sem manipulação** — Sem culpa ou pressão para contribuir
-4. **Open source** — Use, modifique, compartilhe. Para a glória do Pai
 
 ## Licença
 
@@ -328,4 +262,4 @@ MIT — Use, modifique, compartilhe.
 
 ---
 
-**Créditos**: [`CREDITS.md`](CREDITS.md) · **Documentação**: [`DOCS.md`](DOCS.md) · **Roadmap**: [`ROADMAP.md`](ROADMAP.md) · **Contribuir**: [`CONTRIBUTING.md`](CONTRIBUTING.md) · **AGENTS.md**: [`AGENTS.md`](AGENTS.md)
+**Documentação completa**: [`AGENTS.md`](AGENTS.md) · **Créditos**: [`CREDITS.md`](CREDITS.md)

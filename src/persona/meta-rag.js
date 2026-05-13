@@ -164,12 +164,21 @@ async function listAvailablePersonas() {
 }
 
 async function switchPersona(userId, sessionId, personaId) {
+  personaManager.invalidateCache();
+  await personaManager.loadPersonas();
   const persona = await personaManager.getPersona(personaId);
   if (!persona) throw new Error(`Persona "${personaId}" not found`);
   if (!persona.isActive && personaId !== 'jesus') throw new Error(`Persona "${personaId}" is not active`);
 
   if (sessionId) {
     await personaManager.setSessionPersona(sessionId, personaId);
+    try {
+      const { pool } = require('../db');
+      await pool.execute('DELETE FROM messages WHERE session_id = ?', [sessionId]);
+      console.log(`[MetaRAG] Cleared message history for session ${sessionId} on persona switch`);
+    } catch (err) {
+      console.error('[MetaRAG] Failed to clear message history:', err.message);
+    }
   }
   if (userId) {
     await personaManager.setUserPersona(userId, personaId);

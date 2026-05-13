@@ -1,5 +1,5 @@
-const { searchVerses } = require('../rag/store');
-const { getActivePersona, buildSystemPrompt } = require('../persona/config');
+const { searchVerses } = require('../knowledge/store');
+const { getActivePersona } = require('../persona/config');
 const personaManager = require('../persona/manager');
 const metaRag = require('../persona/meta-rag');
 const {
@@ -274,10 +274,11 @@ const splitTextForTTSFunc = (() => {
   try { const { splitTextForTTS: stt } = require('../tts'); return stt; } catch { return (text, max = 450) => [text]; }
 })();
 
-async function sendReplyWithAudio(remoteJid, reply, lang = 'pt-BR') {
+async function sendReplyWithAudio(remoteJid, reply, lang = 'pt-BR', kokoroVoice = null) {
   const ttsLang = getTTSLang(lang);
+  const chunkSize = parseInt(process.env.MESSAGE_CHUNK_SIZE) || 200;
 
-  const textChunks = splitMessage(reply);
+  const textChunks = splitMessage(reply, chunkSize);
   for (const chunk of textChunks) {
     await sendWhatsAppText(remoteJid, chunk);
     await new Promise(r => setTimeout(r, 500));
@@ -285,14 +286,14 @@ async function sendReplyWithAudio(remoteJid, reply, lang = 'pt-BR') {
 
   if (!WHATSAPP_AUDIO) return;
 
-  const audioChunks = splitTextForTTSFunc(reply, 300);
+  const audioChunks = splitTextForTTSFunc(reply, chunkSize);
   if (!audioChunks || audioChunks.length === 0) return;
 
-  console.log(`[WhatsApp] Sending voice: ${audioChunks.length} chunk(s), lang=${ttsLang}`);
+  console.log(`[WhatsApp] Sending voice: ${audioChunks.length} chunk(s), lang=${ttsLang}, voice=${kokoroVoice || 'default'}`);
   for (const chunk of audioChunks) {
     if (chunk.length > MAX_TTS_LENGTH) continue;
     try {
-      const audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang });
+      const audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang, kokoroVoice });
       if (audioBuffer && audioBuffer.length > 0) {
         console.log(`[WhatsApp] Voice chunk OK: ${audioBuffer.length} bytes, ${audioBuffer.contentType || 'unknown'}`);
         try { await sendWhatsAppAudio(remoteJid, audioBuffer); } catch {
@@ -692,6 +693,7 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
       language: 'pt-BR',
       isGroup,
       source: 'whatsapp',
+      userName: pushName || undefined,
     });
 
     let reply = result.response;
@@ -700,8 +702,7 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
       reply = `${pushName}, ` + reply.charAt(0).toLowerCase() + reply.slice(1);
     }
 
-    await addMessage(sid, 'assistant', reply);
-    await sendReplyWithAudio(remoteJid, reply, DEFAULT_LANG);
+    await sendReplyWithAudio(remoteJid, reply, DEFAULT_LANG, result.ttsVoice || null);
 
     if (result.sources && result.sources.length > 0) {
       const sourcesText = result.sources.map(s => `📖 ${s.reference}`).join('\n');

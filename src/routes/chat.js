@@ -92,6 +92,8 @@ router.post('/chat', async (req, res) => {
       language: result.language,
       personaId: result.personaId,
       personaName: result.personaName,
+      ttsVoice: result.ttsVoice,
+      ttsLang: result.ttsLang,
     });
   } catch (err) {
     console.error('Chat error:', err);
@@ -257,7 +259,7 @@ router.get('/config', (req, res) => {
 });
 
 router.post('/tts', async (req, res) => {
-  const { text, lang } = req.body;
+  const { text, lang, voice } = req.body;
 
   if (!text || typeof text !== 'string') {
     return res.status(400).json({ error: 'Text is required' });
@@ -265,8 +267,11 @@ router.post('/tts', async (req, res) => {
 
   const ttsLang = SUPPORTED_LANGS.includes(lang) ? lang : DEFAULT_LANG;
 
+  const maxTtsLength = 200;
+  const truncated = text.length > maxTtsLength ? text.substring(0, maxTtsLength) : text;
+
   try {
-    const buf = await generateAudioBuffer(text, { lang: ttsLang });
+    const buf = await generateAudioBuffer(truncated, { lang: ttsLang, kokoroVoice: voice });
     if (!buf || buf.length === 0) {
       return res.status(500).json({ error: 'TTS generation failed' });
     }

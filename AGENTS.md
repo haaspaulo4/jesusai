@@ -46,13 +46,25 @@ User message → Rate limit check + Ban check
              → Onboarding check (new user? → ask questions)
              → Persona resolution (session → user → default)
              → Chat command? → handleChatCommand
-             → Extract context + Search knowledge + Build memory + Build profile
-             → buildSystemPrompt(persona, lang, ...)
+             → Extract context + Search knowledge (persona-aware) + Build memory + Build profile
+             → buildSystemPrompt(persona, lang, context, memory, profile, name, isGroup, knowledgeSources)
              → LLM call via IntegrationManager (with tools if enabled)
              → Tool calls loop (bible_lookup, user_stats, etc.)
              → CJK check → Save message → Auto follow-up scheduling
-             → Return response + sources + persona info
+             → Return response + sources + persona info + ttsVoice
 ```
+
+### Persona-Aware System Prompt
+- `buildSystemPrompt()` handles both string and object identity formats
+- String identity: DB personas store `identity` as `{ "pt-BR": "...", "en-US": "...", "es-ES": "..." }` (flat strings)
+- Object identity: Default Jesus persona has `{ "pt-BR": { core: "...", rules: "..." } }` (nested object)
+- Context template: Uses the persona's knowledge source contextTemplate (e.g., "CONHECIMENTO DE VENDAS" for sales, not "VERSÍCULOS BÍBLICOS")
+- Falls back to primary source context template if no persona sources match
+
+### Persona Switching & Message History
+- `switchPersona()` clears the session's message history (DELETE FROM messages WHERE session_id = ?)
+- This prevents old persona messages from contaminating the new persona's context
+- Cache invalidated and reloaded on every persona switch
 
 ### Onboarding System (Whitelabel)
 ```
@@ -78,7 +90,7 @@ Each persona can have: own knowledge sources, skills, onboarding questions, foll
 ```
 Knowledge Sources (configurable per persona):
   - Bible verses (JSON, built-in)
-  - PDF documents → text extraction via pdf-parse
+  - PDF documents → text extraction via pdf-parse v1.1.1
   - DOCX documents → text extraction via mammoth
   - Images → OCR via Tesseract
   - Audio → STT transcription via Groq/OpenAI Whisper
@@ -88,8 +100,21 @@ Knowledge Sources (configurable per persona):
 
 Ingestion: npm run ingest → reads all configured sources → TF-IDF index
 Per-persona: personas.knowledge_sources selects which sources to search
+  - searchMultiSource(query, sourceIds, topK) splits topK evenly across sources
+  - Each source has its own contextTemplate per language
 Admin: /api/admin/knowledge/reindex, /api/admin/knowledge (stats)
 Upload: POST /api/admin/knowledge/upload (PDF, DOCX, image, audio, text, JSON)
+```
+
+### TTS Voice System
+```
+TTS Modes: kokoro (default), multivozes, edge-tts
+Kokoro voices: pm_alex (pt-BR male), pf_dora (pt-BR female), am_adam (en-US male), af_bella (en-US female), etc.
+Each persona has ttsVoice and ttsLang fields
+/voice command → list available voices, switch persona voice
+Edge TTS fallback: Kokoro voice mapped to Edge TTS voice (pm_alex → pt-BR-AntonioNeural, pf_dora → pt-BR-FranciscaNeural)
+Message chunk size configurable via MESSAGE_CHUNK_SIZE env var or message_chunk_size setting (default 200 chars)
+Audio/TTS truncated to 200 chars per generation by default
 ```
 
 ### Survey + Rating + Follow-up System
@@ -147,6 +172,7 @@ Onboarding: auto-creates user for bot users (ensureUser)
 | `/persona create <desc>` | admin | Meta-RAG create persona |
 | `/persona edit <id> <field> <value>` | admin | Edit persona |
 | `/persona delete <id>` | admin | Delete persona |
+| `/voice` | anyone | List/switch TTS voice |
 | `/survey` | admin | Manage surveys |
 | `/ratings` | admin | Rating stats |
 | `/followups` | admin | Follow-up status |
@@ -214,14 +240,14 @@ Onboarding: auto-creates user for bot users (ensureUser)
 ## Public API Endpoints
 | Method | Path | Description |
 |---|---|---|
-| POST | `/api/chat` | Chat (JSON response, rate-limited, persona-aware) |
+| POST | `/api/chat` | Chat (JSON response, rate-limited, persona-aware, returns ttsVoice) |
 | POST | `/api/chat/stt` | Speech-to-text |
-| POST | `/api/chat/tts` | Text-to-speech |
+| POST | `/api/chat/tts` | Text-to-speech (accepts voice param, truncates to 200 chars) |
 | POST | `/api/chat/rating` | Submit rating |
 | GET | `/api/chat/personas` | List personas |
 | POST | `/api/chat/persona/switch` | Switch persona |
 | POST | `/api/chat/persona/create` | Meta-RAG create |
-| GET | `/api/chat/persona/current` | Current persona |
+| GET | `/api/chat/persona/current` | Current persona (returns ttsVoice, ttsLang) |
 | GET | `/api/chat/surveys/active` | Check active survey |
 | POST | `/api/chat/surveys/:id/respond` | Submit survey response |
 | GET | `/api/chat/followups/pending` | Check pending follow-up |
@@ -241,7 +267,7 @@ Onboarding: auto-creates user for bot users (ensureUser)
 - **feedback** — id, type, message, user_id, session_id, created_at, status
 - **settings** — setting_key (PK), setting_value (TEXT)
 - **api_keys** — id, service_type, api_key, base_url, model, label, priority, is_active, extra_config (JSON)
-- **personas** — persona_id (PK), name, identity (JSON), commands (JSON), knowledge_sources (JSON), tts_voice, tts_lang, model, priority, is_active
+- **personas** — persona_id (PK), name, name_en, name_es, identity (JSON), commands (JSON), knowledge_sources (JSON), tts_voice, tts_lang, model, priority, is_active, topic_keywords (JSON), emotion_keywords (JSON), name_patterns (JSON), disclaimer (JSON), conversation_with (JSON), memory_block (JSON), profile_block (JSON), group_context (JSON), cjk_fallback (JSON), llm_error (JSON), welcome_title (JSON), welcome_body (JSON), prayer_prompt (JSON), blog_prompt (JSON), blog_topics (JSON), donate_verse (JSON), summary_prompt (JSON), profile_summary_prompt (JSON)
 - **rate_limits** — id, user_id, service_type, request_count, window_start
 - **surveys** — id, title, description, questions (JSON), is_active, trigger_type, trigger_config (JSON)
 - **survey_responses** — id, survey_id, user_id, session_id, answers (JSON), completed_at
@@ -253,25 +279,31 @@ Onboarding: auto-creates user for bot users (ensureUser)
 - **mcp_servers** — id, name, command, args (JSON), env_vars (JSON), is_active, created_at
 
 ## Key File Structure
-- `src/chat/engine.js` — Central chat engine (rate limit, onboarding, persona, tools, follow-ups)
+- `src/chat/engine.js` — Central chat engine (rate limit, onboarding, persona-aware RAG, tools, follow-ups, /voice command)
 - `src/auth/index.js` — Auth core (register, login, Google OAuth, JWT, role-based, createUser)
 - `src/auth/rateLimit.js` — Rate limiting per role + ban enforcement
-- `src/onboarding/index.js` — Onboarding state machine (whitelabel, 3 langs)
+- `src/onboarding/index.js` — Onboarding state machine (whitelabel, 3 langs, ensureUser)
 - `src/survey/index.js` — Surveys, ratings, follow-ups engine
-- `src/persona/manager.js` — Multi-persona with DB persistence
-- `src/persona/meta-rag.js` — Meta-RAG persona generation via LLM
-- `src/persona/config.js` — Default persona definitions
+- `src/persona/manager.js` — Multi-persona with DB persistence, cache invalidation
+- `src/persona/meta-rag.js` — Meta-RAG persona generation, switchPersona with history clear
+- `src/persona/config.js` — Default persona definitions, buildSystemPrompt (handles string/object identity)
 - `src/bot/manager.js` — Multi-instance bot manager (Telegram + WhatsApp)
 - `src/telegram/handler.js` — Telegram handler factory (persona per instance)
-- `src/whatsapp/handler.js` — WhatsApp handler factory (persona per instance)
+- `src/whatsapp/bot.js` — WhatsApp handler (persona-aware, voice pass-through, chunk size)
 - `src/llm/integrationManager.js` — Multi-key fallback for ALL integrations
 - `src/llm/tools.js` — AI tool definitions for function calling
 - `src/settings/index.js` — Runtime settings (DB-backed, cached) with whitelabel configs
-- `src/knowledge/config.js` — Knowledge source definitions (multimodal)
-- `src/knowledge/store.js` — Pluggable TF-IDF search engine
-- `src/knowledge/ingester.js` — Multi-source ingestion (PDF, DOCX, image, audio, JSON, text, API)
+- `src/knowledge/config.js` — Knowledge source definitions (multimodal, dynamic registry)
+- `src/knowledge/store.js` — Multi-source TF-IDF search (searchMultiSource, getAllSourceStats)
+- `src/knowledge/ingester.js` — Multi-source ingestion (PDF, DOCX, image, audio, JSON, text, API, upload)
+- `src/knowledge/sources/pdf.js` — PDF ingestion via pdf-parse v1.1.1
+- `src/knowledge/sources/docx.js` — DOCX ingestion via mammoth
+- `src/knowledge/sources/image.js` — OCR via tesseract.js
+- `src/knowledge/sources/audio.js` — STT via Groq Whisper + OpenAI Whisper fallback
+- `src/knowledge/sources/api.js` — API endpoint ingestion
+- `src/tts/index.js` — TTS engine (Kokoro + Edge TTS fallback, voice mapping, chunk truncation)
 - `src/routes/admin.js` — Admin API (users, personas, surveys, ratings, follow-ups, bots, integrations, knowledge)
-- `src/routes/chat.js` — Chat API (JSON response, personas, ratings, surveys, onboarding)
+- `src/routes/chat.js` — Chat API (JSON response, personas, TTS with voice, ratings, surveys, onboarding)
 - `src/routes/auth.js` — Auth API (register, login, Google, profile with role)
 - `src/db/index.js` — MySQL pool + schema init + auto-migration
 
@@ -279,7 +311,7 @@ Onboarding: auto-creates user for bot users (ensureUser)
 | Role | Chat | Commands | Admin API | Custom Persona | Onboarding |
 |---|---|---|---|---|---|
 | guest | 5 msg/day | /stats, /myprofile | No | No | Yes |
-| user | 30 msg/day | + /tools, /persona | No | Via session | Yes |
+| user | 30 msg/day | + /tools, /persona, /voice | No | Via session | Yes |
 | premium | 100/day | + /health | No | Yes | Yes |
 | admin | 999/day | All | Full | Yes | Skip |
 
@@ -303,3 +335,14 @@ Onboarding: auto-creates user for bot users (ensureUser)
 | `rate_limit_user` | 30 | User daily message limit |
 | `rate_limit_premium` | 100 | Premium daily message limit |
 | `rate_limit_admin` | 999 | Admin daily message limit |
+| `message_chunk_size` | 200 | Max chars per text/audio message chunk |
+| `audio_chunk_size` | 200 | Max chars per TTS audio generation |
+
+## Critical Constraints
+- `pdf-parse` must be v1.1.1 — v2.x has breaking API changes (`pdfParse is not a function`)
+- MySQL `LIMIT ? OFFSET ?` with `pool.execute()` (prepared statements) fails — must interpolate as `${Number(limit)}`
+- Persona IDs preserve original format including hyphens — do NOT sanitize with regex
+- `buildSystemPrompt()` must handle both string and object identity formats
+- `switchPersona()` clears message history to prevent persona contamination
+- Message saving: `processMessage` saves assistant messages — do NOT double-save in bot handlers
+- TTS voice: persona.ttsVoice is passed through to Kokoro/Edge TTS — KOKORO_EDGE_VOICE_MAP handles fallback

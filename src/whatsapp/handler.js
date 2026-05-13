@@ -24,6 +24,7 @@ function makeWhatsAppHandler(options = {}) {
         language: 'pt-BR',
         isGroup,
         source: 'whatsapp',
+        userName: pushName || undefined,
       });
 
       return {

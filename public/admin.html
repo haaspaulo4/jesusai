@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — Jesus.AI</title>
+<link rel="stylesheet" href="/css/admin.css">
+</head>
+<body>
+<div id="adminApp">
+  <aside id="sidebar">
+    <div class="sidebar-header">
+      <h2 id="brandName">Jesus.AI</h2>
+      <span class="badge">Admin</span>
+    </div>
+    <nav>
+      <a href="#" data-page="dashboard" class="nav-link active">Dashboard</a>
+      <a href="#" data-page="users" class="nav-link">Usuarios</a>
+      <a href="#" data-page="personas" class="nav-link">Personas</a>
+      <a href="#" data-page="knowledge" class="nav-link">Conhecimento</a>
+      <a href="#" data-page="surveys" class="nav-link">Pesquisas</a>
+      <a href="#" data-page="ratings" class="nav-link">Avaliacoes</a>
+      <a href="#" data-page="followups" class="nav-link">Follow-ups</a>
+      <a href="#" data-page="bots" class="nav-link">Bots</a>
+      <a href="#" data-page="integrations" class="nav-link">Integracoes</a>
+      <a href="#" data-page="settings" class="nav-link">Configuracoes</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="/" class="back-link">Voltar ao Chat</a>
+      <button id="logoutBtn" class="btn-logout">Sair</button>
+    </div>
+  </aside>
+
+  <main id="mainContent">
+    <!-- Dashboard -->
+    <section id="page-dashboard" class="page active">
+      <h1>Dashboard</h1>
+      <div id="statsGrid" class="stats-grid"></div>
+      <div id="integrationStatus" class="card"></div>
+    </section>
+
+    <!-- Users -->
+    <section id="page-users" class="page">
+      <h1>Usuarios</h1>
+      <div class="toolbar">
+        <input type="text" id="userSearch" placeholder="Buscar por nome ou email..." class="input">
+        <select id="userRoleFilter" class="input">
+          <option value="">Todos os roles</option>
+          <option value="guest">Guest</option>
+          <option value="user">User</option>
+          <option value="premium">Premium</option>
+          <option value="admin">Admin</option>
+          <option value="banned">Banned</option>
+        </select>
+        <button id="refreshUsers" class="btn">Atualizar</button>
+      </div>
+      <div id="usersTable" class="table-wrap"></div>
+    </section>
+
+    <!-- Personas -->
+    <section id="page-personas" class="page">
+      <h1>Personas</h1>
+      <div class="toolbar">
+        <button id="createPersonaBtn" class="btn btn-primary">Nova Persona (Meta-RAG)</button>
+        <button id="refreshPersonas" class="btn">Atualizar</button>
+      </div>
+      <div id="createPersonaForm" class="card" style="display:none">
+        <h3>Criar Persona via Meta-RAG</h3>
+        <textarea id="personaDescription" class="input" rows="3" placeholder="Descreva a persona... Ex: Um coach de vendas experiente que ensina prospecção"></textarea>
+        <button id="generatePersonaBtn" class="btn btn-primary">Gerar</button>
+        <button id="cancelPersonaBtn" class="btn">Cancelar</button>
+      </div>
+      <div id="personasList" class="cards-grid"></div>
+    </section>
+
+    <!-- Knowledge -->
+    <section id="page-knowledge" class="page">
+      <h1>Conhecimento (RAG)</h1>
+      <div class="toolbar">
+        <button id="reindexBtn" class="btn">Reindexar</button>
+        <button id="refreshKnowledge" class="btn">Atualizar</button>
+      </div>
+      <div id="knowledgeUpload" class="card">
+        <h3>Upload de Arquivo</h3>
+        <form id="uploadForm" enctype="multipart/form-data">
+          <div class="form-row">
+            <input type="text" id="uploadSourceId" class="input" placeholder="ID da fonte (ex: vendas-pdf)" required>
+            <input type="text" id="uploadSourceName" class="input" placeholder="Nome (ex: Manual de Vendas)">
+            <select id="uploadType" class="input">
+              <option value="">Auto-detect</option>
+              <option value="pdf">PDF</option>
+              <option value="docx">DOCX</option>
+              <option value="image">Imagem (OCR)</option>
+              <option value="audio">Audio (STT)</option>
+              <option value="json">JSON</option>
+              <option value="text">Texto/Markdown</option>
+            </select>
+          </div>
+          <input type="file" id="uploadFile" name="file" class="input" required>
+          <button type="submit" class="btn btn-primary">Ingerir</button>
+        </form>
+        <div id="uploadProgress" style="display:none" class="progress-bar"><div class="progress-fill"></div></div>
+        <div id="uploadResult" style="display:none"></div>
+      </div>
+      <div id="knowledgeSources" class="cards-grid"></div>
+    </section>
+
+    <!-- Surveys -->
+    <section id="page-surveys" class="page">
+      <h1>Pesquisas</h1>
+      <div class="toolbar">
+        <button id="createSurveyBtn" class="btn btn-primary">Nova Pesquisa</button>
+        <button id="refreshSurveys" class="btn">Atualizar</button>
+      </div>
+      <div id="createSurveyForm" class="card" style="display:none">
+        <h3>Nova Pesquisa</h3>
+        <input type="text" id="surveyTitle" class="input" placeholder="Titulo da pesquisa" required>
+        <textarea id="surveyDesc" class="input" rows="2" placeholder="Descricao (opcional)"></textarea>
+        <select id="surveyTrigger" class="input">
+          <option value="manual">Manual</option>
+          <option value="after_messages">Apos N mensagens</option>
+          <option value="after_session">Apos sessao</option>
+        </select>
+        <button id="submitSurveyBtn" class="btn btn-primary">Criar</button>
+        <button id="cancelSurveyBtn" class="btn">Cancelar</button>
+      </div>
+      <div id="surveysList" class="cards-grid"></div>
+    </section>
+
+    <!-- Ratings -->
+    <section id="page-ratings" class="page">
+      <h1>Avaliacoes</h1>
+      <div class="toolbar">
+        <select id="ratingCategory" class="input">
+          <option value="">Todas categorias</option>
+          <option value="general">Geral</option>
+          <option value="spiritual">Espiritual</option>
+          <option value="response_quality">Qualidade</option>
+          <option value="empathy">Empatia</option>
+        </select>
+        <button id="refreshRatings" class="btn">Atualizar</button>
+      </div>
+      <div id="ratingsStats" class="stats-grid"></div>
+      <div id="ratingsList" class="table-wrap"></div>
+    </section>
+
+    <!-- Follow-ups -->
+    <section id="page-followups" class="page">
+      <h1>Follow-ups</h1>
+      <div class="toolbar">
+        <select id="followupStatus" class="input">
+          <option value="">Todos</option>
+          <option value="pending">Pendente</option>
+          <option value="sent">Enviado</option>
+          <option value="completed">Completo</option>
+        </select>
+        <button id="refreshFollowups" class="btn">Atualizar</button>
+      </div>
+      <div id="followupsList" class="table-wrap"></div>
+    </section>
+
+    <!-- Bots -->
+    <section id="page-bots" class="page">
+      <h1>Bots</h1>
+      <div class="toolbar">
+        <button id="addBotBtn" class="btn btn-primary">Novo Bot</button>
+        <button id="startAllBots" class="btn">Iniciar Todos</button>
+        <button id="refreshBots" class="btn">Atualizar</button>
+      </div>
+      <div id="addBotForm" class="card" style="display:none">
+        <h3>Novo Bot</h3>
+        <div class="form-row">
+          <select id="botPlatform" class="input"><option value="telegram">Telegram</option><option value="whatsapp">WhatsApp</option></select>
+          <input type="text" id="botName" class="input" placeholder="Nome do bot" required>
+          <input type="text" id="botToken" class="input" placeholder="Token / Instance name">
+          <input type="text" id="botPersonaId" class="input" placeholder="Persona ID (opcional)">
+        </div>
+        <button id="submitBotBtn" class="btn btn-primary">Criar</button>
+        <button id="cancelBotBtn" class="btn">Cancelar</button>
+      </div>
+      <div id="botsList" class="cards-grid"></div>
+    </section>
+
+    <!-- Integrations -->
+    <section id="page-integrations" class="page">
+      <h1>Integracoes</h1>
+      <div class="toolbar">
+        <button id="addKeyBtn" class="btn btn-primary">Nova Chave</button>
+        <button id="refreshIntegrations" class="btn">Atualizar</button>
+      </div>
+      <div id="addKeyForm" class="card" style="display:none">
+        <h3>Nova Chave de Integracao</h3>
+        <div class="form-row">
+          <select id="keyService" class="input">
+            <option value="llm">LLM</option>
+            <option value="tts_kokoro">TTS Kokoro</option>
+            <option value="tts_edge">TTS Edge</option>
+            <option value="stt_groq">STT Groq</option>
+            <option value="stt_openai">STT OpenAI</option>
+            <option value="telegram">Telegram</option>
+            <option value="whatsapp">WhatsApp</option>
+            <option value="email">Email</option>
+          </select>
+          <input type="text" id="keyValue" class="input" placeholder="API Key" required>
+          <input type="text" id="keyBaseUrl" class="input" placeholder="Base URL (opcional)">
+          <input type="text" id="keyModel" class="input" placeholder="Modelo (opcional)">
+          <input type="text" id="keyLabel" class="input" placeholder="Label (opcional)">
+        </div>
+        <button id="submitKeyBtn" class="btn btn-primary">Adicionar</button>
+        <button id="cancelKeyBtn" class="btn">Cancelar</button>
+      </div>
+      <div id="integrationsList" class="cards-grid"></div>
+    </section>
+
+    <!-- Settings -->
+    <section id="page-settings" class="page">
+      <h1>Configuracoes</h1>
+      <div class="toolbar">
+        <button id="refreshSettings" class="btn">Atualizar</button>
+      </div>
+      <div id="settingsGrid" class="settings-grid"></div>
+      <div class="card" style="margin-top:2rem">
+        <h3>Whitelabel</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Nome da Marca</label>
+            <input type="text" id="setting-brand_name" class="input" placeholder="Jesus.AI">
+          </div>
+          <div class="form-group">
+            <label>Tagline</label>
+            <input type="text" id="setting-brand_tagline" class="input" placeholder="Converse com Jesus">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Logo URL</label>
+            <input type="text" id="setting-brand_logo_url" class="input" placeholder="https://...">
+          </div>
+          <div class="form-group">
+            <label>Cor Primaria</label>
+            <input type="color" id="setting-brand_primary_color" class="input" value="#d4a843">
+          </div>
+        </div>
+        <button id="saveWhitelabelBtn" class="btn btn-primary">Salvar Whitelabel</button>
+      </div>
+    </section>
+  </main>
+</div>
+
+<div id="toast" class="toast" style="display:none"></div>
+<div id="loading" class="loading-overlay" style="display:none">
+  <div class="spinner"></div>
+</div>
+
+<script src="/js/admin.js"></script>
+</body>
+</html>

@@ -134,8 +134,6 @@ function makeTelegramHandler(options = {}) {
         }
       }
 
-      await addMessage(sid, 'assistant', result.response);
-
       if (result.sources && result.sources.length > 0) {
         const sourcesText = result.sources.map(s => `📖 ${s.reference}`).join('\n');
         try {

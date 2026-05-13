@@ -33,8 +33,7 @@ async function listSurveys({ activeOnly, page, limit } = {}) {
     query += ' AND is_active = 1';
   }
 
-  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-  params.push(limit, offset);
+  query += ` ORDER BY created_at DESC LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
 
   const [rows] = await pool.execute(query, params);
   const [totalResult] = await pool.execute('SELECT COUNT(*) as total FROM surveys');
@@ -134,8 +133,7 @@ async function getRatings({ category, source, userId, page, limit } = {}) {
   if (source) { query += ' AND r.source = ?'; params.push(source); }
   if (userId) { query += ' AND r.user_id = ?'; params.push(userId); }
 
-  query += ' ORDER BY r.created_at DESC LIMIT ? OFFSET ?';
-  params.push(limit, offset);
+  query += ` ORDER BY r.created_at DESC LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
 
   const [rows] = await pool.execute(query, params);
 
@@ -212,8 +210,7 @@ async function getFollowUps({ userId, status, type, page, limit } = {}) {
   if (status) { query += ' AND status = ?'; params.push(status); }
   if (type) { query += ' AND type = ?'; params.push(type); }
 
-  query += ' ORDER BY created_at DESC LIMIT ? OFFSET ?';
-  params.push(limit, offset);
+  query += ` ORDER BY created_at DESC LIMIT ${Number(limit)} OFFSET ${Number(offset)}`;
 
   const [rows] = await pool.execute(query, params);
 

@@ -53,6 +53,10 @@ app.use('/api/whatsapp', whatsappRoute);
 app.use('/api/email', emailRoute);
 app.use('/api/admin', adminRoute);
 
+app.get('/admin', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
+});
+
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
