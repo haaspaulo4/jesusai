@@ -1,0 +1,28 @@
+{
+  "name": "jesus-ai",
+  "version": "1.0.0",
+  "description": "AI conversational system that responds as Jesus based on the Bible using RAG",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "ingest": "node scripts/ingest.js",
+    "ngrok": "node scripts/ngrok-start.js",
+    "tunnel": "node scripts/ngrok-start.js"
+  },
+  "dependencies": {
+    "axios": "^1.7.9",
+    "bcryptjs": "^3.0.3",
+    "dotenv": "^16.4.7",
+    "edge-tts": "^1.0.1",
+    "express": "^4.21.2",
+    "express-session": "^1.19.0",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.1.1",
+    "mysql2": "^3.22.3",
+    "node-telegram-bot-api": "^0.67.0",
+    "nodemailer": "^8.0.7",
+    "passport": "^0.7.0",
+    "passport-google-oauth20": "^2.0.0"
+  }
+}
