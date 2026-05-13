@@ -28,8 +28,9 @@ Mas não é só sobre Bíblia. **A arquitetura é pluggable** — troque o corpu
 - **Memória persistente** — Lembra seu nome, temas, emoções. Constrói relacionamento.
 - **3 idiomas** — pt-BR, en-US, es-ES com prompts, TTS e STT adaptados.
 - **3 plataformas** — Web (SSE streaming), Telegram Bot, WhatsApp Bot (Evolution API v2).
-- **Voz nativa** — Edge TTS ou Multivozes BR Engine (8+ vozes em 3 idiomas) + fallback Google Translate.
+- **Voz nativa pt-BR** — Kokoro TTS (pm_alex, voz masculina natural) com Edge TTS como fallback.
 - **Speech-to-Text** — Groq Whisper (primary) + OpenAI Whisper (fallback).
+- **TTS inteligente** — Fallback automático sem misturar vozes. Content-type correto (WAV/MP3).
 - **Devocional diário** — Blog gerado por LLM com 31 temas rotativos.
 - **Newsletter com double opt-in** — Nodemailer SMTP.
 - **Auth completa** — Email/senha (bcrypt + JWT) + Google OAuth.
@@ -49,9 +50,9 @@ Mas não é só sobre Bíblia. **A arquitetura é pluggable** — troque o corpu
 | Auth | bcryptjs + JWT + Google OAuth | — |
 | Telegram | node-telegram-bot-api | [npm](https://www.npmjs.com/package/node-telegram-bot-api) — MIT |
 | WhatsApp | Evolution API v2 | [github.com/EvolutionAPI](https://github.com/EvolutionAPI/evolution-api) — AGPL v3 |
-| TTS | Edge TTS (pt-BR, en-US, es-ES) | [github.com/rany2/edge-tts](https://github.com/rany2/edge-tts) — GPL v3 |
-| TTS | Multivozes BR Engine (OpenAI-compatible, self-hosted) | [github.com/samucamg/multivozes_br_engine](https://github.com/samucamg/multivozes_br_engine) — MIT |
-| TTS Fallback | Google Translate TTS | [translate.google.com](https://translate.google.com) |
+| TTS | Kokoro-82M (primary) | [github.com/hexgrad/kokoro](https://github.com/hexgrad/kokoro) — Apache 2.0 |
+| TTS Fallback | Edge TTS (pt-BR, en-US, es-ES) | [github.com/rany2/edge-tts](https://github.com/rany2/edge-tts) — GPL v3 |
+| TTS Fallback 2 | Google Translate TTS | [translate.google.com](https://translate.google.com) |
 | STT | Groq Whisper | [groq.com](https://groq.com) |
 | STT Fallback | OpenAI Whisper | [openai.com](https://openai.com) |
 | Email | Nodemailer (SMTP) | [nodemailer.com](https://nodemailer.com) — MIT |
@@ -84,6 +85,17 @@ Mas não é só sobre Bíblia. **A arquitetura é pluggable** — troque o corpu
     │  Telegram  │         │    WhatsApp Bot     │
     │    Bot     │         │  (Evolution API)    │
     └────────────┘         └────────────────────┘
+```
+
+### TTS Flow
+
+```
+Text → cleanTextForTTS (strip markdown, emojis, surrogates, control chars)
+     → splitTextForTTS (at sentence boundaries, 300 chars for bots, 5000 for web)
+     → per chunk: try Kokoro → fallback to Edge TTS (no voice mixing)
+     → Telegram: sendVoice per chunk with correct content-type (audio/wav or audio/mp3)
+     → WhatsApp: text first, then audio per chunk with correct mimetype
+     → Web: POST /api/tts returns full audio buffer
 ```
 
 ### Trocando o Corpus de Conhecimento
@@ -152,13 +164,29 @@ npm start        # ou npm run dev (watch mode)
 
 Acesse `http://localhost:3000`
 
+### Kokoro TTS (voz natural pt-BR)
+
+```bash
+# Instalar dependências Python
+npm run tts:install
+
+# Iniciar servidor Kokoro (porta 8001)
+npm run tts:start
+
+# Verificar se está rodando
+npm run tts:check
+```
+
+O Kokoro TTS roda como processo separado na porta 8001. O Node.js detecta automaticamente via health check a cada 120s.
+
 ### Pré-requisitos
 
 1. **MySQL 8.4** rodando em localhost (root, sem senha, database `jesus_ai`)
 2. **OLLAMA_API_KEY** configurada no `.env`
 3. Rodar `npm run ingest` antes do primeiro uso
 4. Schema do banco é criado automaticamente no startup
-5. *(Opcional)* Edge TTS instalado globalmente: `pip install edge-tts`
+5. **Kokoro TTS** (obrigatório para voz natural): `npm run tts:install` → `npm run tts:start`
+6. *(Opcional)* Edge TTS: `pip install edge-tts`
 
 ### Variáveis de Ambiente
 
@@ -173,6 +201,9 @@ Veja [`.env.example`](.env.example) para a lista completa. As essenciais:
 | `TELEGRAM_TOKEN` | Token do bot Telegram (opcional) |
 | `EVO_API_URL/EVO_API_KEY` | Evolution API para WhatsApp (opcional) |
 | `GROQ_API_KEY` | Para STT via Whisper (opcional) |
+| `TTS_MODE` | Engine TTS: `kokoro` (padrão), `edge-tts`, `multivozes` |
+| `TTS_VOICE` | Voz TTS: `pm_alex` (padrão Kokoro pt-BR masculina) |
+| `KOKORO_URL` | URL do servidor Kokoro (padrão: `http://localhost:8001`) |
 | `SMTP_*` | Configuração de email (opcional) |
 
 ## Estrutura do Projeto
@@ -193,17 +224,18 @@ src/
   i18n/
     index.js              — Internationalization (pt-BR, en-US, es-ES)
   routes/
-    chat.js               — Chat API (SSE, sessions, profiles, STT)
+    chat.js               — Chat API (SSE, sessions, profiles, STT, TTS)
     auth.js               — Auth API (register, login, Google OAuth)
     blog.js               — Blog API (posts, comments, search)
     whatsapp.js           — WhatsApp webhook + group management
     email.js              — Email API (newsletter, contact)
   telegram/
-    bot.js                — Telegram bot (commands, chat, groups, TTS)
+    bot.js                — Telegram bot (commands, chat, voice, groups)
   whatsapp/
-    bot.js                — WhatsApp bot (Evolution API v2)
+    bot.js                — WhatsApp bot (Evolution API v2, groups, audio)
   tts/
-    index.js              — TTS engine (Edge TTS + Google Translate fallback)
+    index.js              — TTS engine (Kokoro → Edge TTS fallback, content-type tracking)
+    kokoro-manager.js     — Kokoro health check (120s, state-change-only logs, warmup)
   stt/
     index.js              — STT engine (Groq Whisper + OpenAI Whisper fallback)
   rag/
@@ -225,11 +257,14 @@ src/
 public/
   index.html              — Landing page + auth + chat SPA
   css/style.css           — Dark premium theme, glassmorphism
-  js/app.js               — Frontend logic (SSE, i18n, auth, chat, blog)
+  js/app.js               — Frontend logic (SSE, i18n, auth, chat, blog, TTS)
 data/
   bible_verses.json       — Processed documents (generated by ingest)
   bible_index.json        — TF-IDF index (generated by ingest)
   bible-api/              — Local Bible data (git cloned)
+tts-server/
+  kokoro_server.py        — Kokoro TTS Python server (FastAPI + uvicorn, WAV/MP3)
+  requirements.txt        — Python deps: kokoro, soundfile, numpy, fastapi, uvicorn
 ```
 
 ## API Endpoints
@@ -238,7 +273,9 @@ data/
 |--------|------|-----------|
 | `POST` | `/api/chat` | Chat streaming (SSE) |
 | `POST` | `/api/stt` | Speech-to-Text |
+| `POST` | `/api/tts` | Text-to-Speech (returns audio buffer) |
 | `GET` | `/api/config` | Bot URLs e configuração |
+| `GET` | `/api/health/tts` | Kokoro TTS server health status |
 | `GET` | `/api/translations/:lang` | Traduções i18n |
 | `POST` | `/api/auth/register` | Registrar usuário |
 | `POST` | `/api/auth/login` | Login |
@@ -267,14 +304,18 @@ data/
 ### Telegram
 - Comandos: `/start`, `/ajuda`, `/versiculo`, `/buscar`, `/oracao`, `/devocional`, `/grupo`
 - Suporte a grupos: responde apenas quando mencionado ou comandado
-- TTS com voz natural (Edge TTS)
+- TTS com voz natural (Kokoro pm_alex, WAV) com fallback Edge TTS (MP3)
+- Áudio enviado em chunks de 300 chars via sendVoice
+- STT para mensagens de voz do usuário (Groq Whisper)
 - Sessões por usuário em grupos: `tg_{chatId}_{userId}`
 
 ### WhatsApp
 - Webhook via Evolution API v2 (`POST /api/whatsapp/webhook`) + polling fallback
 - Mesmos comandos do Telegram
 - Suporte a grupos com detecção automática de menção
-- Áudio TTS entre chunks (2s de intervalo)
+- TTS com Kokoro (WAV) / Edge TTS (MP3) — content-type correto por engine
+- Áudio em chunks de 300 chars com fallback para Google Translate TTS
+- LID resolution: converte `@lid` para `@s.whatsapp.net` via cache
 - Rejeita chamadas automaticamente
 
 ## Princípios
@@ -290,4 +331,4 @@ MIT — Use, modifique, compartilhe.
 
 ---
 
-**Créditos**: [`CREDITS.md`](CREDITS.md) · **Documentação**: [`DOCS.md`](DOCS.md) · **Roadmap**: [`ROADMAP.md`](ROADMAP.md) · **Contribuir**: [`CONTRIBUTING.md`](CONTRIBUTING.md)
+**Créditos**: [`CREDITS.md`](CREDITS.md) · **Documentação**: [`DOCS.md`](DOCS.md) · **Roadmap**: [`ROADMAP.md`](ROADMAP.md) · **Contribuir**: [`CONTRIBUTING.md`](CONTRIBUTING.md) · **AGENTS.md**: [`AGENTS.md`](AGENTS.md)
