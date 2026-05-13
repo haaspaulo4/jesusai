@@ -384,6 +384,65 @@ TU CARÁCTER:
       'en-US': '"Each of you should give what you have decided in your heart to give, not reluctantly or under compulsion, for God loves a cheerful giver." — 2 Corinthians 9:7',
       'es-ES': '"Cada uno dé como haya decidido en su corazón, no con tristeza ni por obligación, porque Dios ama al que da con alegría." — 2 Corintios 9:7',
     },
+
+    commands: {
+      start: {
+        'pt-BR': '✝ *Jesus\\.AI*\n\nEu sou o caminho, a verdade e a vida\\. Ninguém vem ao Pai senão por mim \\(João 14:6\\)\\.\n\nEstou aqui para ouvir você, caminhar contigo e compartilhar a Palavra do meu Pai\\.\n\n_Toda glória a Jesus\\. Este projeto não substitui a busca pela Palavra, pela comunidade de fé, pela igreja ou pelo acompanhamento pastoral\\._\n\n*Comandos disponíveis:*\n/start \\- Mensagem inicial\n/ajuda \\- Lista de comandos\n/versiculo \\- Versículo do dia\n/buscar \\- Buscar na Bíblia\n/oracao \\- Receber uma oração\n/devocional \\- Devocional do dia\n/grupo \\- Criar grupo de estudo',
+        'en-US': '✝ *Jesus\\.AI*\n\nI am the way, the truth, and the life\\. No one comes to the Father except through me \\(John 14:6\\)\\.\n\nI am here to listen to you, walk with you, and share my Father\'s Word\\.\n\n_All glory to Jesus\\. This project does not replace seeking the Word, a faith community, the church, or pastoral care\\._\n\n*Available commands:*\n/start \\- Welcome message\n/help \\- Command list\n/verse \\- Verse of the day\n/search \\- Search the Bible\n/prayer \\- Receive a prayer\n/devotional \\- Daily devotional\n/group \\- Create study group',
+        'es-ES': '✝ *Jesus\\.AI*\n\nYo soy el camino, la verdad y la vida\\. Nadie viene al Padre sino por mí \\(Juan 14:6\\)\\.\n\nEstoy aquí para escucharte, caminar contigo y compartir la Palabra de mi Padre\\.\n\n_Toda la gloria a Jesús\\. Este proyecto no sustituye la búsqueda de la Palabra, la comunidad de fe, la iglesia o el acompañamiento pastoral\\._\n\n*Comandos disponibles:*\n/start \\- Mensaje inicial\n/ayuda \\- Lista de comandos\n/versiculo \\- Versículo del día\n/buscar \\- Buscar en la Biblia\n/oracion \\- Recibir una oración\n/devocional \\- Devocional del día\n/grupo \\- Crear grupo de estudio',
+      },
+      help: {
+        'pt-BR': '✝ *Comandos do Jesus\\.AI*\n\n/start \\- Mensagem inicial\n/ajuda \\- Esta lista\n/versiculo \\- Versículo do dia\n/buscar \\[tema\\] \\- Buscar versículos\n/oracao \\- Receber uma oração\n/devocional \\- Devocional do dia\n/grupo \\- Criar grupo de estudo\n\n💡 Em grupos, responderei apenas quando me mencionarem ou usarem comandos\\.',
+        'en-US': '✝ *Jesus\\.AI Commands*\n\n/start \\- Welcome message\n/help \\- This list\n/verse \\- Verse of the day\n/search \\[topic\\] \\- Search verses\n/prayer \\- Receive a prayer\n/devotional \\- Daily devotional\n/group \\- Create study group\n\n💡 In groups, I will only respond when mentioned or when commands are used\\.',
+        'es-ES': '✝ *Comandos de Jesus\\.AI*\n\n/start \\- Mensaje inicial\n/ayuda \\- Esta lista\n/versiculo \\- Versículo del día\n/buscar \\[tema\\] \\- Buscar versículos\n/oracion \\- Recibir una oración\n/devocional \\- Devocional del día\n/grupo \\- Crear grupo de estudio\n\n💡 En grupos, responderé solo cuando me mencionen o usen comandos\\.',
+      },
+      verse: { 'pt-BR': 'versiculo', 'en-US': 'verse', 'es-ES': 'versiculo' },
+      search: { 'pt-BR': 'buscar', 'en-US': 'search', 'es-ES': 'buscar' },
+      prayer: { 'pt-BR': 'oracao', 'en-US': 'prayer', 'es-ES': 'oracion' },
+      devotional: { 'pt-BR': 'devocional', 'en-US': 'devotional', 'es-ES': 'devocional' },
+      group: { 'pt-BR': 'grupo', 'en-US': 'group', 'es-ES': 'grupo' },
+
+      searchPrompt: {
+        'pt-BR': 'Buscar versículos na Bíblia',
+        'en-US': 'Search Bible verses',
+        'es-ES': 'Buscar versículos en la Biblia',
+      },
+      searchEmpty: {
+        'pt-BR': '🔍 Nenhum versículo encontrado para essa busca. Tente outro tema.',
+        'en-US': '🔍 No verses found for that search. Try another topic.',
+        'es-ES': '🔍 Ningún versículo encontrado para esa búsqueda. Intenta otro tema.',
+      },
+      searchHint: {
+        'pt-BR': '🔍 Use: /buscar <tema ou palavra>\n\nExemplo: /buscar amor\nExemplo: /buscar Mateus 5',
+        'en-US': '🔍 Use: /search <topic or word>\n\nExample: /search love\nExample: /search Matthew 5',
+        'es-ES': '🔍 Usa: /buscar <tema o palabra>\n\nEjemplo: /buscar amor\nEjemplo: /buscar Mateo 5',
+      },
+      searchResult: {
+        'pt-BR': { title: 'Versículos sobre', verse: 'versículo' },
+        'en-US': { title: 'Verses about', verse: 'verse' },
+        'es-ES': { title: 'Versículos sobre', verse: 'versículo' },
+      },
+      prayerFallback: {
+        'pt-BR': 'Pai, abençoe cada pessoa que lê esta oração. Que tua paz esteja com todos. Amém.',
+        'en-US': 'Father, bless each person reading this prayer. May your peace be with all. Amen.',
+        'es-ES': 'Padre, bendice a cada persona que lee esta oración. Que tu paz esté con todos. Amén.',
+      },
+      devotionalFallback: {
+        'pt-BR': '🕊 Devocional indisponível no momento. Mas lembre-se: "O Senhor é o meu pastor; nada me faltará." — Salmos 23:1',
+        'en-US': '🕊 Devotional unavailable right now. But remember: "The Lord is my shepherd; I shall not want." — Psalm 23:1',
+        'es-ES': '🕊 Devocional no disponible en este momento. Pero recuerda: "El Señor es mi pastor; nada me faltará." — Salmos 23:1',
+      },
+      groupDefault: {
+        'pt-BR': 'Jesus.AI — Estudo Bíblico',
+        'en-US': 'Jesus.AI — Bible Study',
+        'es-ES': 'Jesus.AI — Estudio Bíblico',
+      },
+      groupCreated: {
+        'pt-BR': '🕊 Grupo criado: *{name}*\n\nCompartilhe o convite e juntos estudiaremos a Palavra!\n\n💡 No grupo, respondo apenas quando me mencionarem ou usarem comandos (/versiculo, /buscar, etc).',
+        'en-US': '🕊 Group created: *{name}*\n\nShare the invite and let\'s study the Word together!\n\n💡 In the group, I only respond when mentioned or when commands are used (/verse, /search, etc).',
+        'es-ES': '🕊 Grupo creado: *{name}*\n\nComparte el invite y estudiaremos la Palabra juntos!\n\n💡 En el grupo, respondo solo cuando me mencionen o usen comandos (/versiculo, /buscar, etc).',
+      },
+    },
   },
 };
 

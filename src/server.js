@@ -11,7 +11,9 @@ const { startWhatsAppBot } = require('./whatsapp/bot');
 const { generateDailyPost, scheduleDailyPost } = require('./blog');
 const { scheduleDailyDevotional } = require('./email');
 const { initDatabase } = require('./db');
+const { getActivePersona } = require('./persona/config');
 const { startKokoroServer, stopKokoroServer } = require('./tts/kokoro-manager');
+
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -70,9 +72,14 @@ async function start() {
   }
 
   app.listen(PORT, async () => {
+    const persona = getActivePersona();
+    const nameLen = persona.name.length;
+    const padding = Math.max(0, 28 - nameLen);
+    const padLeft = Math.floor(padding / 2);
+    const padRight = padding - padLeft;
     console.log(`
   ╔══════════════════════════════════════╗
-  ║          Jesus.AI is running         ║
+  ║${' '.repeat(padLeft)}${persona.name} is running${' '.repeat(padRight)}║
   ║    http://localhost:${PORT}              ║
   ╚══════════════════════════════════════╝
     `);

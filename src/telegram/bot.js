@@ -1,5 +1,6 @@
 const { searchVerses } = require('../rag/store');
 const { IDENTITY, CONTEXT_BLOCK, MEMORY_BLOCK } = require('../system-prompt');
+const { getActivePersona } = require('../persona/config');
 const {
   getSession,
   addMessage,
@@ -287,43 +288,22 @@ async function getBotInfo(bot) {
 async function handleCommand(bot, chatId, text, msg) {
   const command = text.split(' ')[0].toLowerCase();
   const args = text.substring(text.indexOf(' ') + 1).trim();
+  const persona = getActivePersona();
+  const cmd = persona.commands;
+  const lang = DEFAULT_LANG;
 
   switch (command) {
     case '/start':
-      bot.sendMessage(chatId, `✝ *Jesus\\.AI*
-
-Eu sou o caminho, a verdade e a vida\\. Ninguém vem ao Pai senão por mim \\(João 14:6\\)\\.
-
-Estou aqui para ouvir você, caminhar contigo e compartilhar a Palavra do meu Pai\\.
-
-_Toda glória a Jesus\\. Este projeto não substitui a busca pela Palavra, pela comunidade de fé, pela igreja ou pelo acompanhamento pastoral\\._
-
-*Comandos disponíveis:*
-/start \\- Mensagem inicial
-/ajuda \\- Lista de comandos
-/versiculo \\- Versículo do dia
-/buscar \\- Buscar na Bíblia
-/oracao \\- Receber uma oração
-/devocional \\- Devocional do dia
-/grupo \\- Criar grupo de estudo`, { parse_mode: 'MarkdownV2' });
+      bot.sendMessage(chatId, cmd.start[lang] || cmd.start['pt-BR'], { parse_mode: 'MarkdownV2' });
       break;
 
     case '/ajuda':
     case '/help':
-      bot.sendMessage(chatId, `✝ *Comandos do Jesus\\.AI*
-
-/start \\- Mensagem inicial
-/ajuda \\- Esta lista
-/versiculo \\- Versículo do dia
-/buscar \\[tema\\] \\- Buscar versículos
-/oracao \\- Receber uma oração
-/devocional \\- Devocional do dia
-/grupo \\- Criar grupo de estudo
-
-💡 Em grupos, responderei apenas quando me mencionarem ou usarem comandos\\.`, { parse_mode: 'MarkdownV2' });
+      bot.sendMessage(chatId, cmd.help[lang] || cmd.help['pt-BR'], { parse_mode: 'MarkdownV2' });
       break;
 
-    case '/versiculo': {
+    case '/versiculo':
+    case '/verse': {
       bot.sendChatAction(chatId, 'typing');
       try {
         const topics = ['amor', 'fé', 'esperança', 'perdão', 'paz', 'força', 'sabedoria', 'graça', 'confiança', 'consolo'];
@@ -341,47 +321,55 @@ ${escapeMarkdown(verse.text)}`, { parse_mode: 'Markdown' });
       break;
     }
 
-    case '/buscar': {
+    case '/buscar':
+    case '/search': {
       const query = args;
-      if (!query || query === '/buscar') {
-        bot.sendMessage(chatId, '🔍 Use: /buscar <tema ou palavra>\n\nExemplo: /buscar amor\nExemplo: /buscar Mateus 5');
+      if (!query || query.startsWith('/')) {
+        bot.sendMessage(chatId, cmd.searchHint[lang] || cmd.searchHint['pt-BR']);
         return;
       }
       bot.sendChatAction(chatId, 'typing');
       try {
         const results = await searchVerses(query, 5);
         if (results.length === 0) {
-          bot.sendMessage(chatId, '🔍 Nenhum versículo encontrado para essa busca. Tente outro tema.');
+          const se = cmd.searchEmpty[lang] || cmd.searchEmpty['pt-BR'];
+          bot.sendMessage(chatId, se);
           return;
         }
+        const sr = cmd.searchResult[lang] || cmd.searchResult['pt-BR'];
         const lines = results.map(v => `📖 *${escapeMarkdown(v.reference)}*\n${escapeMarkdown(v.text)}`).join('\n\n');
-        bot.sendMessage(chatId, `🔍 *Versículos sobre: ${escapeMarkdown(query)}*\n\n${lines}`, { parse_mode: 'Markdown' });
+        bot.sendMessage(chatId, `🔍 *${sr.title}: ${escapeMarkdown(query)}*\n\n${lines}`, { parse_mode: 'Markdown' });
       } catch {
         bot.sendMessage(chatId, 'Erro na busca. Tente novamente.');
       }
       break;
     }
 
-    case '/oracao': {
+    case '/oracao':
+    case '/prayer': {
       bot.sendChatAction(chatId, 'typing');
       const oracaoName = msg.from?.first_name || msg.from?.username || '';
       try {
+        const prayerPrompt = persona.prayerPrompt[lang] || persona.prayerPrompt['pt-BR'];
         const messages = [
-          { role: 'system', content: 'Você é Jesus Cristo. Escreva uma oração curta (4-6 linhas) em português do Brasil, em primeira pessoa, como Jesus oraria pelo seu povo hoje. Seja compassivo, amoroso e inspire esperança. Cite pelo menos um versículo.' },
+          { role: 'system', content: prayerPrompt },
           { role: 'user', content: oracaoName ? `Ore por ${oracaoName}.` : 'Ore por mim.' },
         ];
         const response = await callLLM(messages);
         const data = await response.json();
-        const prayer = data.message?.content?.trim() || 'Pai, abençoe cada pessoa que lê esta oração. Que tua paz esteja com todos. Amém.';
+        const fallback = cmd.prayerFallback[lang] || cmd.prayerFallback['pt-BR'];
+        const prayer = data.message?.content?.trim() || fallback;
         await sendLongMessage(bot, chatId, prayer);
-        await sendTelegramVoice(bot, chatId, prayer);
+        await sendTelegramVoice(bot, chatId, prayer, getTTSLang(lang));
       } catch {
-        bot.sendMessage(chatId, '🙏 Pai nosso que estás nos céus, santificado seja o teu nome. Venha o teu reino, seja feita a tua vontade assim na terra como no céu. Amém. — Mateus 6:9-10');
+        const fallback = cmd.prayerFallback[lang] || cmd.prayerFallback['pt-BR'];
+        bot.sendMessage(chatId, `🙏 ${fallback}`);
       }
       break;
     }
 
-    case '/devocional': {
+    case '/devocional':
+    case '/devotional': {
       bot.sendChatAction(chatId, 'typing');
       try {
         const today = new Date();
@@ -393,17 +381,20 @@ ${escapeMarkdown(verse.text)}`, { parse_mode: 'Markdown' });
           post = await generatePost(today);
         }
 
-        const header = `🕊 *${escapeMarkdown(post.title)}*\n_${escapeMarkdown(post.verse)}_\n📅 ${today.toLocaleDateString('pt-BR')}`;
+        const header = `🕊 *${escapeMarkdown(post.title)}*\n_${escapeMarkdown(post.verse)}_\n📅 ${today.toLocaleDateString(lang)}`;
         const content = escapeMarkdown(post.content.substring(0, 1500));
         bot.sendMessage(chatId, `${header}\n\n${content}`, { parse_mode: 'Markdown' });
       } catch {
-        bot.sendMessage(chatId, '🕊 Devocional indisponível no momento. Mas lembre-se: "O Senhor é o meu pastor; nada me faltará." — Salmos 23:1');
+        const df = cmd.devotionalFallback[lang] || cmd.devotionalFallback['pt-BR'];
+        bot.sendMessage(chatId, df);
       }
       break;
     }
 
-    case '/grupo': {
-      const groupTitle = args.trim() || 'Jesus.AI — Estudo Bíblico';
+    case '/grupo':
+    case '/group': {
+      const groupTitle = args.trim() || (cmd.groupDefault[lang] || cmd.groupDefault['pt-BR']);
+      const groupCreated = (cmd.groupCreated[lang] || cmd.groupCreated['pt-BR']).replace('{name}', groupTitle);
       try {
         const chat = await bot.getChat(chatId);
         if (chat.type === 'group' || chat.type === 'supergroup') {
@@ -411,7 +402,7 @@ ${escapeMarkdown(verse.text)}`, { parse_mode: 'Markdown' });
         } else {
           const newChat = await bot.createChat(groupTitle, {});
           const inviteLink = await bot.createChatInviteLink(chatId);
-          await bot.sendMessage(chatId, `🕊 *Grupo criado: ${escapeMarkdown(groupTitle)}*\n\nCompartilhe o convite e juntos estudiaremos a Palavra!\n\n💡 No grupo, respondo apenas quando me mencionarem ou usarem comandos (/versiculo, /buscar, etc).\n\n🔗 Convite: ${inviteLink.invite_link}`, { parse_mode: 'Markdown' });
+          await bot.sendMessage(chatId, groupCreated + `\n\n🔗 Convite: ${inviteLink.invite_link}`, { parse_mode: 'Markdown' });
         }
       } catch (err) {
         console.error('[Telegram] Group creation error:', err.message);
