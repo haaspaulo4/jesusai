@@ -111,11 +111,12 @@
 - [ ] **Mastodon/Fediverse Bot** — Integração com redes descentralizadas
 - [x] **Kokoro TTS** — TTS local em CPU com pt-BR nativo (pf_dora, pm_alex), en-US, es-ES. Apache 2.0, 82M params. Integrado como `TTS_MODE=kokoro`: [github.com/hexgrad/kokoro](https://github.com/hexgrad/kokoro)
 - [x] **Kokoro TTS web** — Endpoint `/api/tts` serve áudio Kokoro ao browser com fallback para speechSynthesis
-- [x] **Kokoro health check** — `kokoro-manager.js` faz health check a cada 60s (10s timeout), só loga mudança de estado, warmup pipeline
+- [x] **Kokoro health check** — `kokoro-manager.js` faz health check a cada 120s (10s timeout), só loga mudança de estado, warmup pipeline
 - [x] **TTS fallback lock** — Se Kokoro falha num chunk, todos os chunks restantes usam Edge TTS (sem misturar vozes)
 - [x] **Content-type tracking** — Buffer objects rastreiam contentType (audio/wav para Kokoro, audio/mp3 para Edge TTS)
 - [x] **Telegram voice** — Envia áudio em chunks de 300 chars com content-type correto (wav/mp3)
 - [x] **WhatsApp audio** — Envia texto primeiro, depois áudio em chunks de 300 chars com mimetype correto
+- [x] **White-label foundation** — Persona config agora tem `commands` (start, help, verse, search, prayer, devotional, group) com strings em 3 idiomas. Telegram bot usa `getActivePersona().commands`. Server banner usa persona name.
 
 ---
 
