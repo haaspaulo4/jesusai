@@ -1,7 +1,7 @@
 require('dotenv').config();
-const { ingestBible } = require('../src/rag/ingester');
+const { runIngestion } = require('../src/knowledge/ingester');
 
-ingestBible()
+runIngestion()
   .then(() => {
     console.log('\nIngestion complete!');
     process.exit(0);

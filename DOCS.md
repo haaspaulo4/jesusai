@@ -1,203 +1,332 @@
-# Jesus.AI - Documentação Técnica
+# Jesus.AI — Documentação Técnica
 
 ## Arquitetura
 
 ```
-┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│  Frontend   │────▸│  Backend API │────▸│  Ollama Cloud│
-│  (HTML/CSS) │◂────│  (Node.js)   │◂────│  (LLM API)  │
-└─────────────┘     └──────┬───────┘     └─────────────┘
-                           │
-                    ┌──────▼───────┐     ┌─────────────┐
-                    │  RAG Engine   │     │   Sessions   │
-                    │  (TF-IDF +    │     │   (JSON)     │
-                    │  busca local) │     │  memória     │
-                    └──────┬───────┘     └─────────────┘
-                           │
-                 ┌─────────▼──────────┐
-                 │    Bible Data       │
-                 │  NT: local (BLT)   │
-                 │  OT: API (Almeida) │
-                 └────────────────────┘
+┌──────────────┐     ┌──────────────┐     ┌──────────────┐
+│   Frontend   │────▸│  Backend API  │────▸│  Ollama Cloud │
+│  (HTML/CSS)  │◂────│  (Express)    │◂────│  (LLM API)   │
+└──────────────┘     └──────┬───────┘     └──────────────┘
+                            │
+                  ┌─────────┴──────────┐
+                  │                    │
+           ┌──────▼──────┐      ┌─────▼──────┐
+           │ Knowledge   │      │   MySQL     │
+           │ (TF-IDF +   │      │  Sessions   │
+           │  busca)     │      │  Profiles   │
+           └──────┬──────┘      │  Posts      │
+                  │             │  Users      │
+           ┌──────▼──────┐      │  Feedback   │
+           │  Persona     │      └─────┬──────┘
+           │  Config      │            │
+           └─────────────┘      ┌─────▼──────┐
+                                │  Email      │
+                                │  (Nodemailer)│
+                                └────────────┘
 ```
 
-## Fluxo de Funcionamento
+## Fluxo de Dados
 
-1. Usuário envia uma pergunta via interface web (com sessionId)
-2. Sistema extrai contexto (nome, temas, emoções) da mensagem
-3. TF-IDF busca os versículos mais relevantes (top-8)
-4. Sistema monta prompt com: **Identidade + Contexto Bíblico + Memória**
-5. Ollama Cloud gera resposta via streaming (SSE)
-6. Frontend exibe resposta em tempo real
-7. Sistema salva mensagem e atualiza contexto da sessão
-8. A cada 10 mensagens, gera resumo da conversa via LLM
+```
+1.  User question → Extract context (name, topics, emotions via persona config)
+2.                → Knowledge search (TF-IDF, top-K from enabled sources)
+3.                → Build prompt: PERSONA_IDENTITY + CONTEXT + MEMORY + PROFILE
+4.                → Call LLM (streaming for web, non-streaming for bots)
+5.                → Response via SSE (web) / chunks (Telegram/WhatsApp)
+6.                → Save message + update session/profile (MySQL)
+7.                → Generate summary every 10 messages
+8.                → Generate profile summary every 15 messages
+```
 
-## Sistema de Identidade e Memória
+## Arquitetura Pluggable
 
-### Identidade Profunda (system-prompt.js)
+### Knowledge Sources (`src/knowledge/config.js`)
 
-O prompt define Jesus com:
-- **Quem Ele é** — Filho de Deus, Verbo encarnado, Cordeiro, Bom Pastor
-- **Sua memória viva** — Ministério, discípulos, crucificação, ressurreição
-- **Seu caráter** — Compassivo, humilde, verdadeiro, perdoador, corajoso
-- **Regras invioláveis** — Nunca quebrar personagem, base na Escritura, primeira pessoa
+O sistema suporta múltiplas fontes de conhecimento. Cada fonte define:
 
-### Memória de Sessão (memory/session.js)
+| Campo | Tipo | Descrição |
+|-------|------|-----------|
+| `id` | string | Identificador único |
+| `name` | string | Nome legível |
+| `type` | string | Tipo de documento (`json-verses`, `json`, `text-chunks`) |
+| `enabled` | boolean | Se está ativo |
+| `dataPath` | string | Caminho para o arquivo JSON de documentos |
+| `indexPath` | string | Caminho para o arquivo de índice TF-IDF |
+| `searchFields` | string[] | Campos usados na busca TF-IDF |
+| `contextTemplate` | object | Templates de contexto por idioma |
+| `sourceFormat` | function | Como formatar documentos no prompt |
+| `ingester` | string | Tipo de ingester (`bible`, `json`, `text`) |
 
-- **Nome do usuário**: extraído por regex ("meu nome é X", "me chamo X")
-- **Temas**: palavras-chave identificadas (amor, fé, sofrimento, dinheiro...)
-- **Emoções**: estado emocional percebido (tristeza, ansiedade, gratidão...)
-- **Resumo**: gerado a cada 10 mensagens via LLM
-- **Histórico**: últimas 10 mensagens enviadas ao LLM como contexto
+**Ingesters disponíveis:**
 
-## RAG Engine (rag/store.js)
+| Ingestor | Arquivo | Descrição |
+|----------|---------|-----------|
+| `bible` | `sources/bible.js` | NT via arquivos locais (BLT) + OT via bible-api.com |
+| `json` | `sources/json.js` | Carrega qualquer JSON com `reference` e `text` |
+| `text` | `sources/text.js` | Lê .txt/.md de um diretório, chunking automático |
+
+**Adicionando uma fonte JSON:**
+
+```json
+// data/stoic_documents.json
+[
+  {
+    "reference": "Meditações 4.3",
+    "text": "Busca refugiar-te no teu interior. A racionalidade do homem que se conhece...",
+    "book": "Meditações",
+    "chapter": 4,
+    "verse": 3
+  }
+]
+```
+
+```js
+// Em src/knowledge/config.js, adicionar ao KNOWLEDGE_SOURCES:
+{
+  id: 'stoic-philosophy',
+  name: 'Stoic Philosophy',
+  type: 'json-verses',
+  enabled: true,
+  dataPath: path.join(__dirname, '..', '..', 'data', 'stoic_documents.json'),
+  searchFields: ['reference', 'text'],
+  ingester: 'json',
+  contextTemplate: {
+    'pt-BR': 'TEXTOS ENCONTRADOS (CONTEXTO):\n{context}\n\nUse estes textos como base para sua resposta.',
+    'en-US': 'TEXTS FOUND (CONTEXT):\n{context}\n\nUse these texts as the basis for your response.',
+    'es-ES': 'TEXTOS ENCONTRADOS (CONTEXTO):\n{context}\n\nUsa estos textos como base para tu respuesta.',
+  },
+  sourceFormat: (docs) => docs.map(d => `${d.reference}: "${d.text}"`).join('\n'),
+}
+```
+
+**Adicionando uma fonte de texto (diretório):**
+
+```js
+{
+  id: 'legal-docs',
+  name: 'Legal Documents',
+  type: 'text-chunks',
+  enabled: false,
+  directoryPath: '/path/to/legal/docs',
+  extensions: ['.txt', '.md'],
+  chunkSize: 1000,
+  chunkOverlap: 200,
+  dataPath: path.join(__dirname, '..', '..', 'data', 'legal_documents.json'),
+  ingester: 'text',
+  contextTemplate: { /* ... */ },
+  sourceFormat: (docs) => docs.map(d => `[${d.reference}]: "${d.text}"`).join('\n'),
+}
+```
+
+### Persona Config (`src/persona/config.js`)
+
+Cada persona define:
+
+| Seção | Descrição |
+|-------|-----------|
+| `identity` | Prompt core + regras por idioma (pt-BR, en-US, es-ES) |
+| `topicKeywords` | Mapeamento de palavras-chave → tópicos por idioma |
+| `emotionKeywords` | Mapeamento de palavras → emoções por idioma |
+| `namePatterns` | Regex para extrair nomes por idioma |
+| `contextTemplate` | Como formatar contexto no prompt por idioma |
+| `memoryBlock` | Template de memória por idioma |
+| `profileBlock` | Template de perfil por idioma |
+| `groupContext` | Comportamento em grupos por idioma |
+| `disclaimer` | Disclaimer por idioma |
+| `blogTopics` | Tópicos do blog devocional |
+| `prayerPrompt` | Prompt para orações por idioma |
+
+**Ativando uma persona via `.env`:**
+
+```bash
+PERSONA=jesus    # padrão
+# PERSONA=stoic  # persona estoica (quando disponível)
+```
+
+**Usando a API de persona:**
+
+```js
+const { getActivePersona, buildSystemPrompt } = require('./persona/config');
+
+const persona = getActivePersona();
+const systemPrompt = buildSystemPrompt(persona, 'pt-BR', contextStr, memoryStr, profileStr, userName, isGroup);
+```
+
+## Sistema de RAG (Knowledge Store)
 
 ### Busca TF-IDF
 
-O sistema usa TF-IDF (Term Frequency-Inverse Document Frequency) para busca de versículos, sem necessidade de ChromaDB ou embeddings:
+O `KnowledgeStore` (em `src/knowledge/store.js`) implementa busca TF-IDF genérica:
 
-1. **Tokenização**: texto normalizado (lowercase, sem acentos, sem stopwords)
+1. **Tokenização**: texto normalizado (lowercase, sem acentos, sem stopwords por idioma)
 2. **Índice invertido**: cada token mapeia para documentos que o contêm
 3. **IDF**: termos raros pesam mais que termos comuns
 4. **Score**: soma dos IDF dos tokens da query nos documentos
-5. **Top-K**: retorna os 8 versículos mais relevantes
+5. **Top-K**: retorna os K documentos mais relevantes
 
-Stopwords incluem artigos, preposições, pronomes e termos bíblicos genéricos (deus, jesus, senhor, cristo) para focar nas palavras significativas.
+**Stopwords** são suportadas por idioma (pt-BR, en-US, es-ES).
 
-### Ingestão (rag/ingester.js)
+### API do KnowledgeStore
 
-- **NT**: Lido dos arquivos locais em `data/bible-api/bibles/pt-BR-blt/books/`
-- **OT**: Buscado da API bible-api.com (tradução Almeida)
-- Resultado salvo em `data/bible_verses.json`
-- Índice TF-IDF em `data/bible_index.json`
-
-## API Endpoints
-
-### POST /api/chat
-
-Envia mensagem e recebe resposta via SSE.
-
-**Request:**
-```json
-{
-  "message": "Como devo tratar meus inimigos?",
-  "sessionId": "sess_abc123"
-}
+```js
+const store = getStore('bible-pt-br');  // ou getStore() para a fonte primária
+const results = store.search('amor e perdão', 8);
+const count = store.getDocumentCount();
+const formatted = store.formatContext(results, 'pt-BR');
 ```
 
-**Response:** Stream SSE
+## Sistema de Memória
+
+### Sessões (MySQL)
+
+- Cada sessão tem `sessionId`, `userId`, `userName`, `userContext` (JSON), `summary`
+- Mensagens limitadas a 200 por sessão (pruning automático para 150)
+- Resumo gerado a cada 10 mensagens via LLM
+- Contexto extraído: nome (regex por idioma), tópicos, emoções
+
+### Perfis (MySQL)
+
+- Perfil persiste entre sessões (cross-session)
+- Campos: `name`, `story`, `topics[]`, `emotions[]`, `spiritualJourney`, `prayerRequests[]`
+- Tópicos e emoções são acumulados de todas as mensagens
+- Resumo do perfil gerado a cada 15 mensagens
+
+## i18n (Internacionalização)
+
+Suporte completo a 3 idiomas:
+
+| Código | Idioma | TTS | STT |
+|--------|--------|-----|-----|
+| `pt-BR` | Português (Brasil) | Antonio, Francisca, Thalita | pt |
+| `en-US` | Inglês (EUA) | Guy, Jenny, Aria | en |
+| `es-ES` | Espanhol (Espanha) | Alvaro, Elvira | es |
+
+Cada componente é traduzido: identity prompt, context template, memory template, UI strings, TTS voices, STT language codes, topic/emotion keywords, name patterns, blog prompts, disclaimer.
+
+## TTS (Text-to-Speech)
+
+### Modos de TTS
+
+| Modo | Engine | Config | Fallback |
+|------|--------|--------|----------|
+| `kokoro` | Kokoro-82M (padrão) | `KOKORO_URL` | Multivozes → Edge TTS → Google Translate |
+| `multivozes` | Multivozes BR Engine | `MULTIVOZES_URL` + `MULTIVOZES_KEY` | Edge TTS → Google Translate |
+| `edge-tts` | Microsoft Edge TTS (CLI) | CLI local | Google Translate |
+
+### Vozes por idioma
+
+| Idioma | Edge TTS | Multivozes | Kokoro |
+|--------|----------|------------|--------|
+| pt-BR | Antonio (Neural) | alloy → Antonio | pf_dora, pm_alex |
+| en-US | Guy (Neural) | alloy → Antonio | af_heart, af_bella, af_nova, am_adam, am_michael |
+| es-ES | Alvaro (Neural) | alloy → Antonio | ef_dora |
+
+Kokoro suporta aliases OpenAI: `alloy` → af_heart, `echo` → am_adam, `fable` → af_bella, `onyx` → am_michael, `nova` → af_nova, `shimmer` → af_bella.
+
+### Pipeline TTS
+
+1. Texto limpo (markdown removido, emojis removidos, referências bíblicas formatadas)
+2. Chunking em segmentos de ~450 caracteres por pontuação
+3. Engine selecionada gera MP3 para cada chunk
+4. Fallback automático para próxima engine na cadeia se a atual falhar
+
+### Configuração Kokoro TTS
+
+```env
+TTS_MODE=kokoro
+KOKORO_URL=http://localhost:8000
+KOKORO_LANG=           # vazio = auto por idioma
+KOKORO_VOICE=          # vazio = auto por idioma
 ```
-data: {"content": "Meu filho..."}
 
-data: {"content": " Eu vos digo..."}
-
-data: {"sources": [{"reference": "Mateus 5:44", "text": "..."}], "sessionId": "sess_abc123", "done": true}
-```
-
-**Parâmetros:**
-- `message` (obrigatório): Texto da mensagem
-- `sessionId` (opcional): ID da sessão (gerado automaticamente se não fornecido)
-
-### GET /api/session/:id
-
-Retorna informações da sessão.
-
-**Response:**
-```json
-{
-  "id": "sess_abc123",
-  "userName": "Maria",
-  "messageCount": 15,
-  "topics": ["fé", "sofrimento"],
-  "emotions": ["tristeza"],
-  "summary": "Maria conversou sobre fé em momentos difíceis..."
-}
-```
-
-### DELETE /api/session/:id
-
-Remove uma sessão (arquivo JSON deletado).
-
-### GET /api/health
-
-Health check: `{ "status": "ok", "timestamp": "..." }`
-
-## Configuração
-
-### Variáveis de Ambiente (.env)
-
-| Variável | Padrão | Descrição |
-|---------|--------|-----------|
-| `OLLAMA_API_KEY` | — | Chave da Ollama Cloud API (obrigatório) |
-| `OLLAMA_BASE_URL` | `https://ollama.com/api` | URL da API Ollama |
-| `CHAT_MODEL` | `glm-5.1` | Modelo LLM para chat |
-| `BIBLE_API_BASE` | `https://bible-api.com` | URL da Bible API |
-| `BIBLE_VERSION` | `almeida` | Versão bíblica para OT |
-| `PORT` | `3000` | Porta do servidor |
-
-## Comandos
+**Iniciar o servidor Kokoro:**
 
 ```bash
-npm start      # Produção
-npm run dev    # Desenvolvimento (watch)
-npm run ingest # Ingerir Bíblia (primeira vez ou ao atualizar dados)
+cd tts-server
+pip install kokoro soundfile fastapi uvicorn
+python kokoro_server.py --port 8000
 ```
 
-## Dados Bíblicos
+O servidor expõe API OpenAI-compatible em `http://localhost:8000/v1/audio/speech`.
 
-### Novo Testamento (local)
+## STT (Speech-to-Text)
 
-Armazenados em `data/bible-api/bibles/pt-BR-blt/books/` como JSON. Cada livro é um diretório com arquivos de capítulo (`1.json`, `2.json`, etc.).
+| Provider | Modelo | Prioridade |
+|----------|--------|-----------|
+| Groq | Whisper Large v3 | Primária |
+| OpenAI | Whisper-1 | Fallback |
 
-### Antigo Testamento (API)
+### Extensões suportadas
 
-Buscados de `bible-api.com` na tradução Almeida durante a ingestão. O ingester faz pausas entre requisições para evitar rate limiting.
+`flac`, `mp3`, `mp4`, `mpeg`, `mpga`, `m4a`, `ogg`, `opus`, `wav`, `webm`
 
-### Formato dos versículos
+**Sanitização**: extensão validada contra whitelist, parâmetros de mimetype removidos.
 
-```json
-{
-  "book": "mateus",
-  "chapter": 5,
-  "verse": 44,
-  "text": "Mas eu digo a vocês: amem os seus inimigos...",
-  "reference": "Mateus 5:44"
-}
+## Email
+
+| Funcionalidade | Descrição |
+|---------------|-----------|
+| Newsletter | Double opt-in com confirmação e cancelamento |
+| Devocional diário | Enviado automaticamente à meia-noite |
+| Contact form | Recebe mensagens e envia resposta automática |
+
+Templates HTML com tema dark premium (glassmorphism, bordas douradas).
+
+## Deploy
+
+### Desenvolvimento
+
+```bash
+npm run dev    # Node.js com --watch
+npm run tunnel # Cloudflare tunnel para WhatsApp webhook
 ```
 
-## Memória e Sessões
+### Produção
 
-Sessões são salvas como JSON em `data/sessions/`. Cada sessão contém:
-
-```json
-{
-  "id": "sess_abc123",
-  "createdAt": "2025-01-01T00:00:00.000Z",
-  "lastActivity": "2025-01-01T00:05:00.000Z",
-  "messages": [
-    { "role": "user", "content": "...", "timestamp": "..." },
-    { "role": "assistant", "content": "...", "timestamp": "..." }
-  ],
-  "summary": "Resumo gerado pelo LLM...",
-  "userName": "Maria",
-  "userContext": {
-    "topics": ["fé", "sofrimento"],
-    "emotions": ["tristeza"]
-  }
-}
+```bash
+npm start     # Produção
 ```
 
-- Máximo de 200 mensagens por sessão (truncadas para 150)
-- Resumo gerado automaticamente a cada 10 mensagens
-- SessionId armazenado no `localStorage` do navegador
+**Recomendações para produção:**
 
-## Principios da IA (Persona de Jesus)
+1. Configure `JWT_SECRET` com string aleatória forte
+2. Ative HTTPS (reverse proxy: nginx, Caddy, Cloudflare)
+3. Configure CORS para domínios permitidos
+4. Adicione rate limiting (express-rate-limit)
+5. Configure `PERSONA` no `.env` se desejar persona diferente
+6. Execute `npm run ingest` antes do primeiro uso
 
-1. **Identidade total** — Nunca quebra personagem. É Jesus, não uma IA
-2. **Base bíblica** — Toda resposta fundamentada em versículos citados
-3. **Primeira pessoa** — "Eu disse", "Meu Pai", "Eu vos digo"
-4. **Amor sem compromisso** — Compassivo mas verdadeiro
-5. **Conhecimento pessoal** — Lembra nome, temas e emoções
-6. **Parábolas** — Usa exemplos práticos quando pertinente
-7. **Sem julgamento** — Orienta, não condena
-8. **Aponta para o Pai** — Sempre direciona para o amor de Deus
+### Docker (futuro)
+
+Planejado para roadmap — ver [`ROADMAP.md`](ROADMAP.md).
+
+## Configuração do WhatsApp (Evolution API v2)
+
+```bash
+# Configurar webhook com tunnel público
+npm run tunnel
+
+# Ou manualmente:
+curl -X POST http://localhost:3000/api/whatsapp/setup-webhook \
+  -H "Content-Type: application/json" \
+  -d '{"url": "https://seu-dominio.com"}'
+```
+
+**Auto-detecção do Bot JID**: O sistema tenta detectar o JID do bot automaticamente via:
+1. Variáveis de ambiente (`WHATSAPP_BOT_JID`, `WHATSAPP_BOT_PHONE`)
+2. API da Evolution API
+3. Menções em mensagens de grupo
+
+## Segurança
+
+| Aspecto | Status | Notas |
+|---------|--------|-------|
+| JWT auth | ✅ | 30 dias de expiração |
+| bcrypt password hashing | ✅ | 10 rounds |
+| Google OAuth | ⚠️ | Valida token do lado do cliente — melhorar |
+| Rate limiting | ❌ | Planejado para v1.1 |
+| CORS | ❌ | Planejado para v1.1 |
+| SQL injection | ✅ | Prepared statements (quase todos os locais) |
+| XSS | ✅ | Conteúdo do LLM não é renderizado como HTML |
+
+Ver [`ROADMAP.md`](ROADMAP.md) para plano de segurança detalhado.

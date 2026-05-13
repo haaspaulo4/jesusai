@@ -16,6 +16,7 @@ const {
 } = require('../memory/session');
 const {
   getProfile,
+  saveProfile,
   updateProfileFromMessage,
   buildProfileContext,
   generateProfileSummary,
