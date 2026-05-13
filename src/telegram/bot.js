@@ -65,6 +65,7 @@ async function sendTelegramVoice(bot, chatId, text, lang = 'pt-BR') {
   const chunks = splitTextForTTS(text, 300);
   if (!chunks || chunks.length === 0) return;
 
+  console.log(`[Telegram] Sending voice: ${chunks.length} chunk(s), lang=${lang}`);
   for (const chunk of chunks) {
     if (chunk.length > 5000) continue;
     try {
@@ -72,14 +73,17 @@ async function sendTelegramVoice(bot, chatId, text, lang = 'pt-BR') {
       if (audioBuffer && audioBuffer.length > 0) {
         const contentType = getAudioContentType(audioBuffer);
         const ext = contentType.includes('wav') ? 'wav' : 'mp3';
+        console.log(`[Telegram] Voice chunk OK: ${audioBuffer.length} bytes, ${contentType}`);
         await bot.sendVoice(chatId, audioBuffer, { caption: '' }, { filename: `voice.${ext}`, contentType });
         continue;
       }
+      console.log(`[Telegram] Voice chunk: generateAudioBuffer returned null/empty`);
     } catch (err) {
       console.error('[Telegram] Voice send failed:', err.message);
     }
     await new Promise(r => setTimeout(r, 200));
   }
+  console.log(`[Telegram] Voice done`);
 }
 
 async function sendLongMessage(bot, chatId, text, options = {}) {

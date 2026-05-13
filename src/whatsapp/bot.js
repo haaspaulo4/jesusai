@@ -278,20 +278,25 @@ async function sendReplyWithAudio(remoteJid, reply, lang = 'pt-BR') {
   const audioChunks = splitTextForTTS(reply, 300);
   if (!audioChunks || audioChunks.length === 0) return;
 
+  console.log(`[WhatsApp] Sending voice: ${audioChunks.length} chunk(s), lang=${ttsLang}`);
   for (const chunk of audioChunks) {
     if (chunk.length > MAX_TTS_LENGTH) continue;
     try {
       const audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang });
       if (audioBuffer && audioBuffer.length > 0) {
+        console.log(`[WhatsApp] Voice chunk OK: ${audioBuffer.length} bytes, ${audioBuffer.contentType || 'unknown'}`);
         try { await sendWhatsAppAudio(remoteJid, audioBuffer); } catch {
           try { await sendWhatsAppAudio(remoteJid, generateTTSAudioUrl(chunk, ttsLang)); } catch {}
         }
         continue;
       }
-    } catch {}
+    } catch (err) {
+      console.error('[WhatsApp] Voice chunk failed:', err.message);
+    }
     try { await sendWhatsAppAudio(remoteJid, generateTTSAudioUrl(chunk, ttsLang)); } catch {}
     await new Promise(r => setTimeout(r, 500));
   }
+  console.log(`[WhatsApp] Voice done`);
 }
 
 function alternateBrazilianNumber(number) {
