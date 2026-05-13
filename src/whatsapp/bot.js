@@ -726,7 +726,10 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
       llmData = await callLLM(messages);
     } catch (err) {
       console.error('[WhatsApp] LLM error:', err.message);
-      await sendWhatsAppText(remoteJid, t('llmError', lang));
+      const errorMsg = err.message && err.message.includes('429')
+        ? '🙏 Estou com muita demanda agora. Por favor, tente novamente em alguns segundos.'
+        : t('llmError', lang);
+      await sendWhatsAppText(remoteJid, errorMsg);
       return;
     }
 

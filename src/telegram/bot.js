@@ -136,48 +136,26 @@ async function sendLongMessage(bot, chatId, text, options = {}) {
 }
 
 async function callLLM(messages, stream = false) {
-  const maxRetries = 2;
-  let lastError = null;
+  const response = await fetch(`${OLLAMA_BASE_URL}/chat`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(OLLAMA_API_KEY ? { Authorization: `Bearer ${OLLAMA_API_KEY}` } : {}),
+    },
+    body: JSON.stringify({
+      model: CHAT_MODEL,
+      messages,
+      stream,
+      options: { temperature: 0.7, num_predict: 1024 },
+    }),
+  });
 
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    try {
-      const response = await fetch(`${OLLAMA_BASE_URL}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(OLLAMA_API_KEY ? { Authorization: `Bearer ${OLLAMA_API_KEY}` } : {}),
-        },
-        body: JSON.stringify({
-          model: CHAT_MODEL,
-          messages,
-          stream,
-          options: { temperature: 0.7, num_predict: 1024 },
-        }),
-      });
-
-      if (response.status === 429 && attempt < maxRetries) {
-        const retryAfter = parseInt(response.headers.get('retry-after') || '5');
-        console.warn(`[Telegram] LLM rate limited, retrying in ${retryAfter}s...`);
-        await new Promise(r => setTimeout(r, retryAfter * 1000));
-        continue;
-      }
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`API error ${response.status}: ${errText}`);
-      }
-
-      return response;
-    } catch (err) {
-      lastError = err;
-      if (err.message.includes('429') && attempt < maxRetries) {
-        await new Promise(r => setTimeout(r, 5000 * (attempt + 1)));
-        continue;
-      }
-      throw err;
-    }
+  if (!response.ok) {
+    const errText = await response.text();
+    throw new Error(`API error ${response.status}: ${errText}`);
   }
-  throw lastError;
+
+  return response;
 }
 
 async function handleTelegramMessage(bot, msg) {
@@ -282,7 +260,10 @@ async function handleTelegramMessage(bot, msg) {
     await sendTelegramVoice(bot, chatId, reply, ttsLang);
   } catch (err) {
     console.error('Telegram bot error:', err);
-    bot.sendMessage(chatId, t('llmError', lang));
+    const msg = err.message && err.message.includes('429')
+      ? '🙏 Estou com muita demanda agora. Por favor, tente novamente em alguns segundos.'
+      : t('llmError', lang);
+    bot.sendMessage(chatId, msg);
   }
 }
 
