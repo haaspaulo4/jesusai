@@ -110,6 +110,8 @@
 - [ ] **Discord Bot** — Integração com Discord
 - [ ] **Mastodon/Fediverse Bot** — Integração com redes descentralizadas
 - [x] **Kokoro TTS** — TTS local em CPU com pt-BR nativo (pf_dora, pm_alex), en-US, es-ES. Apache 2.0, 82M params. Integrado como `TTS_MODE=kokoro`: [github.com/hexgrad/kokoro](https://github.com/hexgrad/kokoro)
+- [x] **Kokoro TTS web** — Endpoint `/api/tts` serve áudio Kokoro ao browser com fallback para speechSynthesis
+- [x] **Kokoro auto-start** — Node.js auto-inicia o servidor Python Kokoro no boot + health check + graceful shutdown
 
 ---
 

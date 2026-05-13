@@ -20,6 +20,7 @@ const {
   splitTextForTTS,
   generateAudioBuffer,
   generateTTSAudioUrl,
+  getAudioContentType,
 } = require('../tts');
 const { transcribeAudio } = require('../stt');
 const { t, getTTSLang, getSTTLang, SUPPORTED_LANGS, DEFAULT_LANG } = require('../i18n');
@@ -61,27 +62,23 @@ function escapeMarkdown(text) {
 async function sendTelegramVoice(bot, chatId, text, lang = 'pt-BR') {
   if (!TELEGRAM_AUDIO) return;
 
-  const chunks = splitTextForTTS(text);
+  const chunks = splitTextForTTS(text, 300);
   if (!chunks || chunks.length === 0) return;
 
   for (const chunk of chunks) {
     if (chunk.length > 5000) continue;
-
     try {
       const audioBuffer = await generateAudioBuffer(chunk, { lang });
       if (audioBuffer && audioBuffer.length > 0) {
-        await bot.sendVoice(chatId, audioBuffer, {
-          caption: '',
-        }, {
-          filename: 'voice.mp3',
-          contentType: 'audio/mp3',
-        });
+        const contentType = getAudioContentType(audioBuffer);
+        const ext = contentType.includes('wav') ? 'wav' : 'mp3';
+        await bot.sendVoice(chatId, audioBuffer, { caption: '' }, { filename: `voice.${ext}`, contentType });
+        continue;
       }
     } catch (err) {
       console.error('[Telegram] Voice send failed:', err.message);
     }
-
-    await new Promise(r => setTimeout(r, 300));
+    await new Promise(r => setTimeout(r, 200));
   }
 }
 
@@ -197,6 +194,9 @@ async function handleTelegramMessage(bot, msg) {
 
   bot.sendChatAction(chatId, 'typing');
 
+  const lang = DEFAULT_LANG;
+  const ttsLang = getTTSLang(lang);
+
   const sid = isGroup ? `tg_${chatId}_${msg.from.id}` : getSessionForChat(chatId);
   const uid = `tg_${msg.from.id}`;
   const userName = msg.from?.first_name || msg.from?.username || null;
@@ -204,9 +204,6 @@ async function handleTelegramMessage(bot, msg) {
   if (userName && !userContext.name) userContext.name = userName;
   await updateSessionContext(sid, userContext);
   await updateProfileFromMessage(uid, processedText);
-
-  const lang = DEFAULT_LANG;
-  const ttsLang = getTTSLang(lang);
 
   try {
     const relevantVerses = searchVerses(processedText, 6);
@@ -446,12 +443,26 @@ async function handleTelegramVoice(bot, msg) {
     const fileObj = await bot.getFile(fileId);
     const filePath = fileObj.file_path || '';
     const ext = filePath.split('.').pop() || 'ogg';
-    const response = await fetch(fileLink);
+    console.log('[Telegram] Downloading voice from:', fileLink.substring(0, 80) + '...');
+
+    let response;
+    try {
+      const ac = new AbortController();
+      const timeout = setTimeout(() => ac.abort(), 30000);
+      response = await fetch(fileLink, { signal: ac.signal, redirect: 'follow' });
+      clearTimeout(timeout);
+    } catch (fetchErr) {
+      console.error('[Telegram] Voice download fetch failed:', fetchErr.message, '| URL:', fileLink.substring(0, 100));
+      await bot.sendMessage(chatId, t('audioDownloadFail', DEFAULT_LANG));
+      return;
+    }
+
     if (!response.ok) {
       bot.sendMessage(chatId, t('audioDownloadFail', DEFAULT_LANG));
       return;
     }
     const audioBuffer = Buffer.from(await response.arrayBuffer());
+    console.log('[Telegram] Voice downloaded:', audioBuffer.length, 'bytes, ext:', ext);
 
     const transcribed = await transcribeAudio(audioBuffer, `voice.${ext}`, getSTTLang(DEFAULT_LANG));
     if (transcribed) {

@@ -11,6 +11,7 @@ const { startWhatsAppBot } = require('./whatsapp/bot');
 const { generateDailyPost, scheduleDailyPost } = require('./blog');
 const { scheduleDailyDevotional } = require('./email');
 const { initDatabase } = require('./db');
+const { startKokoroServer, stopKokoroServer } = require('./tts/kokoro-manager');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,6 +25,18 @@ process.on('uncaughtException', (err) => {
   console.error('[UNCAUGHT EXCEPTION]', err.message, err.stack);
 });
 
+process.on('SIGTERM', () => {
+  console.log('[SIGTERM] Graceful shutdown...');
+  stopKokoroServer();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('[SIGINT] Graceful shutdown...');
+  stopKokoroServer();
+  process.exit(0);
+});
+
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 
@@ -35,6 +48,16 @@ app.use('/api/email', emailRoute);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+app.get('/api/health/tts', async (req, res) => {
+  const { checkHealth, getKokoroStatus } = require('./tts/kokoro-manager');
+  const status = getKokoroStatus();
+  if (status.mode === 'kokoro') {
+    const healthy = await checkHealth();
+    status.healthy = healthy;
+  }
+  res.json(status);
 });
 
 async function start() {
@@ -53,6 +76,8 @@ async function start() {
   ║    http://localhost:${PORT}              ║
   ╚══════════════════════════════════════╝
     `);
+
+    await startKokoroServer();
 
     startTelegramBot();
 

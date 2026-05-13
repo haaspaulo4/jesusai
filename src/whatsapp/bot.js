@@ -22,6 +22,7 @@ const {
   generateAudioBuffer,
   generateTTSAudioUrl,
   generateAudioDataUrl,
+  getAudioContentType,
   MAX_TTS_LENGTH,
 } = require('../tts');
 const { transcribeAudio } = require('../stt');
@@ -201,12 +202,15 @@ async function sendWhatsAppAudio(remoteJid, audioSource) {
 
   const sendWithNumber = async (num) => {
     if (Buffer.isBuffer(audioSource)) {
+      const contentType = getAudioContentType(audioSource);
+      const isWav = contentType.includes('wav');
+      const mimetype = isWav ? 'audio/wav' : 'audio/mp3';
       const base64 = audioSource.toString('base64');
       try {
         return await evoRequest('POST', `/message/sendWhatsAppAudio/${EVO_INSTANCE}`, {
           number: num,
           audio: base64,
-          mimetype: 'audio/mp3',
+          mimetype,
         });
       } catch (err) {
         if (err.message && (err.message.includes('400') || err.message.includes('Bad Request'))) {
@@ -214,7 +218,7 @@ async function sendWhatsAppAudio(remoteJid, audioSource) {
             number: num,
             mediatype: 'audio',
             media: base64,
-            mimetype: 'audio/mp3',
+            mimetype,
           });
         }
         throw err;
@@ -258,37 +262,31 @@ const splitTextForTTS = splitTextForTTSNew;
 
 async function sendReplyWithAudio(remoteJid, reply, lang = 'pt-BR') {
   const ttsLang = getTTSLang(lang);
-  try {
-    const chunks = splitMessage(reply);
-    for (const chunk of chunks) {
-      await sendWhatsAppText(remoteJid, chunk);
-      await new Promise(r => setTimeout(r, 1500));
-    }
 
-    if (!WHATSAPP_AUDIO) return;
+  const textChunks = splitMessage(reply);
+  for (const chunk of textChunks) {
+    await sendWhatsAppText(remoteJid, chunk);
+    await new Promise(r => setTimeout(r, 500));
+  }
 
-    const audioChunks = splitTextForTTS(reply);
-    if (!audioChunks || audioChunks.length === 0) return;
+  if (!WHATSAPP_AUDIO) return;
 
-    for (const chunk of audioChunks) {
-      if (chunk.length > MAX_TTS_LENGTH) continue;
+  const audioChunks = splitTextForTTS(reply, 300);
+  if (!audioChunks || audioChunks.length === 0) return;
 
-      try {
-        const audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang });
-        if (audioBuffer && audioBuffer.length > 0) {
-          await sendWhatsAppAudio(remoteJid, audioBuffer);
-        } else {
-          await sendWhatsAppAudio(remoteJid, generateTTSAudioUrl(chunk, ttsLang));
+  for (const chunk of audioChunks) {
+    if (chunk.length > MAX_TTS_LENGTH) continue;
+    try {
+      const audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang });
+      if (audioBuffer && audioBuffer.length > 0) {
+        try { await sendWhatsAppAudio(remoteJid, audioBuffer); } catch {
+          try { await sendWhatsAppAudio(remoteJid, generateTTSAudioUrl(chunk, ttsLang)); } catch {}
         }
-      } catch {
-        try {
-          await sendWhatsAppAudio(remoteJid, generateTTSAudioUrl(chunk, ttsLang));
-        } catch {}
+        continue;
       }
-      await new Promise(r => setTimeout(r, 2000));
-    }
-  } catch (err) {
-    console.error('[WhatsApp] sendReplyWithAudio error:', err.message);
+    } catch {}
+    try { await sendWhatsAppAudio(remoteJid, generateTTSAudioUrl(chunk, ttsLang)); } catch {}
+    await new Promise(r => setTimeout(r, 500));
   }
 }
 

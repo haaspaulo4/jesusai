@@ -483,11 +483,13 @@ function cleanTextForTTS(text) {
     .trim();
 }
 
-function speakText(text, btn) {
-  if (!('speechSynthesis' in window)) return;
+let currentAudio = null;
 
-  if (speechSynthesis.speaking) {
-    speechSynthesis.cancel();
+async function speakText(text, btn) {
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio.currentTime = 0;
+    currentAudio = null;
     if (currentTTSBtn) currentTTSBtn.classList.remove('speaking');
     if (currentTTSBtn === btn) {
       currentTTSBtn = null;
@@ -495,10 +497,59 @@ function speakText(text, btn) {
     }
   }
 
-  const clean = cleanTextForTTS(text);
+  btn.classList.add('speaking');
+  currentTTSBtn = btn;
 
+  const clean = cleanTextForTTS(text);
   const langMap = { 'pt-BR': 'pt-BR', 'en-US': 'en-US', 'es-ES': 'es-ES' };
   const ttsLang = langMap[currentLang] || 'pt-BR';
+
+  try {
+    const res = await fetch('/api/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text, lang: ttsLang }),
+    });
+
+    if (res.ok) {
+      const audioBlob = await res.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      currentAudio = audio;
+
+      audio.onended = () => {
+        btn.classList.remove('speaking');
+        currentTTSBtn = null;
+        currentAudio = null;
+        URL.revokeObjectURL(audioUrl);
+      };
+
+      audio.onerror = () => {
+        btn.classList.remove('speaking');
+        currentTTSBtn = null;
+        currentAudio = null;
+        URL.revokeObjectURL(audioUrl);
+        speakTextBrowser(text, btn, clean, ttsLang);
+      };
+
+      await audio.play();
+      return;
+    }
+  } catch {}
+
+  speakTextBrowser(text, btn, clean, ttsLang);
+}
+
+function speakTextBrowser(text, btn, clean, ttsLang) {
+  if (!('speechSynthesis' in window)) {
+    btn.classList.remove('speaking');
+    currentTTSBtn = null;
+    return;
+  }
+
+  if (speechSynthesis.speaking) {
+    speechSynthesis.cancel();
+  }
 
   const utterance = new SpeechSynthesisUtterance(clean);
   utterance.lang = ttsLang;
@@ -538,8 +589,6 @@ function speakText(text, btn) {
     currentTTSBtn = null;
   };
 
-  btn.classList.add('speaking');
-  currentTTSBtn = btn;
   speechSynthesis.speak(utterance);
 }
 

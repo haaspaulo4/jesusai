@@ -23,8 +23,8 @@ const MULTIVOZES_VOICE_MAP = {
 };
 
 const KOKORO_VOICES = {
-  'pt-BR': { voice: 'pf_dora', lang_code: 'p' },
-  'en-US': { voice: 'af_heart', lang_code: 'a' },
+  'pt-BR': { voice: 'pm_alex', lang_code: 'p' },
+  'en-US': { voice: 'am_adam', lang_code: 'a' },
   'es-ES': { voice: 'ef_dora', lang_code: 'e' },
 };
 
@@ -46,7 +46,7 @@ const LANG_VOICES = {
   'es-ES': { default: 'es-ES-AlvaroNeural', voices: ['es-ES-AlvaroNeural', 'es-ES-ElviraNeural'] },
 };
 
-const TTS_MODE = process.env.TTS_MODE || 'edge-tts';
+const TTS_MODE = process.env.TTS_MODE || 'kokoro';
 const MULTIVOZES_URL = (process.env.MULTIVOZES_URL || '').replace(/\/+$/, '');
 const MULTIVOZES_KEY = process.env.MULTIVOZES_KEY || '';
 const KOKORO_URL = (process.env.KOKORO_URL || '').replace(/\/+$/, '') || 'http://localhost:8000';
@@ -59,9 +59,14 @@ const DEFAULT_PITCH = process.env.TTS_PITCH || '-2Hz';
 const DEFAULT_VOLUME = process.env.TTS_VOLUME || '+0%';
 const MAX_TTS_LENGTH = 5000;
 const MAX_EDGE_TTS_CHUNK = 5000;
+const SUPPORTED_TTS_LANGS = ['pt-BR', 'en-US', 'es-ES'];
 
 function cleanTextForTTS(text) {
-  return text
+  let cleaned = text
+    .replace(/[\ud800-\udbff][\udc00-\udfff]/g, '');
+  cleaned = cleaned.replace(/[\ud800-\udfff]/g, '');
+  return cleaned
+    .replace(/[\u0000-\u001f\u007f-\u009f]/g, '')
     .replace(/\*{2}([^*]+)\*{2}/g, '$1')
     .replace(/\*([^*]+)\*/g, '$1')
     .replace(/_([^_]+)_/g, '$1')
@@ -72,6 +77,8 @@ function cleanTextForTTS(text) {
     .replace(/^[>\-]\s?/gm, '')
     .replace(/---+/g, '—')
     .replace(/[📖🕊🙏🔍💡✝🎤🎵🎶✨🔥❤️💛💚💙💜🤍🖤💔🙏🏻🙏🏼🙏🏽🙏🏾🙏🏿]/g, '')
+    .replace(/[\u{1F000}-\u{1FFFF}]/gu, '')
+    .replace(/[\u2700-\u27BF\u2600-\u26FF\u2300-\u23FF\u2B50\uFE0F\u200D]/g, '')
     .replace(/(\d+):(\d+)/g, (_, ch, vs) => `${ch}, versículo ${vs}`)
     .replace(/\[(.*?)\]\(.*?\)/g, '$1')
     .replace(/https?:\/\/\S+/g, '')
@@ -80,6 +87,14 @@ function cleanTextForTTS(text) {
     .replace(/\s{2,}/g, ' ')
     .replace(/\.{2,}/g, '...')
     .replace(/\s+\./g, '.')
+    .replace(/^[-•]\s+/gm, '')
+    .replace(/,\s*,/g, ',')
+    .replace(/\.\s*\.\s*\./g, '...')
+    .replace(/!\./g, '!')
+    .replace(/\?\./g, '?')
+    .replace(/—\s+/g, '— ')
+    .replace(/\s+$/gm, '')
+    .replace(/(\w[.!?])\s{2,}/g, '$1 ')
     .trim();
 }
 
@@ -106,6 +121,10 @@ function splitTextForTTS(text, maxLen = 450) {
   if (current.trim()) chunks.push(current.trim());
 
   return chunks.length > 0 ? chunks : [clean.substring(0, maxLen)];
+}
+
+function prepareTextForKokoro(text) {
+  return text;
 }
 
 function generateTTSAudioUrl(text, lang = 'pt-BR') {
@@ -215,18 +234,22 @@ async function generateKokoroBuffer(text, options = {}) {
 
   const openaiVoice = options.voice ? (KOKORO_VOICE_MAP[options.voice] || options.voice) : null;
   const finalVoice = openaiVoice || voice;
+  const speed = options.speed || 1.0;
 
   const response = await fetch(`${KOKORO_URL}/v1/audio/speech`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'Connection': 'keep-alive',
+    },
     body: JSON.stringify({
       model: 'kokoro',
       voice: finalVoice,
       input: text,
       lang,
       language: langCode,
-      response_format: 'mp3',
-      speed: options.speed || 1.0,
+      response_format: 'wav',
+      speed,
     }),
   });
 
@@ -243,93 +266,91 @@ async function generateAudioBuffer(text, options = {}) {
   const cleanText = cleanTextForTTS(text);
   if (!cleanText) return null;
 
+  const lang = options.lang || 'pt-BR';
   const maxChunk = TTS_MODE === 'multivozes' ? MAX_TTS_LENGTH : MAX_EDGE_TTS_CHUNK;
+  const ttsLang = SUPPORTED_TTS_LANGS.includes(lang) ? lang : 'pt-BR';
 
-  if (cleanText.length > maxChunk) {
-    const chunks = splitTextForTTS(text, maxChunk);
-    if (chunks.length === 0) return null;
+  let engine = 'edge-tts';
+  let contentType = 'audio/mp3';
 
-    if (chunks.length === 1) {
-      return generateSingleChunk(chunks[0], options);
-    }
+  if (TTS_MODE === 'kokoro' && KOKORO_URL) {
+    engine = 'kokoro';
+    contentType = 'audio/wav';
+  } else if (TTS_MODE === 'multivozes' && MULTIVOZES_URL && MULTIVOZES_KEY) {
+    engine = 'multivozes';
+    contentType = 'audio/mp3';
+  }
 
-    const buffers = [];
-    for (const chunk of chunks) {
-      try {
-        const buf = await generateSingleChunk(chunk, options);
-        if (buf && buf.length > 0) buffers.push(buf);
-      } catch (err) {
-        console.error(`[TTS] Chunk failed (${TTS_MODE}):`, err.message);
+  if (cleanText.length <= maxChunk) {
+    try {
+      const buf = await generateWithEngine(engine, cleanText, { ...options, lang: ttsLang });
+      if (buf && buf.length > 0) {
+        buf.contentType = contentType;
+        return buf;
       }
-    }
+    } catch {}
 
-    if (buffers.length > 0) return Buffer.concat(buffers);
+    if (engine !== 'edge-tts') {
+      try {
+        const buf = await generateEdgeTTSBuffer(cleanText, { ...options, lang: ttsLang });
+        if (buf && buf.length > 0) {
+          buf.contentType = 'audio/mp3';
+          return buf;
+        }
+      } catch {}
+    }
     return null;
   }
 
-  try {
-    const buffer = await generateSingleChunk(cleanText, options);
-    if (buffer && buffer.length > 0) return buffer;
-  } catch (err) {
-    console.error(`[TTS] ${TTS_MODE} failed:`, err.message);
-  }
+  const chunks = splitTextForTTS(text, maxChunk);
+  if (chunks.length === 0) return null;
 
-  if (TTS_MODE === 'kokoro') {
-    if (MULTIVOZES_URL && MULTIVOZES_KEY) {
+  const buffers = [];
+  let fellBack = false;
+
+  for (const chunk of chunks) {
+    if (!fellBack) {
       try {
-        const buffer = await generateMultivozesBuffer(cleanText, options);
-        if (buffer && buffer.length > 0) {
-          console.log('[TTS] Kokoro failed, Multivozes fallback succeeded');
-          return buffer;
+        const buf = await generateWithEngine(engine, chunk, { ...options, lang: ttsLang });
+        if (buf && buf.length > 0) {
+          buf.contentType = contentType;
+          buffers.push(buf);
+          continue;
         }
-      } catch (err) {
-        console.error('[TTS] Multivozes fallback failed:', err.message);
-      }
+      } catch {}
     }
+
+    fellBack = true;
     try {
-      const buffer = await generateEdgeTTSBuffer(cleanText, options);
-      if (buffer && buffer.length > 0) {
-        console.log('[TTS] Kokoro failed, Edge TTS fallback succeeded');
-        return buffer;
+      const buf = await generateEdgeTTSBuffer(chunk, { ...options, lang: ttsLang });
+      if (buf && buf.length > 0) {
+        buf.contentType = 'audio/mp3';
+        buffers.push(buf);
       }
-    } catch (err) {
-      console.error('[TTS] Edge TTS fallback also failed:', err.message);
-    }
+    } catch {}
   }
 
-  if (TTS_MODE === 'multivozes') {
-    try {
-      const buffer = await generateEdgeTTSBuffer(cleanText, options);
-      if (buffer && buffer.length > 0) {
-        console.log('[TTS] Multivozes failed, Edge TTS fallback succeeded');
-        return buffer;
-      }
-    } catch (err) {
-      console.error('[TTS] Edge TTS fallback also failed:', err.message);
-    }
-  }
-
-  return null;
+  if (buffers.length === 0) return null;
+  const result = Buffer.concat(buffers);
+  result.contentType = fellBack ? 'audio/mp3' : contentType;
+  return result;
 }
 
-async function generateSingleChunk(text, options = {}) {
-  if (TTS_MODE === 'kokoro' && KOKORO_URL) {
-    try {
+function getAudioContentType(buffer) {
+  if (buffer && buffer.contentType) return buffer.contentType;
+  if (TTS_MODE === 'kokoro') return 'audio/wav';
+  return 'audio/mp3';
+}
+
+async function generateWithEngine(engine, text, options = {}) {
+  switch (engine) {
+    case 'kokoro':
       return await generateKokoroBuffer(text, options);
-    } catch (err) {
-      console.error('[TTS] Kokoro failed, trying Edge TTS:', err.message);
-      return await generateEdgeTTSBuffer(text, options);
-    }
-  }
-  if (TTS_MODE === 'multivozes' && MULTIVOZES_URL && MULTIVOZES_KEY) {
-    try {
+    case 'multivozes':
       return await generateMultivozesBuffer(text, options);
-    } catch (err) {
-      console.error('[TTS] Multivozes failed, trying Edge TTS:', err.message);
+    default:
       return await generateEdgeTTSBuffer(text, options);
-    }
   }
-  return await generateEdgeTTSBuffer(text, options);
 }
 
 function generateAudioDataUrl(buffer) {
@@ -340,10 +361,12 @@ function generateAudioDataUrl(buffer) {
 module.exports = {
   cleanTextForTTS,
   splitTextForTTS,
+  prepareTextForKokoro,
   generateTTSAudioUrl,
   generateEdgeTTSBuffer,
   generateAudioBuffer,
   generateAudioDataUrl,
+  getAudioContentType,
   VOICES,
   LANG_VOICES,
   DEFAULT_VOICE,

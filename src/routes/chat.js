@@ -26,6 +26,7 @@ const { pool } = require('../db');
 const multer = require('multer');
 const { transcribeAudio } = require('../stt');
 const { t, getTranslations, getTTSLang, getSTTLang, SUPPORTED_LANGS, DEFAULT_LANG } = require('../i18n');
+const { generateAudioBuffer, getAudioContentType } = require('../tts');
 
 const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -430,6 +431,31 @@ router.get('/config', (req, res) => {
     whatsappUrl: whatsappNumber ? `https://wa.me/${whatsappNumber}` : null,
     whatsappGroupUrl: whatsappGroupUrl || null,
   });
+});
+
+router.post('/tts', async (req, res) => {
+  const { text, lang } = req.body;
+
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'Text is required' });
+  }
+
+  const ttsLang = SUPPORTED_LANGS.includes(lang) ? lang : DEFAULT_LANG;
+
+  try {
+    const buf = await generateAudioBuffer(text, { lang: ttsLang });
+    if (!buf || buf.length === 0) {
+      return res.status(500).json({ error: 'TTS generation failed' });
+    }
+
+    const contentType = getAudioContentType(buf);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', buf.length);
+    res.send(buf);
+  } catch (err) {
+    console.error('[TTS] Server-side TTS error:', err.message);
+    res.status(500).json({ error: 'TTS generation failed' });
+  }
 });
 
 module.exports = router;
