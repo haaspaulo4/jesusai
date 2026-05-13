@@ -18,8 +18,10 @@ Assistente virtual inspirado nos ensinamentos de Jesus Cristo, baseado na Bíbli
 - **Telegram Bot**: node-telegram-bot-api com polling + suporte a grupos
 - **WhatsApp Bot**: Evolution API v2 via webhook + suporte a grupos
 - **STT**: Groq Whisper (primary) + OpenAI Whisper (fallback) + web mic input
-- **TTS**: Kokoro-82M (default, auto-start on server boot) + Edge TTS (fallback) + Google Translate (fallback)
-- **TTS Web**: `/api/tts` endpoint serves Kokoro audio to browser (falls back to speechSynthesis)
+- **TTS**: Kokoro-82M (default, user-managed) + Edge TTS (fallback) + Google Translate (fallback)
+- **TTS Engine**: Direct Kokoro try → Edge TTS fallback per chunk, sequential with fallback lock (no voice mixing)
+- **TTS Web**: `/api/tts` endpoint serves Kokoro WAV to browser (falls back to speechSynthesis)
+- **TTS Health**: `src/tts/kokoro-manager.js` — health check every 60s, logs only state changes, warmup on startup/reconnect
 - **Blog**: Auto-generated daily devotionals via LLM
 - **Email**: Nodemailer (SMTP) — newsletter, contact, daily devotional
 - **i18n**: pt-BR (default), en-US, es-ES
@@ -29,16 +31,16 @@ Assistente virtual inspirado nos ensinamentos de Jesus Cristo, baseado na Bíbli
 - `npm run dev` — Start with watch mode
 - `npm run ingest` — Ingest knowledge sources into TF-IDF index
 - `npm run ngrok` — Start Cloudflare tunnel and configure Evolution API webhook (alias: `npm run tunnel`)
-- `npm run tts:start` — Start Kokoro TTS server manually
+- `npm run tts:start` — Start Kokoro TTS server manually on port 8001
 - `npm run tts:install` — Install Kokoro Python dependencies
-- `npm run tts:check` — Check Kokoro TTS server health
+- `npm run tts:check` — Check Kokoro TTS server health on port 8001
 
 ## Prerequisites
 1. MySQL 8.4 running on localhost (root, no password, database `jesus_ai`)
 2. Ollama Cloud API key must be set in `.env`
 3. Run `npm run ingest` before first use to populate the search index
 4. DB schema is auto-created on server startup
-5. (Optional) Kokoro TTS: `npm run tts:install` then `npm run tts:start`, or let the server auto-start it
+5. (Required) Kokoro TTS: `npm run tts:install` then `npm run tts:start` — server starts on port 8001
 6. (Optional) Edge TTS: `pip install edge-tts`
 
 ## Architecture
@@ -52,6 +54,19 @@ User question → Extract context (name, topics, emotions — from persona confi
              → Response streams via SSE (web) or chunks (Telegram/WhatsApp)
              → Save message + update session/profile (MySQL)
              → Generate summary every 10 messages
+```
+
+### TTS Flow
+```
+Text → cleanTextForTTS (strip markdown, emojis, surrogates, control chars)
+     → if fits in maxChunk (5000): try Kokoro direct → fall back to Edge TTS
+     → if longer: splitTextForTTS (at sentence boundaries)
+       → for each chunk: try engine (Kokoro if TTS_MODE=kokoro)
+       → if engine fails on any chunk: fellBack=true, use Edge TTS for remaining
+       → concat all buffers, set contentType (audio/wav or audio/mp3)
+     → Telegram: sendVoice per audio chunk (300 chars each)
+     → WhatsApp: sendReplyWithAudio — text first, then audio per chunk (300 chars)
+     → Web: POST /api/tts returns full audio buffer
 ```
 
 ### Pluggable Architecture
@@ -86,10 +101,10 @@ User question → Extract context (name, topics, emotions — from persona confi
 - `src/routes/blog.js` — Blog API (posts, comments, replies, search)
 - `src/routes/whatsapp.js` — WhatsApp webhook + group management endpoints
 - `src/routes/email.js` — Email API (subscribe, confirm, unsubscribe, contact, daily devotional)
-- `src/telegram/bot.js` — Telegram bot with commands, chat, and group support
+- `src/telegram/bot.js` — Telegram bot with commands, chat, voice handling, group support
 - `src/whatsapp/bot.js` — WhatsApp bot (Evolution API v2, groups, audio handling)
-- `src/tts/index.js` — TTS engine (Kokoro + Multivozes + Edge TTS + Google Translate, multi-language voices)
-- `src/tts/kokoro-manager.js` — Kokoro auto-start, health check, graceful shutdown
+- `src/tts/index.js` — TTS engine (Kokoro direct-try → Edge TTS fallback, content-type tracking, sequential chunk generation with fallback lock)
+- `src/tts/kokoro-manager.js` — Kokoro health check only (no auto-start), 60s interval, logs state changes only, warmup pipeline
 - `src/stt/index.js` — STT engine (Groq Whisper + OpenAI Whisper fallback, filename sanitization)
 - `src/rag/store.js` — Backward-compatible re-export (delegates to knowledge/store.js)
 - `src/memory/session.js` — Session management (MySQL-backed)
@@ -101,9 +116,11 @@ User question → Extract context (name, topics, emotions — from persona confi
 - `src/utils/bible.js` — Bible data reader (local NT + API OT)
 - `public/index.html` — Landing page + auth modal + chat SPA
 - `public/css/style.css` — Full UI styles (dark premium theme, glassmorphism, animations)
-- `public/js/app.js` — Frontend logic (SSE, i18n, auth, chat, blog, search, newsletter, contact)
+- `public/js/app.js` — Frontend logic (SSE, i18n, auth, chat, blog, search, newsletter, contact, TTS)
 - `data/bible_verses.json` — Processed documents (generated by ingest)
 - `data/bible_index.json` — TF-IDF index (generated by ingest)
+- `tts-server/kokoro_server.py` — Kokoro TTS Python server (FastAPI + uvicorn), WAV/MP3, pm_alex default for pt-BR
+- `tts-server/requirements.txt` — Python deps: kokoro, soundfile, numpy, fastapi, uvicorn
 
 ### Environment Variables
 See `.env.example` for the full list. Key variables:
@@ -127,9 +144,9 @@ See `.env.example` for the full list. Key variables:
 | `WHATSAPP_AUDIO` | `true` | Send TTS audio on WhatsApp |
 | `TELEGRAM_AUDIO` | `true` | Send TTS voice on Telegram |
 | `TTS_MODE` | `kokoro` | TTS engine: kokoro, multivozes, edge-tts |
-| `TTS_VOICE` | `pf_dora` | TTS voice (Kokoro voice names or Edge TTS voices) |
-| `KOKORO_URL` | `http://localhost:8000` | Kokoro TTS server URL |
-| `KOKORO_VOICE` | — | Kokoro voice override (pf_dora, af_heart, etc.) |
+| `TTS_VOICE` | `pm_alex` | TTS voice (Kokoro voice names or Edge TTS voices) |
+| `KOKORO_URL` | `http://localhost:8001` | Kokoro TTS server URL |
+| `KOKORO_VOICE` | — | Kokoro voice override (pf_dora, pm_alex, etc.) |
 | `KOKORO_LANG` | — | Kokoro language override (p, a, e) |
 | `GROQ_API_KEY` | — | Groq API key for STT |
 | `SMTP_HOST` | — | SMTP server host |
@@ -138,13 +155,25 @@ See `.env.example` for the full list. Key variables:
 | `SMTP_FROM` | — | From email address |
 | `APP_URL` | `http://localhost:3000` | Public app URL for email links |
 
+### TTS Engine Details
+- **Kokoro TTS**: Primary engine. User must start manually with `npm run tts:start` (port 8001). Server does NOT auto-start it.
+- **Health check**: `kokoro-manager.js` checks `/health` every 60s with 10s timeout. Only logs when state changes (online↔offline).
+- **Warmup**: On startup/reconnect, sends a "Paz" synthesis request to pre-load the pt-BR pipeline.
+- **Fallback strategy**: Each `generateAudioBuffer` call tries Kokoro first. If Kokoro fails on a chunk, that chunk falls back to Edge TTS. Once fallback starts, all remaining chunks use Edge TTS (no voice mixing).
+- **Content-type**: Kokoro generates WAV (`audio/wav`), Edge TTS generates MP3 (`audio/mp3`). Buffer objects track their content-type via `.contentType` property.
+- **Telegram**: Sends audio in 300-char chunks via `sendVoice`, with correct content-type (wav/mp3).
+- **WhatsApp**: Sends text first, then audio in 300-char chunks. Correct mimetype per engine.
+- **Web**: `POST /api/tts` returns full audio buffer with correct `Content-Type` header.
+- **Chunk splitting**: `splitTextForTTS(text, 300)` for Telegram/WhatsApp (fast per-chunk generation), `splitTextForTTS(text, 5000)` for web (full audio).
+
 ### Known Issues & TODO
 - See `ROADMAP.md` for full planning
 - `routes/chat.js` — `saveProfile` import fixed (was missing)
-- `tts/kokoro-manager.js` — Kokoro auto-start on server boot, health check at `/api/health/tts`
-- Frontend TTS: `speakText()` now calls `/api/tts` first, falls back to browser speechSynthesis
+- Frontend TTS: `speakText()` calls `/api/tts` first, falls back to browser speechSynthesis
 - Duplicate LLM call logic across chat, telegram, whatsapp, blog — needs centralization
 - System prompt still lives in `src/system-prompt.js` AND `src/persona/config.js` — migrate fully to persona
 - WhatsApp uses both webhook and polling — can duplicate messages
 - No rate limiting, no CORS, no API versioning yet
 - Google OAuth doesn't validate id_token server-side
+- Telegram voice handler: `fetch failed` on rare networks — added 30s timeout and debug logging
+- `node-telegram-bot-api` deprecation warning about content-type — functional, cosmetic only
