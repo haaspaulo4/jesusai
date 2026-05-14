@@ -764,9 +764,13 @@ router.post('/skills/:id/invoke', authMiddleware, adminMiddleware, async (req, r
 // ===== Tasks =====
 router.get('/tasks', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const filters = { owner_id: req.userId, ...req.query };
+    const { limit, offset, ...filters } = req.query;
+    filters.owner_id = req.userId;
+    const queryLimit = Math.min(parseInt(limit) || 100, 500);
+    const queryOffset = parseInt(offset) || 0;
+    filters.limit = queryLimit + queryOffset;
     const tasks = await agentModule.listTasks(filters);
-    res.json({ tasks, total: tasks.length });
+    res.json({ tasks: tasks.slice(queryOffset), total: tasks.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

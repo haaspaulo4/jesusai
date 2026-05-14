@@ -79,8 +79,12 @@ router.post('/chat', optionalAuth, async (req, res) => {
     return res.status(400).json({ error: 'Message must be a string' });
   }
 
+  if (message.length > 10000) {
+    return res.status(400).json({ error: 'Message too long (max 10000 characters)' });
+  }
+
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
-  const uid = req.userId || req.body.userId || 'user_default';
+  const uid = (req.userId || req.body.userId || 'user_default').toString().slice(0, 60);
   const sid = sessionId || generateSessionId();
 
   try {

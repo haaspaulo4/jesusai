@@ -479,10 +479,10 @@ function startTelegramBot() {
     const TelegramBot = require('node-telegram-bot-api');
     const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
     const { makeTelegramHandler } = require('./handler');
-    const handler = makeTelegramHandler({ bot });
+    const handler = makeTelegramHandler();
 
     bot.on('message', (msg) => {
-      handler(msg).catch(err => {
+      handler(bot, msg).catch(err => {
         console.error('[Telegram] Handler error:', err.message);
       });
     });
