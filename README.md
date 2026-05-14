@@ -172,6 +172,7 @@ Three modes per session: **full** (human takes over entirely), **approval** (hum
 | Auth | JWT + bcrypt + Google OAuth + role-based + rate limiting |
 | Telegram | Multi-instance via bot manager |
 | WhatsApp | Multi-instance via Evolution API v2 |
+| Instagram | Multi-instance via instagram-private-api (DM polling) |
 | TTS | Kokoro-82M + Edge TTS + Google Translate (fallback) |
 | STT | Groq Whisper + OpenAI Whisper (fallback) |
 | i18n | pt-BR, en-US, es-ES |

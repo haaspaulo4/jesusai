@@ -9,12 +9,14 @@ const emailRoute = require('./routes/email');
 const adminRoute = require('./routes/admin');
 const { startTelegramBot } = require('./telegram/bot');
 const { startWhatsAppBot } = require('./whatsapp/bot');
+const { startInstagramFromDB } = require('./instagram/bot');
 const { generateDailyPost, scheduleDailyPost } = require('./blog');
 const { scheduleDailyDevotional } = require('./email');
 const { initDatabase } = require('./db');
 const personaManager = require('./persona/manager');
 const { loadPersonas } = personaManager;
 const { startKokoroServer, stopKokoroServer } = require('./tts/kokoro-manager');
+const { stopInstagramBot } = require('./instagram/bot');
 const { escapeHtml, buildPersonaPage, buildSitePage, buildCreatePersonaPage } = require('./server/templates');
 const integrations = require('./llm/integrationManager');
 const { loadSettings, getSetting } = require('./settings');
@@ -35,12 +37,14 @@ process.on('uncaughtException', (err) => {
 process.on('SIGTERM', () => {
   console.log('[SIGTERM] Graceful shutdown...');
   stopKokoroServer();
+  stopInstagramBot();
   process.exit(0);
 });
 
 process.on('SIGINT', () => {
   console.log('[SIGINT] Graceful shutdown...');
   stopKokoroServer();
+  stopInstagramBot();
   process.exit(0);
 });
 
@@ -388,8 +392,9 @@ async function seedDefaultBlueprints(bm) {
   ║  /create-persona — Criar persona
   ║  /admin          — Painel administrativo
   ║  
+  ║  Channels: Telegram, WhatsApp, Instagram
   ║  Meta-persona: /persona meta-persona
-  ║  Skills, Tasks, Calendar, CRM, Automations
+  ║  Skills, Tasks, Calendar, CRM, Goals, Events
   ╚══════════════════════════════════════════╝
     `);
 
@@ -398,6 +403,8 @@ async function seedDefaultBlueprints(bm) {
     startTelegramBot();
 
     await startWhatsAppBot(SERVER_URL);
+
+    startInstagramFromDB().catch(err => console.error('[Instagram] Bot startup error:', err.message));
 
     generateDailyPost().then(() => {
       scheduleDailyPost();

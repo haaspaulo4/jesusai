@@ -17,9 +17,10 @@ Plataforma de agentes cognitivos persistentes com RAG multimodal, multi-persona 
 - **Onboarding**: State machine automático — novo usuário → pergunta nome, interesse, sentimento, email
 - **Follow-ups**: Automático por intervalo de mensagens ou agendado
 - **Auth**: JWT + bcrypt + Google OAuth + **role-based access (guest/user/premium/admin/banned)** + **rate limiting per role**
-- **Bots**: Multi-instance Telegram + WhatsApp via bot manager, cada um com persona própria
+- **Bots**: Multi-instance Telegram + WhatsApp + Instagram via bot manager, cada um com persona própria
 - **STT**: Groq Whisper (primary) + OpenAI Whisper (fallback) + web mic input
 - **TTS**: Kokoro-82M (default) + Edge TTS (fallback) + Google Translate (fallback)
+- **Instagram**: instagram-private-api (DM polling, persona per instance)
 - **Surveys**: CRUD completo com triggers (after_messages, after_session, manual)
 - **Ratings**: 1-5 stars com categorias e feedback
 - **Blog**: Auto-generated daily devotionals via LLM
@@ -671,6 +672,8 @@ Onboarding: auto-creates user for bot users (ensureUser)
 - `src/bot/manager.js` — Multi-instance bot manager (Telegram + WhatsApp)
 - `src/telegram/handler.js` — Telegram handler factory (persona per instance)
 - `src/whatsapp/bot.js` — WhatsApp handler (persona-aware, voice pass-through, chunk size)
+- `src/instagram/bot.js` — Instagram bot (DM polling, persona per instance, instagram-private-api)
+- `src/instagram/handler.js` — Instagram DM handler (processMessage, persona resolution, chunk size)
 - `src/settings/index.js` — Runtime settings (DB-backed, cached) with whitelabel configs
 - `src/knowledge/config.js` — Knowledge source definitions (multimodal, dynamic registry)
 - `src/knowledge/store.js` — Multi-source TF-IDF search (searchMultiSource, getAllSourceStats)
