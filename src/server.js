@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const path = require('path');
+const cors = require('cors');
+const helmet = require('helmet');
 const chatRoute = require('./routes/chat');
 const authRoute = require('./routes/auth');
 const blogRoute = require('./routes/blog');
@@ -24,10 +26,28 @@ const integrations = require('./llm/integrationManager');
 const { loadSettings, getSetting } = require('./settings');
 const { loadTools: loadExternalTools } = require('./tools');
 
+if (!process.env.JWT_SECRET) {
+  console.error('[FATAL] JWT_SECRET environment variable is required. Set it in .env');
+  process.exit(1);
+}
+
+const LOG_LEVELS = { error: 0, warn: 1, info: 2, debug: 3 };
+const currentLogLevel = LOG_LEVELS[process.env.LOG_LEVEL || 'info'] ?? LOG_LEVELS.info;
+
+function log(level, ...args) {
+  if (LOG_LEVELS[level] <= currentLogLevel) {
+    const prefix = level === 'error' ? '[ERROR]' : level === 'warn' ? '[WARN]' : level === 'debug' ? '[DEBUG]' : '[INFO]';
+    console.log(prefix, ...args);
+  }
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`;
+
+app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(cors({ origin: process.env.CORS_ORIGIN || '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id'] }));
+app.use(express.json({ limit: '1mb' }));
 
 const httpServer = require('http').createServer(app);
 const { initializeSocketIO, setIO } = require('./realtime');
@@ -65,7 +85,6 @@ process.on('SIGINT', async () => {
   process.exit(0);
 });
 
-app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads/media', express.static(path.join(__dirname, '..', 'public', 'uploads', 'media')));
 
@@ -77,6 +96,13 @@ app.use('/api/email', emailRoute);
 app.use('/api/admin', adminRoute);
 app.use('/api/quiz', quizRoute);
 app.use('/api/media', mediaRoute);
+
+app.use((err, req, res, next) => {
+  console.error('[Express Error]', err.message || err);
+  if (res.headersSent) return next(err);
+  const status = err.status || 500;
+  res.status(status).json({ error: status === 500 ? 'Internal server error' : err.message });
+});
 
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));

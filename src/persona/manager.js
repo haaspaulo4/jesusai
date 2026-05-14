@@ -252,7 +252,9 @@ async function deletePersona(personaId) {
 
   try {
     await pool.execute('DELETE FROM personas WHERE persona_id = ?', [personaId]);
-  } catch {}
+  } catch (err) {
+    console.error('[PersonaManager] Failed to delete persona from DB:', err.message);
+  }
 
   cache.delete(personaId);
   console.log(`[PersonaManager] Deleted persona: ${personaId}`);
@@ -263,7 +265,9 @@ async function togglePersona(personaId, isActive) {
 
   try {
     await pool.execute('UPDATE personas SET is_active = ? WHERE persona_id = ?', [isActive ? 1 : 0, personaId]);
-  } catch {}
+  } catch (err) {
+    console.error('[PersonaManager] Failed to toggle persona in DB:', err.message);
+  }
 
   const persona = cache.get(personaId);
   if (persona) persona.isActive = !!isActive;
@@ -273,7 +277,9 @@ async function togglePersona(personaId, isActive) {
 async function setSessionPersona(sessionId, personaId) {
   try {
     await pool.execute('UPDATE sessions SET persona_id = ? WHERE id = ?', [personaId, sessionId]);
-  } catch {}
+  } catch (err) {
+    console.error('[PersonaManager] Failed to set session persona:', err.message);
+  }
 }
 
 async function getSessionPersona(sessionId) {
@@ -282,14 +288,18 @@ async function getSessionPersona(sessionId) {
     if (rows.length > 0 && rows[0].persona_id) {
       return await getPersona(rows[0].persona_id);
     }
-  } catch {}
+  } catch (err) {
+    console.error('[PersonaManager] getSessionPersona error:', err.message);
+  }
   return getActivePersona();
 }
 
 async function setUserPersona(userId, personaId) {
   try {
     await pool.execute('UPDATE users SET persona_id = ? WHERE id = ?', [personaId, userId]);
-  } catch {}
+  } catch (err) {
+    console.error('[PersonaManager] setUserPersona error:', err.message);
+  }
 }
 
 async function getUserPersona(userId) {
@@ -298,7 +308,9 @@ async function getUserPersona(userId) {
     if (rows.length > 0 && rows[0].persona_id) {
       return await getPersona(rows[0].persona_id);
     }
-  } catch {}
+  } catch (err) {
+    console.error('[PersonaManager] getUserPersona error:', err.message);
+  }
   return getActivePersona();
 }
 

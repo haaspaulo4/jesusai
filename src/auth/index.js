@@ -2,7 +2,11 @@ const { pool } = require('../db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'jesus-ai-secret-change-in-prod';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('[AUTH] FATAL: JWT_SECRET environment variable is required. Set it in .env');
+  process.exit(1);
+}
 
 async function getUserByEmail(email) {
   const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);

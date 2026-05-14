@@ -31,17 +31,21 @@ const realtime = require('../realtime');
 
 const MAX_TOOL_ROUNDS = 5;
 
+function generateSessionId() {
+  return 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+}
+
 async function getPersonaForContext(sessionId, userId) {
   let persona;
   if (sessionId) {
     try {
       persona = await personaManager.getSessionPersona(sessionId);
-    } catch {}
+    } catch (err) { console.error('[ChatEngine] getSessionPersona error:', err.message); }
   }
   if (!persona && userId) {
     try {
       persona = await personaManager.getUserPersona(userId);
-    } catch {}
+    } catch (err) { console.error('[ChatEngine] getUserPersona error:', err.message); }
   }
   return persona || personaManager.getActivePersona();
 }
@@ -95,18 +99,18 @@ async function processOnboardingAnswer(uid, message, lang, personaId) {
 async function processMessage({ message, sessionId, userId, language, isGroup, source, userName, personaId }) {
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
   const uid = userId || 'user_default';
-  const sid = sessionId || 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+   const sid = sessionId || generateSessionId();
 
-  if (uid && uid !== 'user_default' && !isGroup) {
-    try {
-      await onboarding.ensureUser(uid, userName || uid.replace(/^(wa_|tg_|user_)/, ''), source || 'web');
-    } catch {}
-  }
+   if (uid && uid !== 'user_default' && !isGroup) {
+     try {
+       await onboarding.ensureUser(uid, userName || uid.replace(/^(wa_|tg_|user_)/, ''), source || 'web');
+     } catch (err) { console.error('[ChatEngine] ensureUser error:', err.message); }
+   }
 
-  if (uid && uid !== 'user_default') {
-    const role = await getUserRole(uid);
-    if (role === 'banned') {
-      return { response: 'Conta suspensa. Entre em contato com o suporte.', sessionId: sid, sources: [], language: lang, banned: true };
+   if (uid && uid !== 'user_default') {
+     const role = await getUserRole(uid);
+     if (role === 'banned') {
+       return { response: 'Conta suspensa. Entre em contato com o suporte.', sessionId: sid, sources: [], language: lang, banned: true };
     }
     const rateResult = await checkRateLimit(uid, role);
     if (!rateResult.allowed) {
@@ -175,41 +179,42 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
         engagement: cognitiveState.engagement_score,
       });
     }
-  } catch {}
+   } catch (err) { console.error('[ChatEngine] cognitive state error:', err.message); }
 
-  let contextStr = '';
-  let orgContext = '';
-  let goalContext = '';
-  let stageContext = '';
-  let progressContext = '';
-  let contextAwareInfo = null;
-  let relevantVerses = [];
+   let contextStr = '';
+   let orgContext = '';
+   let goalContext = '';
+   let stageContext = '';
+   let progressContext = '';
+   let contextAwareInfo = null;
+   let relevantVerses = [];
 
-  const useContextAware = await getSetting('context_aware_search', 'true') === 'true';
+   const useContextAware = await getSetting('context_aware_search', 'true') === 'true';
 
-  if (useContextAware && cognitiveState) {
-    try {
-      const { searchContextAware } = require('../knowledge/contextSearch');
-      const ctxResult = await searchContextAware(message, {
-        userId: uid,
-        personaId: persona.id,
-        personaSources,
-        topK: numVerses,
-        cognitiveState,
-        sessionId: sid,
-      });
-      contextStr = ctxResult.results.map(v => `${v.reference}: "${v.text}"`).join('\n');
-      orgContext = orgMemoryModule.getOrgMemoryContext(ctxResult.orgMemory);
-      goalContext = ctxResult.goalContext;
-      stageContext = ctxResult.stageContext;
-      progressContext = ctxResult.progressContext;
-      contextAwareInfo = ctxResult.contextApplied;
-    } catch {
-      relevantVerses = personaSources
-        ? await searchMultiSource(message, personaSources, numVerses)
-        : await searchVerses(message, numVerses);
-      contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
-    }
+   if (useContextAware && cognitiveState) {
+     try {
+       const { searchContextAware } = require('../knowledge/contextSearch');
+       const ctxResult = await searchContextAware(message, {
+         userId: uid,
+         personaId: persona.id,
+         personaSources,
+         topK: numVerses,
+         cognitiveState,
+         sessionId: sid,
+       });
+       contextStr = ctxResult.results.map(v => `${v.reference}: "${v.text}"`).join('\n');
+       orgContext = orgMemoryModule.getOrgMemoryContext(ctxResult.orgMemory);
+       goalContext = ctxResult.goalContext;
+       stageContext = ctxResult.stageContext;
+       progressContext = ctxResult.progressContext;
+       contextAwareInfo = ctxResult.contextApplied;
+     } catch (err) {
+       console.error('[ChatEngine] context-aware search error:', err.message);
+       relevantVerses = personaSources
+         ? await searchMultiSource(message, personaSources, numVerses)
+         : await searchVerses(message, numVerses);
+       contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
+     }
   } else {
     relevantVerses = personaSources
       ? await searchMultiSource(message, personaSources, numVerses)
@@ -217,40 +222,20 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
   }
 
-  const memoryStr = await buildMemoryContext(sid);
-  const profileStr = await buildProfileContext(uid);
+  const [memoryStr, profileStr] = await Promise.all([
+    buildMemoryContext(sid),
+    buildProfileContext(uid),
+  ]);
 
-  if (!goalContext) {
-    try {
-      const goals = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 10 });
-      goalContext = goalsModule.formatGoalContext(goals);
-    } catch {}
-  }
-  if (!orgContext) {
-    try {
-      const orgMemories = await orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5);
-      orgContext = orgMemoryModule.getOrgMemoryContext(orgMemories);
-    } catch {}
-  }
-  if (!stageContext) {
-    try {
-      stageContext = await stagesModule.getUserStageContext(uid, persona.id);
-    } catch {}
-  }
   let xpContext = '';
   let xpData = null;
-  try {
-    xpData = await gamificationModule.getXp(uid, persona.id);
-    xpContext = gamificationModule.formatXpContext(xpData);
-    await gamificationModule.updateStreak(uid, persona.id);
-    realtime.emitXpUpdate(uid, xpData);
-  } catch {}
-  if (!progressContext) {
-    try {
-      const progressData = await progressModule.getProgressState(uid, persona.id);
-      progressContext = progressModule.formatProgressContext(progressData);
-    } catch {}
-  }
+  const contextPromises = [];
+  if (!goalContext) contextPromises.push(goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 10 }).then(g => { goalContext = goalsModule.formatGoalContext(g); }).catch(err => { console.error('[ChatEngine] goals context error:', err.message); }));
+  if (!orgContext) contextPromises.push(orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5).then(om => { orgContext = orgMemoryModule.getOrgMemoryContext(om); }).catch(err => { console.error('[ChatEngine] org memory context error:', err.message); }));
+  if (!stageContext) contextPromises.push(stagesModule.getUserStageContext(uid, persona.id).then(sc => { stageContext = sc; }).catch(err => { console.error('[ChatEngine] stage context error:', err.message); }));
+  contextPromises.push(gamificationModule.getXp(uid, persona.id).then(xp => { xpData = xp; xpContext = gamificationModule.formatXpContext(xp); return gamificationModule.updateStreak(uid, persona.id); }).then(() => { if (xpData) realtime.emitXpUpdate(uid, xpData); }).catch(err => { console.error('[ChatEngine] xp context error:', err.message); }));
+  if (!progressContext) contextPromises.push(progressModule.getProgressState(uid, persona.id).then(p => { progressContext = progressModule.formatProgressContext(p); }).catch(err => { console.error('[ChatEngine] progress context error:', err.message); }));
+  await Promise.allSettled(contextPromises);
 
   const session = await getSession(sid);
   const displayName = userName || session.userName || session.userContext?.name;
@@ -272,20 +257,20 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
       });
       const result = await compileContext(layers, { cognitiveState });
       extraContext = result.prompt;
-      contextMeta = { utilization: result.utilization, dropped: result.droppedLayers, tokens: result.totalTokens };
-    } catch {}
-  }
+       contextMeta = { utilization: result.utilization, dropped: result.droppedLayers, tokens: result.totalTokens };
+     } catch (err) { console.error('[ChatEngine] context compiler error:', err.message); }
+   }
 
   let businessStr = '';
   try {
     const businessModule = require('../business');
     const businessConfig = await businessModule.getBusinessConfig(persona.id);
     if (businessConfig && businessConfig.name) {
-      businessStr = businessModule.formatBusinessContext(businessConfig);
-    }
-  } catch {}
+       businessStr = businessModule.formatBusinessContext(businessConfig);
+     }
+   } catch (err) { console.error('[ChatEngine] business context error:', err.message); }
 
-  let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources, businessStr);
+   let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources, businessStr);
   if (extraContext) {
     systemPrompt += '\n\n' + extraContext;
   }
@@ -466,10 +451,16 @@ async function getQuickActions(personaId, userId) {
   return smartFollowUp.getQuickActions(personaId, profile);
 }
 
-async function processMessageStream({ message, sessionId, userId, language, isGroup, source }, onChunk) {
+async function processMessageStream({ message, sessionId, userId, language, isGroup, source, userName, personaId }, onChunk) {
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
   const uid = userId || 'user_default';
-  const sid = sessionId || 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+  const sid = sessionId || generateSessionId();
+
+  if (uid && uid !== 'user_default' && !isGroup) {
+    try {
+      await onboarding.ensureUser(uid, userName || uid.replace(/^(wa_|tg_|user_)/, ''), source || 'web');
+    } catch {}
+  }
 
   if (uid && uid !== 'user_default') {
     const role = await getUserRole(uid);
@@ -485,55 +476,116 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
     }
   }
 
+  if (uid && uid !== 'user_default' && !isGroup) {
+    const onboardMsg = await checkOnboarding(uid, lang, personaId);
+    if (onboardMsg) {
+      const answerResult = await processOnboardingAnswer(uid, message, lang, personaId);
+      if (answerResult) {
+        return { response: answerResult.message, sessionId: sid, sources: [], language: lang, onboarding: !answerResult.done, onboardingDone: answerResult.done };
+      }
+      return { response: onboardMsg, sessionId: sid, sources: [], language: lang, onboarding: true };
+    }
+  }
+
   await updateProfileFromMessage(uid, message);
   const userContext = extractContextFromMessage(message);
   await updateSessionContext(sid, userContext);
+
+  const override = await overrideModule.getOverride(sid);
+  if (override && override.is_active) {
+    if (override.override_type === 'full') {
+      if (override.human_message) {
+        await addMessage(sid, 'assistant', override.human_message);
+        return { response: override.human_message, sessionId: sid, sources: [], language: lang, humanOverride: true };
+      }
+      return { response: 'Um atendente humano está cuidando desta conversa. Aguarde um momento.', sessionId: sid, sources: [], language: lang, humanOverride: true };
+    }
+  }
 
   const persona = await getPersonaForContext(sid, uid);
   const numVerses = parseInt(await getSetting('search_verses_count', '8')) || 8;
   const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
     ? persona.knowledgeSources
     : null;
-  const relevantVerses = personaSources
-    ? await searchMultiSource(message, personaSources, numVerses)
-    : await searchVerses(message, numVerses);
 
-  const contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
+  let cognitiveContextStream = '';
+  let cognitiveState = null;
+  try {
+    cognitiveState = await cognitiveModule.analyzeCognitiveState(uid, persona.id, message, sid);
+    cognitiveContextStream = cognitiveModule.formatCognitiveContext(cognitiveState);
+    if (cognitiveState) {
+      realtime.emitToUser(uid, 'cognitive_state', {
+        personaId: persona.id,
+        emotion: cognitiveState.emotion,
+        intent: cognitiveState.intent,
+        churnRisk: cognitiveState.churn_risk,
+        engagement: cognitiveState.engagement_score,
+      });
+    }
+  } catch {}
+
+  let contextStr = '';
+  let orgContextStream = '';
+  let goalContextStream = '';
+  let stageContextStream = '';
+  let progressContextStreamStream = '';
+
+  const useContextAware = await getSetting('context_aware_search', 'true') === 'true';
+  if (useContextAware && cognitiveState) {
+    try {
+      const { searchContextAware } = require('../knowledge/contextSearch');
+      const ctxResult = await searchContextAware(message, { userId: uid, personaId: persona.id, personaSources, topK: numVerses, cognitiveState, sessionId: sid });
+      contextStr = ctxResult.results.map(v => `${v.reference}: "${v.text}"`).join('\n');
+      orgContextStream = orgMemoryModule.getOrgMemoryContext(ctxResult.orgMemory);
+      goalContextStream = ctxResult.goalContext;
+      stageContextStream = ctxResult.stageContext;
+      progressContextStreamStream = ctxResult.progressContext;
+    } catch {
+      const relevantVerses = personaSources ? await searchMultiSource(message, personaSources, numVerses) : await searchVerses(message, numVerses);
+      contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
+    }
+  } else {
+    const relevantVerses = personaSources ? await searchMultiSource(message, personaSources, numVerses) : await searchVerses(message, numVerses);
+    contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
+  }
+
   const memoryStr = await buildMemoryContext(sid);
   const profileStr = await buildProfileContext(uid);
 
-  let goalContextStream = '';
-  let orgContextStream = '';
-  let stageContextStream = '';
+  if (!goalContextStream) {
+    try {
+      const goals = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 10 });
+      goalContextStream = goalsModule.formatGoalContext(goals);
+    } catch {}
+  }
+  if (!orgContextStream) {
+    try {
+      const orgMemories = await orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5);
+      orgContextStream = orgMemoryModule.getOrgMemoryContext(orgMemories);
+    } catch {}
+  }
+  if (!stageContextStream) {
+    try {
+      stageContextStream = await stagesModule.getUserStageContext(uid, persona.id);
+    } catch {}
+  }
   let xpContextStream = '';
-  let progressContextStream = '';
+  let xpData = null;
   try {
-    const goals = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 10 });
-    goalContextStream = goalsModule.formatGoalContext(goals);
-  } catch {}
-  try {
-    const orgMemories = await orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5);
-    orgContextStream = orgMemoryModule.getOrgMemoryContext(orgMemories);
-  } catch {}
-  try {
-    stageContextStream = await stagesModule.getUserStageContext(uid, persona.id);
-  } catch {}
-  try {
-    const xpData = await gamificationModule.getXp(uid, persona.id);
+    xpData = await gamificationModule.getXp(uid, persona.id);
     xpContextStream = gamificationModule.formatXpContext(xpData);
+    await gamificationModule.updateStreak(uid, persona.id);
+    realtime.emitXpUpdate(uid, xpData);
   } catch {}
-  try {
-    const progressData = await progressModule.getProgressState(uid, persona.id);
-    progressContextStream = progressModule.formatProgressContext(progressData);
-  } catch {}
-  let cognitiveContextStream = '';
-  try {
-    const cogState = await cognitiveModule.analyzeCognitiveState(uid, persona.id, message, sid);
-    cognitiveContextStream = cognitiveModule.formatCognitiveContext(cogState);
-  } catch {}
+  if (!progressContextStreamStream) {
+    try {
+      const progressData = await progressModule.getProgressState(uid, persona.id);
+      progressContextStreamStream = progressModule.formatProgressContext(progressData);
+    } catch {}
+  }
 
   const session = await getSession(sid);
-  const displayName = (source === 'whatsapp' || source === 'telegram') ? undefined : (session.userName || session.userContext?.name);
+  const displayName = userName || session.userName || session.userContext?.name;
 
   let businessStrStream = '';
   try {
@@ -544,7 +596,7 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
     }
   } catch {}
 
-  const extraContextStream = [goalContextStream, orgContextStream, stageContextStream, xpContextStream, progressContextStream, cognitiveContextStream].filter(Boolean).join('\n\n');
+  const extraContextStream = [goalContextStream, orgContextStream, stageContextStream, xpContextStream, progressContextStreamStream, cognitiveContextStream].filter(Boolean).join('\n\n');
   let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources, businessStrStream);
   if (extraContextStream) {
     systemPrompt += '\n\n' + extraContextStream;
@@ -569,6 +621,16 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   const maxTokens = parseInt(await getSetting('max_tokens', '4096')) || 4096;
   const temperature = parseFloat(await getSetting('temperature', '0.7')) || 0.7;
 
+  const toolsEnabled = await getSetting('tools_enabled', 'true') === 'true';
+  const isMetaPersona = persona.id === 'meta-persona';
+  const isAdmin = await isUserAdmin(uid);
+
+  const llmTools = getToolDefinitions();
+  const extTools = getExtToolDefs ? getExtToolDefs() : [];
+  const allTools = [...llmTools, ...extTools];
+  const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools'];
+  const streamTools = (isMetaPersona || isAdmin) ? allTools : (toolsEnabled ? allTools.filter(t => !metaPersonaOnlyTools.includes(t.function.name)) : null);
+
   try {
     const response = await integrations.callLLM(messages, {
       userId: uid,
@@ -577,6 +639,7 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
       numPredict: maxTokens,
       retries: 2,
       timeout: parseInt(await getSetting('llm_timeout', '30000')) || 30000,
+      tools: streamTools,
     });
 
     const { parseStream } = require('../llm');
@@ -597,6 +660,8 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
 
     await addMessage(sid, 'assistant', fullResponse);
 
+    realtime.emitNewMessage(sid, { role: 'assistant', content: fullResponse, personaId: persona.id });
+
     const updatedSession = await getSession(sid);
     const summaryEvery = parseInt(await getSetting('summary_every', '10')) || 10;
     if (updatedSession.messages.length % summaryEvery === 0) {
@@ -610,31 +675,31 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
       generateProfileSummary(uid).catch(() => {});
     }
 
-  surveyEngine.autoCreateFollowUp(uid, sid).catch(() => {});
+    surveyEngine.autoCreateFollowUp(uid, sid).catch(() => {});
 
-  thoughtsModule.logThought({
-    session_id: sid,
-    user_id: uid,
-    persona_id: persona.id,
-    message_input: message.substring(0, 500),
-    message_output: fullResponse.substring(0, 500),
-    tools_used: toolRounds > 0 ? messages.filter(m => m.role === 'tool').map(m => m.name) : null,
-    context_injected: {
-      hasGoals: goalContext.length > 0,
-      hasOrgMemory: orgContext.length > 0,
-      hasStage: stageContext.length > 0,
-      hasXp: xpContext.length > 0,
-      hasProgress: progressContext.length > 0,
-      hasCognitive: cognitiveContext.length > 0,
-    },
-    reasoning: cognitiveState ? `${cognitiveState.emotion}/${cognitiveState.intent}` : null,
-    decision: cognitiveState?.suggested_action || null,
-  }).catch(() => {});
+    const smartFollowUp = require('../onboarding/followup');
+    smartFollowUp.shouldCreateFollowUp(uid, persona.id, sid).catch(() => {});
 
-    const sources = relevantVerses.slice(0, 4).map(v => ({
-      reference: v.reference,
-      text: v.text.substring(0, 120) + (v.text.length > 120 ? '...' : ''),
-    }));
+    thoughtsModule.logThought({
+      session_id: sid,
+      user_id: uid,
+      persona_id: persona.id,
+      message_input: message.substring(0, 500),
+      message_output: fullResponse.substring(0, 500),
+      tools_used: null,
+      context_injected: {
+        hasGoals: goalContextStream.length > 0,
+        hasOrgMemory: orgContextStream.length > 0,
+        hasStage: stageContextStream.length > 0,
+        hasXp: xpContextStream.length > 0,
+        hasProgress: progressContextStreamStream.length > 0,
+        hasCognitive: cognitiveContextStream.length > 0,
+      },
+      reasoning: cognitiveState ? `${cognitiveState.emotion}/${cognitiveState.intent}` : null,
+      decision: cognitiveState?.suggested_action || null,
+    }).catch(() => {});
+
+    const sources = (contextStr ? [] : []).slice(0, 4);
 
     return { response: fullResponse, sessionId: sid, sources, language: lang, personaId: persona.id, personaName: persona.name, ttsVoice: persona.ttsVoice, ttsLang: persona.ttsLang };
 
@@ -664,13 +729,14 @@ async function handleChatCommand(text, userId, source, sessionId) {
   const isAdmin = await isUserAdmin(userId);
   const uid = userId || 'unknown';
 
+  const persona = await getPersonaForContext(sessionId, uid);
+
   // Check custom commands first
   try {
     const chatCommands = require('./commands');
     const customCmd = await chatCommands.processCommand(text, uid, isAdmin ? 'admin' : 'user', persona?.id);
     if (customCmd) {
       if (customCmd.error) return customCmd.error;
-      // Handle different response types
       if (customCmd.response_type === 'image' || customCmd.response_type === 'video' || customCmd.response_type === 'audio') {
         return { type: 'media', content: customCmd.response, media_type: customCmd.response_type };
       }
@@ -680,7 +746,6 @@ async function handleChatCommand(text, userId, source, sessionId) {
     console.log('[ChatCommands] Custom cmd error:', err.message);
   }
 
-  const persona = await getPersonaForContext(sessionId, uid);
   const cmdConfig = persona.commands;
 
   switch (cmd) {
@@ -1337,4 +1402,5 @@ module.exports = {
   getPersonaForContext,
   getContextualWelcome,
   getQuickActions,
+  generateSessionId,
 };

@@ -34,6 +34,7 @@ const router = express.Router();
 const PIX_KEY = process.env.PIX_KEY || '';
 const PIX_TYPE = process.env.PIX_TYPE || 'email';
 const STRIPE_URL = process.env.STRIPE_URL || '';
+const { generateSessionId } = require('../chat/engine');
 
 router.post('/stt', upload.single('audio'), async (req, res) => {
   try {
@@ -68,7 +69,7 @@ router.post('/chat', async (req, res) => {
 
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
   const uid = userId || 'user_default';
-  const sid = sessionId || 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+  const sid = sessionId || generateSessionId();
 
   try {
     const result = await chatEngine.processMessage({
@@ -149,7 +150,7 @@ router.delete('/session/:id', async (req, res) => {
 
 router.post('/session', async (req, res) => {
   const { userId } = req.body || {};
-  const sid = 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+  const sid = generateSessionId();
   const session = await getSession(sid);
   if (userId) {
     session.userId = userId;
@@ -448,11 +449,15 @@ router.post('/persona/switch', async (req, res) => {
   }
 });
 
-router.post('/persona/create', async (req, res) => {
+router.post('/persona/create', authMiddleware, async (req, res) => {
   try {
     const { description, name, lang } = req.body;
     if (!description) return res.status(400).json({ error: 'description is required' });
-    const userId = req.userId || 'anonymous';
+    const userId = req.userId;
+    const userRole = req.userRole;
+    if (userRole !== 'admin' && userRole !== 'premium') {
+      return res.status(403).json({ error: 'Persona creation requires premium or admin role' });
+    }
     const options = {};
     if (name) options.name = name;
     if (lang) options.lang = lang;

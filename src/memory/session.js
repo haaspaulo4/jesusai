@@ -31,7 +31,7 @@ async function getSession(sessionId) {
   }
 
   const [msgRows] = await pool.execute(
-    'SELECT role, content, timestamp FROM messages WHERE session_id = ? ORDER BY timestamp ASC',
+    'SELECT role, content, timestamp FROM messages WHERE session_id = ? ORDER BY timestamp ASC LIMIT 500',
     [sessionId]
   );
 

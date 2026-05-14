@@ -286,7 +286,7 @@ CREATE TABLE IF NOT EXISTS follow_ups (
 
 CREATE TABLE IF NOT EXISTS bot_instances (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  platform ENUM('telegram', 'whatsapp') NOT NULL,
+  platform ENUM('telegram', 'whatsapp', 'instagram') NOT NULL,
   name VARCHAR(255) NOT NULL,
   token VARCHAR(500) DEFAULT NULL,
   webhook_url VARCHAR(500) DEFAULT NULL,
@@ -804,6 +804,22 @@ async function initDatabase() {
   try { await pool.execute("ALTER TABLE user_onboarding ADD COLUMN persona_id VARCHAR(60) DEFAULT 'global'"); } catch {}
   try { await pool.execute("ALTER TABLE onboarding_steps ADD INDEX idx_onboarding_persona (persona_id)"); } catch {}
   try { await pool.execute("ALTER TABLE user_onboarding ADD INDEX idx_user_onboarding_persona (user_id, persona_id)"); } catch {}
+
+  // Performance indexes
+  try { await pool.execute("ALTER TABLE persona_messages ADD INDEX idx_msgs_user_persona (user_id, persona_id)"); } catch {}
+  try { await pool.execute("ALTER TABLE persona_messages ADD INDEX idx_msgs_user_created (user_id, created_at)"); } catch {}
+  try { await pool.execute("ALTER TABLE ratings ADD INDEX idx_ratings_user_session (user_id, session_id)"); } catch {}
+  try { await pool.execute("ALTER TABLE follow_ups ADD INDEX idx_followups_user_status (user_id, status)"); } catch {}
+  try { await pool.execute("ALTER TABLE cognitive_states ADD INDEX idx_cog_user_persona_created (user_id, persona_id, created_at)"); } catch {}
+  try { await pool.execute("ALTER TABLE persona_tasks ADD INDEX idx_tasks_owner_status (owner_id, status)"); } catch {}
+  try { await pool.execute("ALTER TABLE persona_goals ADD INDEX idx_goals_owner_status (owner_id, status)"); } catch {}
+  try { await pool.execute("ALTER TABLE persona_contacts ADD INDEX idx_contacts_owner_stage (owner_id, stage)"); } catch {}
+  try { await pool.execute("ALTER TABLE persona_calendar ADD INDEX idx_calendar_owner_start (owner_id, start_time)"); } catch {}
+  try { await pool.execute("ALTER TABLE persona_automations ADD INDEX idx_auto_owner_active (owner_id, is_active)"); } catch {}
+  try { await pool.execute("ALTER TABLE agent_thoughts ADD INDEX idx_thoughts_persona_created (persona_id, created_at)"); } catch {}
+
+  // Fix bot_instances ENUM to include instagram
+  try { await pool.execute("ALTER TABLE bot_instances MODIFY COLUMN platform ENUM('telegram', 'whatsapp', 'instagram') NOT NULL"); } catch (e) { if (!e.message.includes('Duplicate') && !e.message.includes('already')) console.error('[DB Migration] bot_instances ENUM:', e.message); }
 
   // Business config on personas
   try { await pool.execute("ALTER TABLE personas ADD COLUMN business_config JSON DEFAULT NULL"); } catch {}
