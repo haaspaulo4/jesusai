@@ -226,13 +226,33 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   const session = await getSession(sid);
   const displayName = userName || session.userName || session.userContext?.name;
 
-  const extraContext = [goalContext, orgContext, stageContext, xpContext, progressContext, cognitiveContext].filter(Boolean).join('\n\n');
+  const useContextCompiler = await getSetting('context_compiler_enabled', 'true') === 'true';
+  let extraContext = [goalContext, orgContext, stageContext, xpContext, progressContext, cognitiveContext].filter(Boolean).join('\n\n');
+  let contextMeta = null;
+
+  if (useContextCompiler) {
+    try {
+      const { compileContext, buildContextLayers } = require('../context');
+      const layers = buildContextLayers({
+        goals: goalContext,
+        orgMemory: orgContext,
+        stage: stageContext,
+        xp: xpContext,
+        progress: progressContext,
+        cognitive: cognitiveContext,
+      });
+      const result = await compileContext(layers, { cognitiveState });
+      extraContext = result.prompt;
+      contextMeta = { utilization: result.utilization, dropped: result.droppedLayers, tokens: result.totalTokens };
+    } catch {}
+  }
+
   let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources);
   if (extraContext) {
     systemPrompt += '\n\n' + extraContext;
   }
 
-  console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : 'bible'}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}`);
+  console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : 'bible'}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}, contextUtil=${contextMeta ? contextMeta.utilization + '%' : 'raw'}`);
 
   const toolsEnabled = await getSetting('tools_enabled', 'true') === 'true';
   const historyLimit = parseInt(await getSetting('history_limit', '10')) || 10;
@@ -264,6 +284,21 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   const temperature = parseFloat(await getSetting('temperature', '0.7')) || 0.7;
 
   const isMetaPersona = persona.id === 'meta-persona';
+  let executionPlan = null;
+
+  if (isMetaPersona || isAdmin) {
+    try {
+      const { planExecution, shouldUsePlanner } = require('../planner');
+      if (shouldUsePlanner(message, isAdmin, isMetaPersona)) {
+        executionPlan = await planExecution(message, persona.id, uid, null, integrations);
+        if (executionPlan) {
+          console.log(`[ChatEngine] Plan: intent=${executionPlan.intent}, needsTools=${executionPlan.needsTools}, strategy=${executionPlan.responseStrategy}, risk=${executionPlan.riskLevel}`);
+        }
+      }
+    } catch (err) {
+      console.error('[ChatEngine] Planner error:', err.message);
+    }
+  }
 
   while (toolRounds < MAX_TOOL_ROUNDS) {
     const allTools = getToolDefinitions();

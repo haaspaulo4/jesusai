@@ -46,6 +46,16 @@ const DEFAULTS = {
   onboarding_greeting_es: '',
   message_chunk_size: '200',
   audio_chunk_size: '200',
+  tools_enabled: 'true',
+  history_limit: '10',
+  search_verses_count: '8',
+  context_aware_search: 'true',
+  context_compiler_enabled: 'true',
+  context_max_tokens: '4000',
+  context_prioritize: '',
+  planner_enabled: 'true',
+  summary_every: '10',
+  profile_summary_every: '15',
 };
 
 async function loadSettings() {
