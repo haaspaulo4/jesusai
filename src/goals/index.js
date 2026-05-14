@@ -48,7 +48,21 @@ async function updateGoal(id, data) {
   if (fields.length === 0) return getGoal(id);
   values.push(id);
   await pool.execute(`UPDATE persona_goals SET ${fields.join(', ')} WHERE id = ?`, values);
-  return getGoal(id);
+  const updatedGoal = await getGoal(id);
+
+  if (data.status === 'completed' && updatedGoal) {
+    try {
+      const events = require('../events');
+      await events.emit('on_goal_completed', {
+        goalId: id,
+        userId: updatedGoal.owner_id,
+        personaId: updatedGoal.persona_id,
+        title: updatedGoal.title,
+        goal_type: updatedGoal.goal_type,
+      });
+    } catch {}
+  }
+  return updatedGoal;
 }
 
 async function deleteGoal(id) {

@@ -16,6 +16,7 @@ const cognitiveModule = require('../cognitive');
 const overrideModule = require('../override');
 const thoughtsModule = require('../thoughts');
 const optimizationModule = require('../optimization');
+const eventsModule = require('../events');
 
 const router = express.Router();
 
@@ -1307,6 +1308,165 @@ router.post('/simulate', authMiddleware, adminMiddleware, async (req, res) => {
       isGroup: false,
       source: 'simulate',
     });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Blueprints =====
+const blueprintsModule = require('../blueprints');
+const eventsModule = require('../events');
+const reflectionModule = require('../reflection');
+
+router.get('/blueprints', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const filters = {};
+    if (req.query.category) filters.category = req.query.category;
+    if (req.query.niche) filters.niche = req.query.niche;
+    if (req.query.search) filters.search = req.query.search;
+    if (req.query.is_official !== undefined) filters.is_official = req.query.is_official === 'true';
+    if (req.query.is_active !== undefined) filters.is_active = req.query.is_active === 'true';
+    if (req.query.limit) filters.limit = parseInt(req.query.limit);
+    const blueprints = await blueprintsModule.listBlueprints(filters);
+    res.json({ blueprints, total: blueprints.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/blueprints/stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const stats = await blueprintsModule.getBlueprintStats();
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/blueprints/categories', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const categories = await blueprintsModule.getBlueprintCategories();
+    res.json({ categories });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/blueprints/niches', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const niches = await blueprintsModule.getBlueprintNiches(req.query.category || null);
+    res.json({ niches });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/blueprints/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const blueprint = await blueprintsModule.getBlueprint(req.params.id);
+    if (!blueprint) return res.status(404).json({ error: 'Blueprint not found' });
+    res.json(blueprint);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/blueprints', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const blueprint = await blueprintsModule.createBlueprint(req.body);
+    res.json(blueprint);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.put('/blueprints/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const blueprint = await blueprintsModule.updateBlueprint(req.params.id, req.body);
+    if (!blueprint) return res.status(404).json({ error: 'Blueprint not found' });
+    res.json(blueprint);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/blueprints/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await blueprintsModule.deleteBlueprint(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/blueprints/:id/clone', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { overrides } = req.body;
+    const persona = await blueprintsModule.cloneBlueprint(req.params.id, overrides || {});
+    res.json({ success: true, persona });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/blueprints/:id/apply/:personaId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const persona = await blueprintsModule.cloneBlueprintToExisting(req.params.id, req.params.personaId);
+    res.json({ success: true, persona });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/blueprints/from-persona/:personaId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const blueprint = await blueprintsModule.savePersonaAsBlueprint(req.params.personaId, req.body);
+    res.json(blueprint);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// ===== Events =====
+router.get('/events/log', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const filters = {};
+    if (req.query.event_type) filters.event_type = req.query.event_type;
+    if (req.query.user_id) filters.user_id = req.query.user_id;
+    if (req.query.persona_id) filters.persona_id = req.query.persona_id;
+    if (req.query.limit) filters.limit = parseInt(req.query.limit);
+    const events = await eventsModule.getEventLog(filters);
+    res.json({ events, total: events.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/events/stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const stats = await eventsModule.getEventStats(parseInt(req.query.days) || 7);
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Self-Reflection =====
+router.get('/reflection/:personaId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 7;
+    const result = await reflectionModule.generateReflection(req.params.personaId, days);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/reflection/:personaId/auto-adjust', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const days = parseInt(req.query.days) || 7;
+    const result = await reflectionModule.autoAdjustPersona(req.params.personaId, days);
     res.json(result);
   } catch (err) {
     res.status(500).json({ error: err.message });

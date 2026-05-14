@@ -552,6 +552,42 @@ CREATE TABLE IF NOT EXISTS human_overrides (
   UNIQUE KEY idx_override_session (session_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+CREATE TABLE IF NOT EXISTS persona_blueprints (
+  id VARCHAR(100) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  category VARCHAR(100) DEFAULT 'general',
+  niche VARCHAR(100) DEFAULT 'general',
+  config JSON NOT NULL,
+  preview JSON,
+  is_official TINYINT(1) DEFAULT 0,
+  is_active TINYINT(1) DEFAULT 1,
+  tags JSON,
+  icon VARCHAR(50) DEFAULT NULL,
+  color VARCHAR(20) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_bp_category (category),
+  KEY idx_bp_niche (niche),
+  KEY idx_bp_official (is_official),
+  KEY idx_bp_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS event_log (
+  id VARCHAR(100) PRIMARY KEY,
+  event_type VARCHAR(50) NOT NULL,
+  user_id VARCHAR(60) DEFAULT NULL,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  session_id VARCHAR(80) DEFAULT NULL,
+  data JSON,
+  results JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_evt_type (event_type),
+  KEY idx_evt_user (user_id),
+  KEY idx_evt_persona (persona_id),
+  KEY idx_evt_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 CREATE TABLE IF NOT EXISTS agent_thoughts (
   id VARCHAR(100) PRIMARY KEY,
   session_id VARCHAR(80) DEFAULT NULL,

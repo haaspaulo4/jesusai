@@ -3,11 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MetaPersona.AI - Assistente Virtual</title>
-  <meta name="description" content="Plataforma whitelabel de assistentes virtuais com RAG multimodal, multi-persona e onboarding automático.">
+  <title>MetaPersona.AI — Crie Agentes IA que Aprendem, Trabalham e Evoluem</title>
+  <meta name="description" content="Plataforma de agentes cognitivos persistentes. Crie funcionários IA com memória, objetivos e autonomia. RAG multimodal, gamificação, follow-ups automáticos.">
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
-  <!-- Google Sign-In loaded conditionally -->
 </head>
 <body>
   <!-- LANDING / AUTH SCREEN -->
@@ -20,7 +19,6 @@
         <div class="orb orb-2"></div>
         <div class="orb orb-3"></div>
       </div>
-      <div class="landing-cross-bg" style="display:none;">✝</div>
     </div>
 
     <nav class="landing-nav">
@@ -29,43 +27,44 @@
         <span class="logo-text" id="brandLogoText">MetaPersona.AI</span>
       </div>
       <div class="landing-nav-links">
-        <a href="#features" class="nav-link" id="navSearchBtn">Como funciona</a>
-        <a href="#" class="nav-link" id="navBlogBtn">Conteúdo</a>
+        <a href="#how" class="nav-link">Como funciona</a>
+        <a href="#usecases" class="nav-link">Casos de uso</a>
+        <a href="#features" class="nav-link">Recursos</a>
         <a href="#" class="nav-link nav-channel" id="navTelegramBtn" target="_blank">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12.056 0h-.112zm4.962 7.224c.1-.002.321.023.465.14.149.12.191.35.211.45.04.1.06.24.04.44-.08.91-.43 3.1-.61 4.12-.08.42-.23.82-.38.95-.15.13-.3.14-.4.12-.21-.03-.33-.05-.5-.12-.21-.07-.32-.13-.53-.2-.38-.16-.61-.24-.86-.4-.3-.18-.53-.4-.72-.64-.23-.28-.37-.52-.5-.85-.05-.1 0-.22.1-.3l.6-.5c.1-.08.19-.2.09-.4l-1.28-3.02c-.06-.14-.1-.2-.31-.2h-.8c-.1 0-.2.03-.3.13l-4.9 3.8c-.1.08-.14.2-.07.34l.6 1.4c.03.07.1.13.22.13l1.03-.1c.05 0 .12.01.17.05l-1.63.93c-.13.08-.1.2-.03.34l.46.93c.06.12.13.18.28.16l1.35-.2c.08-.01.15 0 .2.06l-1.83 1.04c-.12.07-.09.2-.02.34l.5.94c.07.13.14.18.29.15l7.25-1.52c.15-.03.24-.15.28-.3.28-1.26.9-3.96 1.06-4.66.01-.06.03-.2.01-.34z"/></svg>
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12.056 0h-.112zm4.962 7.224c.1-.002.321.023.465.14.12.191.35.211.45.04.1.06.24.04.44-.08.91-.43 3.1-.61 4.12-.08.42-.23.82-.38.95-.15.13-.3.14-.4.12-.21-.03-.33-.05-.5-.12-.21-.07-.32-.13-.53-.2-.38-.16-.61-.24-.86-.4-.3-.18-.53-.4-.72-.64-.23-.28-.37-.52-.5-.85-.05-.1 0-.22.1-.3l.6-.5c.1-.08.19-.2.09-.4l-1.28-3.02c-.06-.14-.1-.2-.31-.2h-.8c-.1 0-.2.03-.3.13l-4.9 3.8c-.1.08-.14.2-.07.34l.6 1.4c.03.07.1.13.22.13l1.03-.1c.05 0 .12.01.17.05l-1.63.93c-.13.08-.1.2-.03.34l.46.93c.06.12.13.18.28.16l1.35-.2c.08-.01.15 0 .2.06l-1.83 1.04c-.12.07-.09.2-.02.34l.5.94c.07.13.14.18.29.15l7.25-1.52c.15-.03.24-.15.28-.3.28-1.26.9-3.96 1.06-4.66.01-.06.03-.2.01-.34z"/></svg>
           Telegram
         </a>
         <a href="#" class="nav-link nav-channel" id="navWhatsappBtn" target="_blank">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
           WhatsApp
         </a>
-        <button class="nav-cta-btn" id="navLoginBtn">Começar</button>
+        <button class="nav-cta-btn" id="navLoginBtn">Criar Agente</button>
       </div>
       <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Menu">
         <span></span><span></span><span></span>
       </button>
     </nav>
 
+    <!-- HERO -->
     <section class="landing-hero" id="hero">
       <div class="hero-content animate-in">
-         <div class="hero-badge">
-           <span class="badge-dot"></span>
-           Plataforma Whitelabel de IA
-         </div>
+        <div class="hero-badge">
+          <span class="badge-dot"></span>
+          Infraestrutura de Agentes IA
+        </div>
         <h1 class="hero-title">
-          Converse com <span class="gold">inteligência.</span>
+          Crie agentes IA que <span class="gold">aprendem, trabalham e evoluem.</span>
         </h1>
-        <p class="hero-subtitle">Um assistente virtual com conhecimento real, que te conhece pelo nome e lembra de você. Gratuito, sem fila, 24 horas por dia.</p>
+        <p class="hero-subtitle">Transforme conhecimento em personas inteligentes com memória, objetivos, gamificação e autonomia. Não é chatbot — é força de trabalho cognitiva.</p>
         <div class="hero-actions">
           <button class="hero-btn primary" id="heroStartBtn">
-            <span>Começar a conversar</span>
+            <span>Começar grátis</span>
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
           </button>
-          <a href="#features" class="hero-btn secondary">
+          <a href="#how" class="hero-btn secondary">
             <span>Ver como funciona</span>
           </a>
         </div>
-        <div class="hero-verse">"Conhecimento é poder — quando compartilhado com propósito."</div>
       </div>
       <div class="hero-visual">
         <div class="chat-preview animate-in-delayed">
@@ -74,92 +73,237 @@
           </div>
           <div class="preview-messages">
             <div class="preview-msg bot">
-              <span class="preview-avatar">🤖</span>
-              <span>Estou aqui para ajudar! Conhecimento real, memória e personalização. <em>RAG multimodal</em></span>
+              <span class="preview-avatar">🎯</span>
+              <span>Criei o agente <strong>Tutor ENEM</strong>. Ele vai acompanhar seus alunos com revisão diária e gamificação.</span>
             </div>
             <div class="preview-msg user">
-              <span>Quero entender melhor sobre esse assunto...</span>
+              <span>Quero um agente para minha clínica odontológica.</span>
             </div>
             <div class="preview-msg bot">
-              <span class="preview-avatar">🤖</span>
-              <span>Claro! Vou buscar a informação mais relevante para você. <em>Fontes indexadas</em></span>
+              <span class="preview-avatar">🦷</span>
+              <span>Pronto! A <strong>Dra. Sorriso</strong> agenda consultas, faz follow-ups e responde pacientes 24/7.</span>
             </div>
           </div>
         </div>
       </div>
     </section>
 
-    <section class="landing-features" id="features">
+    <!-- COMO FUNCIONA -->
+    <section class="landing-features" id="how">
       <div class="section-label">Como funciona</div>
-      <h2 class="section-title">Você pergunta. A IA responde com conhecimento.</h2>
-      <p class="section-subtitle">Cada conversa é fundamentada em conteúdo real, buscado automaticamente por relevância.</p>
+      <h2 class="section-title">De uma frase a um agente operacional em segundos.</h2>
+      <p class="section-subtitle">Descreva o que você precisa. A meta-persona cria, configura e conecta tudo automaticamente.</p>
+
+      <div class="how-flow animate-in">
+        <div class="flow-step">
+          <div class="flow-number">1</div>
+          <div class="flow-icon">💬</div>
+          <h3>Descreva</h3>
+          <p>"Quero uma IA de vendas para imobiliária"</p>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-number">2</div>
+          <div class="flow-icon">🧠</div>
+          <h3>Meta-persona cria</h3>
+          <p>Persona completa: identidade, voz, skills, conhecimento, objetivos</p>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-number">3</div>
+          <div class="flow-icon">📚</div>
+          <h3>Alimente</h3>
+          <p>Upload de PDFs, documentos, preço, FAQ — vira conhecimento RAG</p>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-number">4</div>
+          <div class="flow-icon">⚡</div>
+          <h3>Opera</h3>
+          <p>Agenda, acompanha, faz follow-up, adapta tom — 24/7</p>
+        </div>
+        <div class="flow-arrow">→</div>
+        <div class="flow-step">
+          <div class="flow-number">5</div>
+          <div class="flow-icon">📈</div>
+          <h3>Evolui</h3>
+          <p>XP, streaks, detecção de churn, auto-otimização contínua</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- CASOS DE USO -->
+    <section class="landing-features" id="usecases">
+      <div class="section-label">Casos de uso</div>
+      <h2 class="section-title">Qualquer nicho. Qualquer persona. Um sistema.</h2>
       <div class="features-grid">
         <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">📖</div></div>
-          <h3>Conhecimento real</h3>
-          <p>Cada resposta é baseada em conteúdo indexado, buscado automaticamente por tema e relevância. Nada inventado — tudo fundamentado.</p>
+          <div class="feature-icon-wrap"><div class="feature-icon">🎓</div></div>
+          <h3>Educação</h3>
+          <p>Tutor IA com revisão espaçada, gamificação, correção de redação, acompanhamento de progresso e streaks.</p>
+        </div>
+        <div class="feature-card animate-in">
+          <div class="feature-icon-wrap"><div class="feature-icon">🦷</div></div>
+          <h3>Saúde</h3>
+          <p>Agenda consultas, lembretes de medicação, acompanhamento de adesão, follow-ups automáticos e empatia.</p>
+        </div>
+        <div class="feature-card animate-in">
+          <div class="feature-icon-wrap"><div class="feature-icon">💰</div></div>
+          <h3>Vendas / SDR</h3>
+          <p>Qualifica leads, detecta intenção de compra, envia follow-ups, CRM integrado, funil inteligente.</p>
+        </div>
+        <div class="feature-card animate-in">
+          <div class="feature-icon-wrap"><div class="feature-icon">🏋️</div></div>
+          <h3>Fitness</h3>
+          <p>Plano de treino adaptativo, streaks, acompanhamento de progresso, lembretes e motivação personalizada.</p>
+        </div>
+        <div class="feature-card animate-in">
+          <div class="feature-icon-wrap"><div class="feature-icon">⛪</div></div>
+          <h3>Religião</h3>
+          <p>Devocionais diários, versículos por tema, streaks de leitura, acompanhamento espiritual e oração.</p>
+        </div>
+        <div class="feature-card animate-in">
+          <div class="feature-icon-wrap"><div class="feature-icon">🏢</div></div>
+          <h3>Suporte SaaS</h3>
+          <p>Atendimento 24/7, detecção de churn, escalação humana, base de conhecimento e resolução automática.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- O QUE A IA FAZ -->
+    <section class="landing-features" id="features">
+      <div class="section-label">O que sua IA consegue fazer</div>
+      <h2 class="section-title">Agente, não assistente.</h2>
+      <div class="capability-grid animate-in">
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Conversar naturalmente em português, inglês e espanhol</span>
+        </div>
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Aprender documentos (PDF, DOCX, imagens, áudio) via RAG</span>
+        </div>
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Agendar consultas e compromissos automaticamente</span>
+        </div>
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Fazer follow-ups automáticos por intervalo ou gatilho</span>
+        </div>
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Detectar emoção, intenção e risco de churn em tempo real</span>
+        </div>
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Adaptar tom e comportamento conforme sentimento do usuário</span>
+        </div>
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Gerenciar CRM, tarefas, metas e calendário</span>
+        </div>
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Gamificação: XP, níveis, streaks, conquistas e ranking</span>
+        </div>
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Memória persistente — lembra nome, preferências e histórico</span>
+        </div>
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Multi-canal: WhatsApp, Telegram, Web, voz</span>
+        </div>
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Automações: keyword, intervalo, agendado, evento</span>
+        </div>
+        <div class="capability-item">
+          <span class="capability-check">✓</span>
+          <span>Intervenção humana: assumir conversa quando necessário</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ARQUITETURA COGNITIVA -->
+    <section class="landing-features" id="architecture">
+      <div class="section-label">Arquitetura Cognitiva</div>
+      <h2 class="section-title">6 cérebros. Um agente inteligente.</h2>
+      <p class="section-subtitle">Cada mensagem passa por camadas de inteligência que nenhum chatbot comum tem.</p>
+      <div class="features-grid">
+        <div class="feature-card animate-in">
+          <div class="feature-icon-wrap"><div class="feature-icon">🎭</div></div>
+          <h3>Persona / Identity</h3>
+          <p>Define quem a IA é, como fala, o que sabe — multi-persona via Meta-RAG. Crie qualquer agente com uma frase.</p>
+        </div>
+        <div class="feature-card animate-in">
+          <div class="feature-icon-wrap"><div class="feature-icon">📚</div></div>
+          <h3>Knowledge / RAG</h3>
+          <p>Busca em PDFs, documentos, imagens, áudio, APIs — por persona. Contexto relevante injetado em cada resposta.</p>
         </div>
         <div class="feature-card animate-in">
           <div class="feature-icon-wrap"><div class="feature-icon">🧠</div></div>
-          <h3>Memória e contexto</h3>
-          <p>Diga seu nome e o assistente se lembrará. Compartilhe seus interesses e ele acompanhará sua jornada. Cada conversa constrói um relacionamento.</p>
+          <h3>Memory</h3>
+          <p>Perfil, sessão, emoções, histórico — cross-session. A IA lembra quem você é e o que conversaram.</p>
         </div>
         <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">🔊</div></div>
-          <h3>Áudio e texto</h3>
-          <p>Leia ou escute — cada resposta pode ser ouvida em voz natural, com TTS nativo em português do Brasil.</p>
+          <div class="feature-icon-wrap"><div class="feature-icon">🔮</div></div>
+          <h3>Cognitive</h3>
+          <p>Detecção de emoção, intenção, risco de churn, probabilidade de conversão. A IA adapta comportamento em tempo real.</p>
         </div>
         <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">🔍</div></div>
-          <h3>Busca inteligente</h3>
-          <p>Pesquise por tema, palavra ou referência no conhecimento indexado. Sempre relevante, sempre à mão.</p>
+          <div class="feature-icon-wrap"><div class="feature-icon">⚡</div></div>
+          <h3>Agentic</h3>
+          <p>Tarefas, calendário, CRM, automações, metas hierárquicas, skills — tudo via conversa ou API.</p>
         </div>
         <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">✍️</div></div>
-          <h3>Conteúdo do dia</h3>
-          <p>Todo dia uma reflexão nova gerada com base no conhecimento, personalizada e relevante.</p>
+          <div class="feature-icon-wrap"><div class="feature-icon">🏆</div></div>
+          <h3>Gamification</h3>
+          <p>XP, níveis, streaks, conquistas, progresso personalizado. Engajamento que nenhum chatbot tem.</p>
         </div>
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">📱</div></div>
-          <h3>No seu bolso</h3>
-          <p>Telegram, WhatsApp ou web — converse onde estiver. Mesma memória, mesma personalidade, em qualquer plataforma.</p>
-        </div>
-      </div>
-
-      <div class="hero-channels animate-in">
-        <a href="#" id="landingTelegramBtn" class="channel-btn telegram" target="_blank">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12.056 0h-.112zm4.962 7.224c.1-.002.321.023.465.14.149.12.191.35.211.45.04.1.06.24.04.44-.08.91-.43 3.1-.61 4.12-.08.42-.23.82-.38.95-.15.13-.3.14-.4.12-.21-.03-.33-.05-.5-.12-.21-.07-.32-.13-.53-.2-.38-.16-.61-.24-.86-.4-.3-.18-.53-.4-.72-.64-.23-.28-.37-.52-.5-.85-.05-.1 0-.22.1-.3l.6-.5c.1-.08.19-.2.09-.4l-1.28-3.02c-.06-.14-.1-.2-.31-.2h-.8c-.1 0-.2.03-.3.13l-4.9 3.8c-.1.08-.14.2-.07.34l.6 1.4c.03.07.1.13.22.13l1.03-.1c.05 0 .12.01.17.05l-1.63.93c-.13.08-.1.2-.03.34l.46.93c.06.12.13.18.28.16l1.35-.2c.08-.01.15 0 .2.06l-1.83 1.04c-.12.07-.09.2-.02.34l.5.94c.07.13.14.18.29.15l7.25-1.52c.15-.03.24-.15.28-.3.28-1.26.9-3.96 1.06-4.66.01-.06.03-.2.01-.34z"/></svg>
-          Grupo no Telegram
-        </a>
-        <a href="#" id="landingWhatsappBtn" class="channel-btn whatsapp" target="_blank">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
-          Grupo no WhatsApp
-        </a>
       </div>
     </section>
 
+    <!-- SOBRE -->
     <section class="landing-about" id="about">
       <div class="about-content animate-in">
         <div class="section-label">Sobre</div>
-        <h2 class="section-title">O que é a plataforma?</h2>
+        <h2 class="section-title">Não é chatbot. É infraestrutura cognitiva.</h2>
         <div class="about-text">
-          <p>Um assistente virtual com RAG multimodal — cada resposta é buscada em fontes de conhecimento indexadas e entregue com personalização. Não é um chatbot genérico: fundamentado em conteúdo real, com memória e contexto.</p>
+          <p>MetaPersona.AI é uma plataforma whitelabel de agentes virtuais cognitivos. Serve qualquer nicho — educação, saúde, negócios, coaching, religioso, vendas.</p>
+          <p>A meta-persona é <strong>admin god</strong> — orquestra personas, cria skills, gerencia tarefas, agenda, CRM, automações, metas, estágios, e conhecimento organizacional. Tudo via conversa ou API.</p>
           <p class="about-disclaimer"><strong>Importante:</strong> Este é um assistente virtual com inteligência artificial. As respostas são geradas com base no conhecimento indexado e podem conter imperfeições.</p>
         </div>
         <div class="about-stats">
-          <div class="stat"><span class="stat-num">8909+</span><span class="stat-label">Itens indexados</span></div>
-          <div class="stat"><span class="stat-num">7+</span><span class="stat-label">Tipos de mídia</span></div>
-          <div class="stat"><span class="stat-num">24/7</span><span class="stat-label">Sempre disponível</span></div>
+          <div class="stat"><span class="stat-num">26</span><span class="stat-label">LLM Tools</span></div>
+          <div class="stat"><span class="stat-num">39</span><span class="stat-label">Tabelas DB</span></div>
+          <div class="stat"><span class="stat-num">80+</span><span class="stat-label">API Endpoints</span></div>
+          <div class="stat"><span class="stat-num">30+</span><span class="stat-label">Chat Commands</span></div>
         </div>
       </div>
     </section>
 
+    <!-- CANAIS -->
+    <section class="landing-features">
+      <div class="hero-channels animate-in">
+        <a href="#" id="landingTelegramBtn" class="channel-btn telegram" target="_blank">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12.056 0h-.112zm4.962 7.224c.1-.002.321.023.465.14.149.12.191.35.211.45.04.1.06.24.04.44-.08.91-.43 3.1-.61 4.12-.08.42-.23.82-.38.95-.15.13-.3.14-.4.12-.21-.03-.33-.05-.5-.12-.21-.07-.32-.13-.53-.2-.38-.16-.61-.24-.86-.4-.3-.18-.53-.4-.72-.64-.23-.28-.37-.52-.5-.85-.05-.1 0-.22.1-.3l.6-.5c.1-.08.19-.2.09-.4l-1.28-3.02c-.06-.14-.1-.2-.31-.2h-.8c-.1 0-.2.03-.3.13l-4.9 3.8c-.1.08-.14.2-.07.34l.6 1.4c.03.07.1.13.22.13l1.03-.1c.05 0 .12.01.17.05l-1.63.93c-.13.08-.1.2-.03.34l.46.93c.06.12.13.18.28.16l1.35-.2c.08-.01.15 0 .2.06l-1.83 1.04c-.12.07-.09.2-.02.34l.5.94c.07.13.14.18.29.15l7.25-1.52c.15-.03.24-.15.28-.3.28-1.26.9-3.96 1.06-4.66.01-.06.03-.2.01-.34z"/></svg>
+          Telegram
+        </a>
+        <a href="#" id="landingWhatsappBtn" class="channel-btn whatsapp" target="_blank">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
+          WhatsApp
+        </a>
+      </div>
+    </section>
+
+    <!-- APOIE -->
     <section class="landing-support" id="support">
       <div class="support-content animate-in">
         <div class="section-label">Apoie</div>
         <h2 class="section-title">Apoie este projeto</h2>
-        <p class="support-text">MetaPersona.AI é <strong>gratuito e sempre será</strong>. Ninguém fica impedido de conversar por falta de recursos. Mas se quiser contribuir, sua doação mantém os servidores e alcança mais pessoas.</p>
-        <p class="support-verse">"Cada um contribua segundo o que decidiu no coração."</p>
+        <p class="support-text">MetaPersona.AI é <strong>gratuito e open source</strong>. Ninguém fica impedido de usar por falta de recursos. Mas se quiser contribuir, sua doação mantém os servidores e alcança mais pessoas.</p>
         <div class="support-actions">
           <button class="hero-btn primary" id="landingDonateBtn">
             <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
@@ -184,6 +328,7 @@
       </div>
     </section>
 
+    <!-- NEWSLETTER -->
     <section class="landing-newsletter" id="newsletter">
       <div class="newsletter-inner animate-in">
         <div class="section-label">Newsletter</div>
@@ -204,6 +349,7 @@
       </div>
     </section>
 
+    <!-- CONTATO -->
     <section class="landing-contact" id="contact">
       <div class="contact-inner animate-in">
         <div class="section-label">Contato</div>
@@ -225,19 +371,22 @@
       </div>
     </section>
 
+    <!-- FOOTER -->
     <footer class="landing-footer">
       <div class="footer-inner">
         <div class="footer-logo">
            <span class="cross-icon persona-icon">🤖</span> <span class="brand-name">MetaPersona.AI</span>
         </div>
-        <p class="footer-tagline">Tecnologia a serviço do humano. Open source.</p>
+        <p class="footer-tagline">Crie agentes IA que aprendem, trabalham e evoluem.</p>
         <div class="footer-links">
-          <a href="#features">Como funciona</a>
+          <a href="#how">Como funciona</a>
+          <a href="#usecases">Casos de uso</a>
+          <a href="#features">Recursos</a>
           <a href="#" id="footerTelegramBtn" target="_blank">Telegram</a>
           <a href="#" id="footerWhatsappBtn" target="_blank">WhatsApp</a>
           <a href="#support">Apoie</a>
         </div>
-        <p class="footer-oss">Plataforma whitelabel de assistentes virtuais com RAG multimodal e multi-persona.</p>
+        <p class="footer-oss">Plataforma whitelabel de agentes cognitivos persistentes com RAG multimodal.</p>
       </div>
     </footer>
 
@@ -248,11 +397,10 @@
         <div class="auth-logo">
           <span class="cross-icon persona-icon">🤖</span>
            <h2 class="brand-name">MetaPersona.AI</h2>
-          <p id="authSubtitle">Entre para salvar suas conversas</p>
+          <p id="authSubtitle">Entre para criar seus agentes</p>
         </div>
         <div id="authError" class="auth-error"></div>
 
-        <!-- Google Sign-In (shown only if client ID configured) -->
         <div class="google-btn-wrapper" id="googleBtnWrapper" style="display:none;">
           <button class="google-btn" id="googleSignInBtn">
             <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
@@ -361,8 +509,8 @@
           Contribuir
         </button>
         <div class="sidebar-disclaimer">
-           <p class="disclaimer-main">Assistente virtual com IA. As respostas são geradas com base no conhecimento indexado e podem conter imperfeições.</p>
-           <p class="disclaimer-sub">Plataforma whitelabel de assistentes virtuais com RAG multimodal e multi-persona.</p>
+           <p class="disclaimer-main">Agente cognitivo com IA. Respostas geradas com conhecimento indexado e podem conter imperfeições.</p>
+           <p class="disclaimer-sub">Plataforma de agentes IA com RAG multimodal e multi-persona.</p>
         </div>
       </div>
     </aside>
@@ -390,11 +538,11 @@
           <div class="message bot welcome-message">
              <div class="message-avatar">🤖</div>
              <div class="message-content">
-               <p>Olá! Estou aqui para ajudar.</p>
-               <p>Conhecimento real, memória e personalização. Pergunte-me qualquer coisa — vou responder com cuidado e fundamentação.</p>
-               <p class="welcome-hint">Me diga seu nome, se quiser. Eu me lembro de você.</p>
+               <p>Olá! Sou um agente cognitivo.</p>
+               <p>Posso aprender, lembrar, acompanhar e agir por você. Criar tarefas, agendar, fazer follow-ups, detectar emoções — tudo personalizado.</p>
+               <p class="welcome-hint">Me diga seu nome e o que você precisa. Vou adaptar tudo para você.</p>
              </div>
-             <button class="tts-btn" title="Ouvir" onclick="speakText('Olá! Estou aqui para ajudar. Conhecimento real, memória e personalização. Pergunte-me qualquer coisa. Me diga seu nome, se quiser. Eu me lembro de você.', this)"><svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></button>
+             <button class="tts-btn" title="Ouvir" onclick="speakText('Olá! Sou um agente cognitivo. Posso aprender, lembrar, acompanhar e agir por você.', this)"><svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></button>
           </div>
         </div>
 
@@ -413,7 +561,7 @@
             <button type="button" id="micBtn" class="mic-btn" title="Enviar áudio">
               <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
             </button>
-            <textarea id="messageInput" placeholder="Pergunte ou compartilhe comigo..." rows="1" autocomplete="off"></textarea>
+            <textarea id="messageInput" placeholder="Pergunte ou descreva o que precisa..." rows="1" autocomplete="off"></textarea>
             <button type="submit" id="sendBtn" class="send-btn" disabled>
               <svg viewBox="0 0 24 24" width="24" height="24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
             </button>
@@ -456,7 +604,6 @@
       <div class="modal-header">
         <span class="modal-icon">🤖</span>
         <h2>Apoie este projeto</h2>
-        <p class="modal-verse">"Cada um contribua segundo o que decidiu no coração."</p>
       </div>
       <div class="donate-section">
         <h3>PIX</h3>
@@ -505,19 +652,19 @@
       <div class="onboarding-step active">
         <span class="onboarding-icon">🤖</span>
         <h2>Bem-vindo ao MetaPersona.AI</h2>
-        <p>Converse com nosso assistente virtual com RAG multimodal e personalização. Respostas fundamentadas, com memória e carinho.</p>
+        <p>Crie agentes IA com memória, objetivos e autonomia. Cada agente aprende, acompanha e age por você — 24 horas por dia.</p>
         <button class="onboarding-btn" onclick="nextOnboarding()">Avançar</button>
       </div>
       <div class="onboarding-step">
-        <span class="onboarding-icon">📖</span>
-        <h2>Conhecimento e Busca</h2>
-        <p>Busque informações por tema, palavra ou referência. Conteúdo atualizado e relevante.</p>
+        <span class="onboarding-icon">🧠</span>
+        <h2>Memória e Cognição</h2>
+        <p>Seus agentes lembram de cada conversa, detectam emoções e adaptam o tom automaticamente. Inteligência que evolui.</p>
         <button class="onboarding-btn" onclick="nextOnboarding()">Avançar</button>
       </div>
       <div class="onboarding-step">
-        <span class="onboarding-icon">💛</span>
+        <span class="onboarding-icon">⚡</span>
         <h2>Como quer ser chamado?</h2>
-        <p>Queremos te conhecer pelo nome. É opcional, mas vamos nos lembrar de você.</p>
+        <p>Diga seu nome e interés — vamos personalizar tudo para você.</p>
         <input type="text" id="onboardingName" class="onboarding-input" placeholder="Seu nome (opcional)" />
         <button class="onboarding-btn" onclick="finishOnboarding()">Começar</button>
         <button class="onboarding-btn secondary" onclick="skipOnboarding()">Pular</button>
@@ -532,9 +679,8 @@
 
   <script src="js/app.js"></script>
   <script>
-    const GOOGLE_CLIENT_ID = ''; // Set in .env or here
+    const GOOGLE_CLIENT_ID = '';
 
-    // Show Google Sign-In only if client ID is configured
     if (GOOGLE_CLIENT_ID) {
       const wrapper = document.getElementById('googleBtnWrapper');
       const divider = document.getElementById('googleDivider');
@@ -552,7 +698,6 @@
       if (divider) divider.style.display = 'none';
     }
 
-    // ========== GOOGLE SIGN-IN ==========
     async function handleGoogleSignIn(response) {
       const credential = response.credential;
       try {
@@ -560,12 +705,7 @@
         const res = await fetch('/api/auth/google', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: payload.email,
-            name: payload.name,
-            googleId: payload.sub,
-            avatar: payload.picture || null,
-          }),
+          body: JSON.stringify({ email: payload.email, name: payload.name, googleId: payload.sub, avatar: payload.picture || null }),
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Erro no login com Google');
@@ -596,7 +736,6 @@
       });
     }
 
-    // ========== AUTH GATE ==========
     const landingPage = document.getElementById('landingPage');
     const authOverlay = document.getElementById('authOverlay');
     const appContainer = document.getElementById('appContainer');
@@ -615,24 +754,10 @@
     const navLoginBtn = document.getElementById('navLoginBtn');
     const authCloseBtn = document.getElementById('authCloseBtn');
 
-    function showAuthError(msg) {
-      authError.textContent = msg;
-      authError.classList.add('show');
-    }
-
-    function hideAuthError() {
-      authError.classList.remove('show');
-    }
-
-    function openAuthModal() {
-      authOverlay.style.display = 'flex';
-      hideAuthError();
-    }
-
-    function closeAuthModal() {
-      authOverlay.style.display = 'none';
-      hideAuthError();
-    }
+    function showAuthError(msg) { authError.textContent = msg; authError.classList.add('show'); }
+    function hideAuthError() { authError.classList.remove('show'); }
+    function openAuthModal() { authOverlay.style.display = 'flex'; hideAuthError(); }
+    function closeAuthModal() { authOverlay.style.display = 'none'; hideAuthError(); }
 
     function enterApp() {
       landingPage.style.display = 'none';
@@ -645,58 +770,27 @@
     function checkAuth() {
       const savedToken = localStorage.getItem('mp_token');
       const savedUserId = localStorage.getItem('mp_user_id');
-      if (savedToken && savedUserId) {
-        authToken = savedToken;
-        currentUserId = savedUserId;
-        enterApp();
-      }
+      if (savedToken && savedUserId) { authToken = savedToken; currentUserId = savedUserId; enterApp(); }
     }
 
-    function updateAuthUI() {
-      logoutBtn.style.display = authToken ? 'flex' : 'none';
-    }
+    function updateAuthUI() { logoutBtn.style.display = authToken ? 'flex' : 'none'; }
 
     heroStartBtn.addEventListener('click', openAuthModal);
     navLoginBtn.addEventListener('click', openAuthModal);
     authCloseBtn.addEventListener('click', closeAuthModal);
 
-    showRegisterLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      loginForm.style.display = 'none';
-      registerForm.style.display = 'block';
-      authSubtitle.textContent = 'Crie sua conta';
-      hideAuthError();
-    });
+    showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); loginForm.style.display = 'none'; registerForm.style.display = 'block'; authSubtitle.textContent = 'Crie sua conta'; hideAuthError(); });
+    showLoginLink.addEventListener('click', (e) => { e.preventDefault(); registerForm.style.display = 'none'; loginForm.style.display = 'block'; authSubtitle.textContent = 'Entre para salvar suas conversas'; hideAuthError(); });
 
-    showLoginLink.addEventListener('click', (e) => {
-      e.preventDefault();
-      registerForm.style.display = 'none';
-      loginForm.style.display = 'block';
-      authSubtitle.textContent = 'Entre para salvar suas conversas';
-      hideAuthError();
-    });
-
-    skipAuthBtn.addEventListener('click', () => {
-      localStorage.removeItem('mp_token');
-      enterApp();
-    });
+    skipAuthBtn.addEventListener('click', () => { localStorage.removeItem('mp_token'); enterApp(); });
 
     loginBtn.addEventListener('click', async () => {
       hideAuthError();
       const email = document.getElementById('loginEmail').value.trim();
       const password = document.getElementById('loginPassword').value;
       if (!email || !password) { showAuthError('Preencha email e senha.'); return; }
-      loginBtn.disabled = true;
-      loginBtn.textContent = 'Entrando...';
-      try {
-        await login(email, password);
-        enterApp();
-      } catch (err) {
-        showAuthError(err.message);
-      } finally {
-        loginBtn.disabled = false;
-        loginBtn.textContent = 'Entrar';
-      }
+      loginBtn.disabled = true; loginBtn.textContent = 'Entrando...';
+      try { await login(email, password); enterApp(); } catch (err) { showAuthError(err.message); } finally { loginBtn.disabled = false; loginBtn.textContent = 'Entrar'; }
     });
 
     registerBtn.addEventListener('click', async () => {
@@ -705,31 +799,18 @@
       const email = document.getElementById('registerEmail').value.trim();
       const password = document.getElementById('registerPassword').value;
       if (!email || !password) { showAuthError('Preencha email e senha.'); return; }
-      registerBtn.disabled = true;
-      registerBtn.textContent = 'Criando...';
-      try {
-        await register(email, password, name);
-        if (profileName && name) profileName.value = name;
-        enterApp();
-      } catch (err) {
-        showAuthError(err.message);
-      } finally {
-        registerBtn.disabled = false;
-        registerBtn.textContent = 'Criar conta';
-      }
+      registerBtn.disabled = true; registerBtn.textContent = 'Criando...';
+      try { await register(email, password, name); if (profileName && name) profileName.value = name; enterApp(); } catch (err) { showAuthError(err.message); } finally { registerBtn.disabled = false; registerBtn.textContent = 'Criar conta'; }
     });
 
     logoutBtn.addEventListener('click', () => {
-      localStorage.removeItem('mp_token');
-      localStorage.removeItem('mp_user_id');
-      localStorage.removeItem('mp_session_id');
-      authToken = null;
+      localStorage.removeItem('mp_token'); localStorage.removeItem('mp_user_id'); localStorage.removeItem('mp_session_id');
+      authToken = null; sessionId = '';
       currentUserId = 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
-      sessionId = '';
       location.reload();
     });
 
-    // ========== API KEY SETTINGS ==========
+    // ========== API KEY ==========
     const apiKeyInput = document.getElementById('apiKeyInput');
     const apiKeyStatus = document.getElementById('apiKeyStatus');
     const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
@@ -738,25 +819,12 @@
     if (saveApiKeyBtn) {
       saveApiKeyBtn.addEventListener('click', async () => {
         const key = apiKeyInput?.value?.trim();
-        if (!authToken) {
-          apiKeyStatus.textContent = 'Faça login para salvar sua API key.';
-          apiKeyStatus.style.color = '#e74c3c';
-          return;
-        }
+        if (!authToken) { apiKeyStatus.textContent = 'Faça login para salvar sua API key.'; apiKeyStatus.style.color = '#e74c3c'; return; }
         try {
-          const res = await fetch('/api/settings/apikey', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-            body: JSON.stringify({ ollamaApiKey: key }),
-          });
+          const res = await fetch('/api/settings/apikey', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ ollamaApiKey: key }) });
           const data = await res.json();
-          apiKeyStatus.textContent = data.message;
-          apiKeyStatus.style.color = '#27ae60';
-          apiKeyInput.value = '';
-        } catch {
-          apiKeyStatus.textContent = 'Erro ao salvar.';
-          apiKeyStatus.style.color = '#e74c3c';
-        }
+          apiKeyStatus.textContent = data.message; apiKeyStatus.style.color = '#27ae60'; apiKeyInput.value = '';
+        } catch { apiKeyStatus.textContent = 'Erro ao salvar.'; apiKeyStatus.style.color = '#e74c3c'; }
       });
     }
 
@@ -764,19 +832,13 @@
       removeApiKeyBtn.addEventListener('click', async () => {
         if (!authToken) return;
         try {
-          const res = await fetch('/api/settings/apikey', {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` },
-            body: JSON.stringify({ ollamaApiKey: '' }),
-          });
-          const data = await res.json();
-          apiKeyStatus.textContent = data.message;
-          apiKeyStatus.style.color = '#27ae60';
+          await fetch('/api/settings/apikey', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ ollamaApiKey: '' }) });
+          apiKeyStatus.textContent = 'Removida.'; apiKeyStatus.style.color = '#27ae60';
         } catch {}
       });
     }
 
-    // ========== FEEDBACK SUBMIT ==========
+    // ========== FEEDBACK ==========
     const feedbackSubmit = document.getElementById('feedbackSubmit');
     const feedbackText = document.getElementById('feedbackText');
 
@@ -784,53 +846,32 @@
       feedbackSubmit.addEventListener('click', async () => {
         const msg = feedbackText?.value?.trim();
         if (!msg) return;
-        await fetch('/api/feedback', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ type: selectedFeedbackType || 'suggestion', message: msg, userId: currentUserId, sessionId }),
-        });
+        await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: selectedFeedbackType || 'suggestion', message: msg, userId: currentUserId, sessionId }) });
         feedbackText.value = '';
         feedbackSubmit.textContent = 'Enviado!';
         setTimeout(() => { feedbackSubmit.textContent = 'Enviar'; }, 2000);
       });
     }
 
-    // ========== SCROLL ANIMATIONS ==========
+    // ========== ANIMATIONS ==========
     const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          entry.target.classList.add('visible');
-          observer.unobserve(entry.target);
-        }
-      });
+      entries.forEach(entry => { if (entry.isIntersecting) { entry.target.classList.add('visible'); observer.unobserve(entry.target); } });
     }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
 
     document.querySelectorAll('.animate-in').forEach(el => observer.observe(el));
 
     // ========== MOBILE MENU ==========
     const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-    if (mobileMenuBtn) {
-      mobileMenuBtn.addEventListener('click', () => {
-        mobileMenuBtn.classList.toggle('active');
-      });
-    }
+    if (mobileMenuBtn) { mobileMenuBtn.addEventListener('click', () => { mobileMenuBtn.classList.toggle('active'); }); }
 
     // ========== SMOOTH SCROLL ==========
     document.querySelectorAll('a[href^="#"]').forEach(a => {
-      a.addEventListener('click', (e) => {
-        const id = a.getAttribute('href').slice(1);
-        const el = document.getElementById(id);
-        if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth' }); }
-      });
+      a.addEventListener('click', (e) => { const id = a.getAttribute('href').slice(1); const el = document.getElementById(id); if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth' }); } });
     });
 
-    // ========== NAV SCROLL EFFECT ==========
+    // ========== NAV SCROLL ==========
     const landingNav = document.querySelector('.landing-nav');
-    if (landingNav) {
-      window.addEventListener('scroll', () => {
-        landingNav.classList.toggle('scrolled', window.scrollY > 50);
-      });
-    }
+    if (landingNav) { window.addEventListener('scroll', () => { landingNav.classList.toggle('scrolled', window.scrollY > 50); }); }
 
     checkAuth();
   </script>

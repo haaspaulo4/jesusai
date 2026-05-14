@@ -195,6 +195,28 @@ async function analyzeCognitiveState(userId, personaId, message, sessionId) {
     },
   });
 
+  if (churnRisk > 0.6) {
+    try {
+      const events = require('../events');
+      await events.emit('on_churn_risk_high', {
+        userId, personaId, sessionId,
+        churnRisk, emotion, intent, suggestedAction,
+      });
+    } catch {}
+  }
+
+  if (latest && latest.emotion !== emotion) {
+    try {
+      const events = require('../events');
+      await events.emit('on_cognitive_change', {
+        userId, personaId, sessionId,
+        previousEmotion: latest.emotion, newEmotion: emotion,
+        previousIntent: latest.intent, newIntent: intent,
+        churnRisk, engagementScore,
+      });
+    } catch {}
+  }
+
   return state;
 }
 

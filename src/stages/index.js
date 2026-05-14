@@ -115,11 +115,24 @@ async function advanceUserStage(userId, personaId, sessionId) {
 
   const nextStage = stages
     .filter(s => s.stage_order > currentOrder && s.is_active)
-    .sort((a, b) => a.stage_order - b.order)[0];
+    .sort((a, b) => a.stage_order - b.stage_order)[0];
 
   if (!nextStage) return currentStage;
 
-  return setUserStage(userId, personaId, nextStage.id, sessionId, currentStage?.stage_data);
+  const result = await setUserStage(userId, personaId, nextStage.id, sessionId, currentStage?.stage_data);
+
+  try {
+    const events = require('../events');
+    await events.emit('on_stage_advance', {
+      userId, personaId, sessionId,
+      previousStage: currentStage?.current_stage || null,
+      newStage: nextStage.id,
+      stageName: nextStage.name,
+      stageOrder: nextStage.stage_order,
+    });
+  } catch {}
+
+  return result;
 }
 
 async function getUserStageContext(userId, personaId) {

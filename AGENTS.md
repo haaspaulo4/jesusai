@@ -1,10 +1,10 @@
 # AGENTS.md
 
-## Project: MetaPersona.AI — Whitelabel AI Platform
+## Project: MetaPersona.AI — Cognitive Operating System for AI Agents
 
-Plataforma whitelabel de assistentes virtuais com RAG multimodal, multi-persona com Meta-RAG, onboarding automático, e gestão completa. Serve qualquer nicho — religioso, saúde, educação, negócios, etc.
+Plataforma de agentes cognitivos persistentes com RAG multimodal, multi-persona com Meta-RAG, onboarding automático, cognição em tempo real, gamificação, event bus, blueprints e gestão operacional completa. Serve qualquer nicho — religioso, saúde, educação, negócios, coaching, vendas, fitness, jurídico.
 
-**Arquitetura:** Tudo é gerenciável via admin API, chat commands, ou painel web. A **meta-persona** é admin god — orquestra personas, cria skills, gerencia tarefas, agenda, CRM, automações, e conhecimento RAG.
+**Arquitetura:** Tudo é gerenciável via admin API, chat commands, ou painel web. A **meta-persona** é admin god — orquestra personas, cria skills, gerencia tarefas, agenda, CRM, automações, metas, estágios de conversa, conhecimento RAG, e eventos do ciclo de vida.
 
 ## Tech Stack
 - **Backend**: Node.js 18+ + Express
@@ -452,6 +452,7 @@ Onboarding: auto-creates user for bot users (ensureUser)
 | `/xp` | user | Gamification — XP, level, streak, badges, leaderboard |
 | `/progress` | user | View/update progress state (key-value per user+persona) |
 | `/keys, /addkey, /removekey, /togglekey` | admin | Integration management |
+| `/blueprints` | anyone | List/clone/view blueprints (/blueprints list, /blueprints clone <id>, /blueprints categories) |
 | `/health` | anyone | Integration health |
 | `/settings, /set` | admin | Settings management |
 | `/users, /promote, /ban` | admin | User management |
@@ -562,6 +563,21 @@ Onboarding: auto-creates user for bot users (ensureUser)
 | GET/POST | `/api/admin/mcp` | List/add MCP servers |
 | DELETE | `/api/admin/mcp/:id` | Remove |
 | POST | `/api/admin/mcp/:id/connect` | Connect |
+| **Blueprints** |||
+| GET | `/api/admin/blueprints` | List blueprints (filter: category, niche, search) |
+| POST | `/api/admin/blueprints` | Create blueprint |
+| GET | `/api/admin/blueprints/:id` | Get blueprint |
+| PUT | `/api/admin/blueprints/:id` | Update blueprint |
+| DELETE | `/api/admin/blueprints/:id` | Delete blueprint |
+| POST | `/api/admin/blueprints/:id/clone` | Clone blueprint as new persona |
+| POST | `/api/admin/blueprints/:id/apply/:personaId` | Apply blueprint to existing persona |
+| POST | `/api/admin/blueprints/from-persona/:personaId` | Save persona as blueprint |
+| GET | `/api/admin/blueprints/stats` | Blueprint statistics |
+| GET | `/api/admin/blueprints/categories` | List categories |
+| GET | `/api/admin/blueprints/niches` | List niches |
+| **Events** |||
+| GET | `/api/admin/events/log` | Event log (filter: event_type, user_id, persona_id) |
+| GET | `/api/admin/events/stats` | Event statistics |
 
 ## Public API Endpoints
 | Method | Path | Description |
@@ -578,6 +594,11 @@ Onboarding: auto-creates user for bot users (ensureUser)
 | POST | `/api/chat/surveys/:id/respond` | Submit survey response |
 | GET | `/api/chat/followups/pending` | Check pending follow-up |
 | POST | `/api/chat/followups/:id/respond` | Respond to follow-up |
+| GET | `/api/chat/blueprints` | List active blueprints (public, no auth) |
+| GET | `/api/chat/blueprints/categories` | List categories (public) |
+| GET | `/api/chat/blueprints/niches` | List niches (public) |
+| GET | `/api/chat/blueprints/:id` | Get blueprint (public) |
+| POST | `/api/chat/blueprints/:id/clone` | Clone as new persona (public) |
 | POST | `/api/auth/register` | Register |
 | POST | `/api/auth/login` | Login |
 | POST | `/api/auth/google` | Google OAuth |
@@ -619,6 +640,8 @@ Onboarding: auto-creates user for bot users (ensureUser)
 - **cognitive_states** — id, user_id, persona_id, session_id, message_id, emotion, emotion_confidence, intent, intent_confidence, topics (JSON), churn_risk, conversion_probability, engagement_score, suggested_action, context_snapshot (JSON), created_at
 - **human_overrides** — id, session_id (unique), user_id, persona_id, is_active, override_type (full/approval/observation), human_message, metadata (JSON), created_at, updated_at
 - **agent_thoughts** — id, session_id, user_id, persona_id, message_input, message_output, tools_used (JSON), context_injected (JSON), reasoning, decision, response_time_ms, tokens_used, created_at
+- **persona_blueprints** — id (PK), name, description, category, niche, config (JSON), preview (JSON), is_official, is_active, tags (JSON), icon, color, created_at, updated_at
+- **event_log** — id (PK), event_type, user_id, persona_id, session_id, data (JSON), results (JSON), created_at
 
 ## Key File Structure
 - `src/chat/engine.js` — Central chat engine (rate limit, onboarding, persona-aware RAG, tools, agentic loop for meta-persona)
@@ -641,7 +664,9 @@ Onboarding: auto-creates user for bot users (ensureUser)
 - `src/thoughts/index.js` — Agent thought logging (logThought, getThoughts, getThoughtStats) — tools used, context, reasoning, response time
 - `src/optimization/index.js` — Self-optimization suggestions (generateSuggestions) — tone, retention, engagement, automation
 - `src/proactive/index.js` — Proactive intelligence engine (cron-based: streak reminders, goal deadlines, scheduled automations)
-- `src/llm/tools.js` — LLM tool definitions (26 tools: create_persona, manage_tasks, manage_calendar, manage_contacts, manage_automations, manage_goals, manage_conversation_stages, manage_org_memory, manage_xp, manage_progress, get_cognitive_state, human_override, get_suggestions, get_dashboard, get_history, etc.)
+- `src/events/index.js` — Event bus (emit, on, off, logEvent, getEventLog, getEventStats, processAutomations) — 12 event types
+- `src/blueprints/index.js` — Blueprint CRUD + clone + seed (createBlueprint, cloneBlueprint, savePersonaAsBlueprint, getBlueprintStats)
+- `src/llm/tools.js` — LLM tool definitions (29 tools: create_persona, manage_tasks, manage_calendar, manage_contacts, manage_automations, manage_goals, manage_conversation_stages, manage_org_memory, manage_xp, manage_progress, get_cognitive_state, human_override, get_suggestions, get_dashboard, get_history, manage_blueprints, etc.)
 - `src/llm/integrationManager.js` — Multi-key fallback for ALL integrations
 - `src/bot/manager.js` — Multi-instance bot manager (Telegram + WhatsApp)
 - `src/telegram/handler.js` — Telegram handler factory (persona per instance)
@@ -651,12 +676,12 @@ Onboarding: auto-creates user for bot users (ensureUser)
 - `src/knowledge/store.js` — Multi-source TF-IDF search (searchMultiSource, getAllSourceStats)
 - `src/knowledge/ingester.js` — Multi-source ingestion (PDF, DOCX, image, audio, JSON, text, API, upload)
 - `src/tts/index.js` — TTS engine (Kokoro + Edge TTS fallback, voice mapping, chunk truncation)
-- `src/routes/admin.js` — Admin API (users, personas, skills, tasks, calendar, contacts, automations, goals, stages, org memory, dashboard, surveys, ratings, follow-ups, bots, integrations, knowledge)
+- `src/routes/admin.js` — Admin API (users, personas, skills, tasks, calendar, contacts, automations, goals, stages, org memory, dashboard, surveys, ratings, follow-ups, bots, integrations, knowledge, blueprints, events)
 - `src/routes/chat.js` — Chat API (JSON response, personas, TTS with voice, ratings, surveys, onboarding, persona/create public)
 - `src/routes/auth.js` — Auth API (register, login, Google, profile with role)
 - `src/server/templates.js` — `escapeHtml`, `buildPersonaPage`, `buildSitePage`, `buildCreatePersonaPage` (string concatenation)
 - `src/server.js` — Express server, routes, startup (registers meta-persona in DB)
-- `src/db/index.js` — MySQL pool + schema init + auto-migration (39 tables)
+- `src/db/index.js` — MySQL pool + schema init + auto-migration (41 tables)
 
 ## User Roles & Access Levels
 | Role | Chat | Commands | Admin API | Custom Persona | Onboarding |
@@ -707,3 +732,76 @@ Onboarding: auto-creates user for bot users (ensureUser)
 - Conversation stage is injected via `getUserStageContext()` — shows current funnel stage
 - Dashboard stats now include goals by status and org memory by category
 - `ensureDefaultStages()` creates default funnel stages (greeting → discovery → engagement → conversion → retention)
+- Event bus `emit()` fires after key actions (goal completed, badge earned, level up, churn risk high, stage advance, cognitive change, XP milestone)
+- Event automations use `trigger_type = 'event'` with `trigger_config.event` matching the event type
+- Blueprint `cloneBlueprint()` creates a new persona from blueprint config — overrides merge on top
+- Blueprint `savePersonaAsBlueprint()` extracts full persona config into a reusable template
+- 5 official blueprints seeded on first startup: Coach de Vendas, Hipnoterapeuta, Tutor ENEM, Consultor Imobiliário, Nutricionista
+
+### Blueprint System
+```
+personas → savePersonaAsBlueprint() → persona_blueprints table (config JSON)
+personas ← cloneBlueprint(blueprintId, overrides) → new persona with merged config
+personas ← cloneBlueprintToExisting(blueprintId, personaId) → merge template into existing persona
+
+Official blueprints (seeded on startup):
+  - bp_coach_vendas: Sales coach with funnel, objection handling, CRM (business/vendas)
+  - bp_hipnoterapeuta: Hypnotherapy with safety rules, Ericksonian techniques (health/terapia)
+  - bp_tutor_enem: Exam prep with study techniques, progress tracking (education/enem)
+  - bp_consultor_imobiliario: Real estate with market knowledge, legal compliance (business/imobiliário)
+  - bp_nutricionista: Nutrition with clinical safety, evidence-based recommendations (health/nutrição)
+
+Admin API:
+  GET    /api/admin/blueprints           — List blueprints (filter: category, niche, search)
+  POST   /api/admin/blueprints           — Create blueprint
+  GET    /api/admin/blueprints/:id       — Get blueprint
+  PUT    /api/admin/blueprints/:id       — Update blueprint
+  DELETE /api/admin/blueprints/:id       — Delete blueprint
+  POST   /api/admin/blueprints/:id/clone — Clone blueprint as new persona
+  POST   /api/admin/blueprints/:id/apply/:personaId — Apply blueprint to existing persona
+  POST   /api/admin/blueprints/from-persona/:personaId — Save persona as blueprint
+  GET    /api/admin/blueprints/stats     — Blueprint statistics
+  GET    /api/admin/blueprints/categories — List categories
+  GET    /api/admin/blueprints/niches    — List niches
+
+Public API:
+  GET    /api/chat/blueprints            — List active blueprints (public, no auth)
+  GET    /api/chat/blueprints/categories — List categories (public)
+  GET    /api/chat/blueprints/niches     — List niches (public)
+  GET    /api/chat/blueprints/:id        — Get blueprint (public)
+  POST   /api/chat/blueprints/:id/clone  — Clone as new persona (public)
+
+Chat Command:
+  /blueprints list              — List active blueprints
+  /blueprints <id>              — View blueprint details
+  /blueprints clone <id> [name] — Clone blueprint as new persona
+  /blueprints categories         — List categories
+  /blueprints stats              — Blueprint statistics
+
+LLM Tool:
+  manage_blueprints — list, get, clone, apply, create_from_persona, categories, niches, stats
+```
+
+### Event Bus
+```
+Trigger lifecycle events → handlers + automations + logging
+Event types: on_goal_completed, on_goal_created, on_stage_advance, on_badge_earned,
+             on_level_up, on_churn_risk_high, on_cognitive_change, on_message_sent,
+             on_user_created, on_automation_triggered, on_override_activated, on_xp_milestone
+
+Emit points:
+  - goals/index.js: updateGoal() when status='completed' → emit('on_goal_completed')
+  - gamification/index.js: addXp() when leveledUp → emit('on_level_up'), XP milestone → emit('on_xp_milestone')
+  - gamification/index.js: checkAndAwardBadges() when new badge → emit('on_badge_earned')
+  - stages/index.js: advanceUserStage() → emit('on_stage_advance')
+  - cognitive/index.js: analyzeCognitiveState() when churnRisk > 0.6 → emit('on_churn_risk_high')
+  - cognitive/index.js: analyzeCognitiveState() when emotion changes → emit('on_cognitive_change')
+
+Automation integration:
+  - persona_automations with trigger_type='event' and trigger_config.event matching event type
+  - Actions: message, create_task, send_email, webhook, switch_persona, invoke_skill
+
+Admin API:
+  GET /api/admin/events/log    — Event log (filter: event_type, user_id, persona_id)
+  GET /api/admin/events/stats   — Event statistics
+```

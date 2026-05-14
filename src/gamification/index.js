@@ -33,6 +33,23 @@ async function addXp(userId, personaId, amount, reason) {
     );
   }
 
+  if (leveledUp) {
+    try {
+      const events = require('../events');
+      await events.emit('on_level_up', { userId, personaId, newLevel, previousLevel: current.level || 1, xp: newXp });
+    } catch {}
+  }
+
+  const milestones = [100, 500, 1000, 5000, 10000];
+  for (const milestone of milestones) {
+    if (current.xp < milestone && newXp >= milestone) {
+      try {
+        const events = require('../events');
+        await events.emit('on_xp_milestone', { userId, personaId, milestone, xp: newXp });
+      } catch {}
+    }
+  }
+
   return { xp: newXp, level: newLevel, leveledUp, previousLevel: current.level || 1, streak: current.streak || 0 };
 }
 
@@ -140,6 +157,10 @@ async function checkAndAwardBadges(userId, personaId) {
     if (rule.condition() && !xp.badges.some(b => b.id === rule.id)) {
       await addBadge(userId, personaId, rule.id, rule.name);
       awarded.push({ id: rule.id, name: rule.name });
+      try {
+        const events = require('../events');
+        await events.emit('on_badge_earned', { userId, personaId, badgeId: rule.id, badgeName: rule.name });
+      } catch {}
     }
   }
   return awarded;

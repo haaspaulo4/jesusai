@@ -16,6 +16,7 @@ const cognitiveModule = require('../cognitive');
 const overrideModule = require('../override');
 const thoughtsModule = require('../thoughts');
 const optimizationModule = require('../optimization');
+const blueprintsModule = require('../blueprints');
 
 const TOOL_DEFINITIONS = [
   {
@@ -508,6 +509,27 @@ const TOOL_DEFINITIONS = [
           days: { type: 'integer', description: 'Período em dias para análise (padrão: 7)' },
         },
         required: ['persona_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'manage_blueprints',
+      description: 'Gerencia blueprints de persona: listar, obter, clonar para nova persona, aplicar a persona existente, criar blueprint a partir de persona, buscar por categoria/nicho. Blueprints são templates clonáveis de persona.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['list', 'get', 'clone', 'apply', 'create_from_persona', 'categories', 'niches', 'stats'], description: 'Ação: list=lista blueprints, get=detalhes, clone=clona como nova persona, apply=aplica a persona existente, create_from_persona=salva persona como blueprint, categories=lista categorias, niches=lista nichos, stats=estatísticas' },
+          blueprint_id: { type: 'string', description: 'ID do blueprint (para get, clone, apply)' },
+          persona_id: { type: 'string', description: 'ID da persona (para apply, create_from_persona)' },
+          category: { type: 'string', description: 'Filtrar por categoria (ex: business, health, education, religious, legal, fitness)' },
+          niche: { type: 'string', description: 'Filtrar por nicho (ex: vendas, terapia, direito, fitness)' },
+          search: { type: 'string', description: 'Buscar blueprints por nome ou descrição' },
+          overrides: { type: 'object', description: 'Sobreposições ao clonar (name, name_en, name_es, etc)' },
+          blueprint_data: { type: 'object', description: 'Dados do blueprint ao criar (name, description, category, niche, tags)' },
+        },
+        required: ['action'],
       },
     },
   },
@@ -1336,6 +1358,59 @@ async function executeTool(name, args, context = {}) {
       try {
         const suggestions = await optimizationModule.generateSuggestions(personaId, args.days || 7);
         return suggestions;
+      } catch (err) {
+        return { error: `Erro: ${err.message}` };
+      }
+    }
+
+    case 'manage_blueprints': {
+      const action = args.action;
+      try {
+        switch (action) {
+          case 'list': {
+            const filters = {};
+            if (args.category) filters.category = args.category;
+            if (args.niche) filters.niche = args.niche;
+            if (args.search) filters.search = args.search;
+            const blueprints = await blueprintsModule.listBlueprints(filters);
+            return { blueprints, total: blueprints.length };
+          }
+          case 'get': {
+            if (!args.blueprint_id) return { error: 'blueprint_id obrigatório' };
+            const bp = await blueprintsModule.getBlueprint(args.blueprint_id);
+            if (!bp) return { error: 'Blueprint não encontrado' };
+            return bp;
+          }
+          case 'clone': {
+            if (!args.blueprint_id) return { error: 'blueprint_id obrigatório' };
+            const persona = await blueprintsModule.cloneBlueprint(args.blueprint_id, args.overrides || {});
+            return { success: true, message: `Blueprint clonado como persona "${persona.name}" (${persona.id})`, persona };
+          }
+          case 'apply': {
+            if (!args.blueprint_id || !args.persona_id) return { error: 'blueprint_id e persona_id obrigatórios' };
+            const updated = await blueprintsModule.cloneBlueprintToExisting(args.blueprint_id, args.persona_id);
+            return { success: true, message: `Blueprint aplicado à persona ${args.persona_id}`, persona: updated };
+          }
+          case 'create_from_persona': {
+            if (!args.persona_id) return { error: 'persona_id obrigatório' };
+            const newBp = await blueprintsModule.savePersonaAsBlueprint(args.persona_id, args.blueprint_data || {});
+            return { success: true, message: `Blueprint criado: "${newBp.name}" (${newBp.id})`, blueprint: newBp };
+          }
+          case 'categories': {
+            const categories = await blueprintsModule.getBlueprintCategories();
+            return { categories };
+          }
+          case 'niches': {
+            const niches = await blueprintsModule.getBlueprintNiches(args.category || null);
+            return { niches };
+          }
+          case 'stats': {
+            const stats = await blueprintsModule.getBlueprintStats();
+            return stats;
+          }
+          default:
+            return { error: `Ação desconhecida: ${action}` };
+        }
       } catch (err) {
         return { error: `Erro: ${err.message}` };
       }

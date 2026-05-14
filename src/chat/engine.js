@@ -143,45 +143,85 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
     ? persona.knowledgeSources
     : null;
-  const relevantVerses = personaSources
-    ? searchMultiSource(message, personaSources, numVerses)
-    : searchVerses(message, numVerses);
-  const contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
 
-  const memoryStr = await buildMemoryContext(sid);
-  const profileStr = await buildProfileContext(uid);
-
-  let goalContext = '';
-  let orgContext = '';
-  let stageContext = '';
-  let xpContext = '';
-  let progressContext = '';
-  try {
-    const goals = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 10 });
-    goalContext = goalsModule.formatGoalContext(goals);
-  } catch {}
-  try {
-    const orgMemories = await orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5);
-    orgContext = orgMemoryModule.getOrgMemoryContext(orgMemories);
-  } catch {}
-  try {
-    stageContext = await stagesModule.getUserStageContext(uid, persona.id);
-  } catch {}
-  try {
-    const xpData = await gamificationModule.getXp(uid, persona.id);
-    xpContext = gamificationModule.formatXpContext(xpData);
-    await gamificationModule.updateStreak(uid, persona.id);
-  } catch {}
-  try {
-    const progressData = await progressModule.getProgressState(uid, persona.id);
-    progressContext = progressModule.formatProgressContext(progressData);
-  } catch {}
   let cognitiveContext = '';
   let cognitiveState = null;
   try {
     cognitiveState = await cognitiveModule.analyzeCognitiveState(uid, persona.id, message, sid);
     cognitiveContext = cognitiveModule.formatCognitiveContext(cognitiveState);
   } catch {}
+
+  let contextStr = '';
+  let orgContext = '';
+  let goalContext = '';
+  let stageContext = '';
+  let progressContext = '';
+  let contextAwareInfo = null;
+
+  const useContextAware = await getSetting('context_aware_search', 'true') === 'true';
+
+  if (useContextAware && cognitiveState) {
+    try {
+      const { searchContextAware } = require('../knowledge/contextSearch');
+      const ctxResult = await searchContextAware(message, {
+        userId: uid,
+        personaId: persona.id,
+        personaSources,
+        topK: numVerses,
+        cognitiveState,
+        sessionId: sid,
+      });
+      contextStr = ctxResult.results.map(v => `${v.reference}: "${v.text}"`).join('\n');
+      orgContext = orgMemoryModule.getOrgMemoryContext(ctxResult.orgMemory);
+      goalContext = ctxResult.goalContext;
+      stageContext = ctxResult.stageContext;
+      progressContext = ctxResult.progressContext;
+      contextAwareInfo = ctxResult.contextApplied;
+    } catch {
+      const relevantVerses = personaSources
+        ? searchMultiSource(message, personaSources, numVerses)
+        : searchVerses(message, numVerses);
+      contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
+    }
+  } else {
+    const relevantVerses = personaSources
+      ? searchMultiSource(message, personaSources, numVerses)
+      : searchVerses(message, numVerses);
+    contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
+  }
+
+  const memoryStr = await buildMemoryContext(sid);
+  const profileStr = await buildProfileContext(uid);
+
+  if (!goalContext) {
+    try {
+      const goals = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 10 });
+      goalContext = goalsModule.formatGoalContext(goals);
+    } catch {}
+  }
+  if (!orgContext) {
+    try {
+      const orgMemories = await orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5);
+      orgContext = orgMemoryModule.getOrgMemoryContext(orgMemories);
+    } catch {}
+  }
+  if (!stageContext) {
+    try {
+      stageContext = await stagesModule.getUserStageContext(uid, persona.id);
+    } catch {}
+  }
+  let xpContext = '';
+  try {
+    const xpData = await gamificationModule.getXp(uid, persona.id);
+    xpContext = gamificationModule.formatXpContext(xpData);
+    await gamificationModule.updateStreak(uid, persona.id);
+  } catch {}
+  if (!progressContext) {
+    try {
+      const progressData = await progressModule.getProgressState(uid, persona.id);
+      progressContext = progressModule.formatProgressContext(progressData);
+    } catch {}
+  }
 
   const session = await getSession(sid);
   const displayName = userName || session.userName || session.userContext?.name;
@@ -227,7 +267,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
   while (toolRounds < MAX_TOOL_ROUNDS) {
     const allTools = getToolDefinitions();
-    const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user'];
+    const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints'];
     const isAdmin = await isUserAdmin(uid);
 
     let tools;
@@ -1100,6 +1140,56 @@ async function handleChatCommand(text, userId, source, sessionId) {
         return `• ${key}: ${val}`;
       });
       return `📊 Seu Progresso:\n${lines.join('\n')}`;
+    }
+
+    case '/blueprints':
+    case('/blueprint'): {
+      const blueprintsModule = require('../blueprints');
+      if (!args || args === 'list' || args === 'lista') {
+        const blueprints = await blueprintsModule.listBlueprints({ is_active: true });
+        if (blueprints.length === 0) return '🏗️ Nenhum blueprint disponível. Peça à meta-persona para criar um!';
+        const lines = blueprints.map(b => `• ${b.name} (${b.id}) [${b.category}/${b.niche}] ${b.is_official ? '⭐' : ''}`);
+        return `🏗️ Blueprints (${blueprints.length}):\n${lines.join('\n')}\n\nComandos:\n/blueprints <id> - Ver detalhes\n/blueprints clone <id> [nome] - Clonar como nova persona\n/blueprints categories - Listar categorias`;
+      }
+
+      if (args === 'categories' || args === 'categorias') {
+        const categories = await blueprintsModule.getBlueprintCategories();
+        return `📂 Categorias de blueprint:\n${categories.map(c => `• ${c}`).join('\n') || 'Nenhuma categoria'}`;
+      }
+
+      if (args === 'niches' || args === 'nichos') {
+        const niches = await blueprintsModule.getBlueprintNiches();
+        return `🎯 Nichos de blueprint:\n${niches.map(n => `• ${n}`).join('\n') || 'Nenhum nicho'}`;
+      }
+
+      if (args === 'stats') {
+        const stats = await blueprintsModule.getBlueprintStats();
+        return `📊 Blueprint Stats:\n• Total: ${stats.total}\n• Oficiais: ${stats.official}\n• Ativos: ${stats.active}\n• Categorias: ${stats.byCategory.map(c => `${c.category} (${c.count})`).join(', ')}\n• Top nichos: ${stats.topNiches.map(n => `${n.niche} (${n.count})`).join(', ')}`;
+      }
+
+      const bpParts = args.trim().split(/\s+/);
+
+      if (bpParts[0] === 'clone') {
+        const bpId = bpParts[1];
+        const overrideName = bpParts.slice(2).join(' ') || undefined;
+        if (!bpId) return 'Uso: /blueprints clone <id> [nome personalizado]';
+        try {
+          const overrides = overrideName ? { name: overrideName } : {};
+          const persona = await blueprintsModule.cloneBlueprint(bpId, overrides);
+          return `🏗️ Blueprint clonado como persona "${persona.name}" (${persona.id})!\n\nUse /persona ${persona.id} para ativar.`;
+        } catch (err) {
+          return `❌ Erro: ${err.message}`;
+        }
+      }
+
+      try {
+        const bp = await blueprintsModule.getBlueprint(bpParts[0]);
+        if (!bp) return `❌ Blueprint "${bpParts[0]}" não encontrado.`;
+        const previewStr = bp.preview ? (bp.preview.identity_preview || '') : '';
+        return `🏗️ ${bp.name} (${bp.id})\n• Descrição: ${bp.description || 'N/A'}\n• Categoria: ${bp.category}\n• Nicho: ${bp.niche}\n• Oficial: ${bp.is_official ? '⭐' : '❌'}\n• Tags: ${(bp.tags || []).join(', ') || 'N/A'}${previewStr ? '\n• Preview: ' + previewStr : ''}\n\nUse: /blueprints clone ${bp.id} para criar uma persona deste template`;
+      } catch {
+        return `❌ Blueprint "${bpParts[0]}" não encontrado.`;
+      }
     }
 
     default:

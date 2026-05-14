@@ -458,4 +458,72 @@ router.post('/followups/:id/respond', async (req, res) => {
   }
 });
 
+// ========== BLUEPRINTS ==========
+
+router.get('/blueprints/categories', async (req, res) => {
+  try {
+    const blueprintsModule = require('../blueprints');
+    const categories = await blueprintsModule.getBlueprintCategories();
+    res.json({ categories });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/blueprints/niches', async (req, res) => {
+  try {
+    const blueprintsModule = require('../blueprints');
+    const niches = await blueprintsModule.getBlueprintNiches(req.query.category || null);
+    res.json({ niches });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/blueprints', async (req, res) => {
+  try {
+    const blueprintsModule = require('../blueprints');
+    const filters = {};
+    if (req.query.category) filters.category = req.query.category;
+    if (req.query.niche) filters.niche = req.query.niche;
+    if (req.query.search) filters.search = req.query.search;
+    filters.is_active = true;
+    if (req.query.limit) filters.limit = parseInt(req.query.limit);
+    const blueprints = await blueprintsModule.listBlueprints(filters);
+    res.json({ blueprints: blueprints.map(b => ({
+      id: b.id, name: b.name, description: b.description,
+      category: b.category, niche: b.niche, is_official: b.is_official,
+      tags: b.tags, icon: b.icon, color: b.color, preview: b.preview,
+    })) });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/blueprints/:id', async (req, res) => {
+  try {
+    const blueprintsModule = require('../blueprints');
+    const blueprint = await blueprintsModule.getBlueprint(req.params.id);
+    if (!blueprint || !blueprint.is_active) return res.status(404).json({ error: 'Blueprint not found' });
+    res.json({
+      id: blueprint.id, name: blueprint.name, description: blueprint.description,
+      category: blueprint.category, niche: blueprint.niche, is_official: blueprint.is_official,
+      tags: blueprint.tags, icon: blueprint.icon, color: blueprint.color, preview: blueprint.preview,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/blueprints/:id/clone', async (req, res) => {
+  try {
+    const blueprintsModule = require('../blueprints');
+    const { overrides } = req.body;
+    const persona = await blueprintsModule.cloneBlueprint(req.params.id, overrides || {});
+    res.json({ success: true, persona: { id: persona.id, name: persona.name } });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
 module.exports = router;
