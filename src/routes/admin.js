@@ -1316,7 +1316,6 @@ router.post('/simulate', authMiddleware, adminMiddleware, async (req, res) => {
 
 // ===== Blueprints =====
 const blueprintsModule = require('../blueprints');
-const eventsModule = require('../events');
 const reflectionModule = require('../reflection');
 
 router.get('/blueprints', authMiddleware, adminMiddleware, async (req, res) => {
