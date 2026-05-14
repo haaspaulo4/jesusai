@@ -7,7 +7,7 @@ const SMTP_PORT = parseInt(process.env.SMTP_PORT) || 587;
 const SMTP_SECURE = process.env.SMTP_SECURE === 'true';
 const SMTP_USER = process.env.SMTP_USER || '';
 const SMTP_PASS = process.env.SMTP_PASS || '';
-const SMTP_FROM = process.env.SMTP_FROM || '"Jesus.AI" <noreply@jesus.ai>';
+const SMTP_FROM = process.env.SMTP_FROM || '"MetaPersona.AI" <noreply@metapersona.ai>';
 const APP_URL = process.env.APP_URL || 'http://localhost:3000';
 
 let transporter = null;
@@ -58,7 +58,7 @@ function devotionalTemplate(post, unsubToken, email) {
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;margin:0 auto;background:#1a1a2e;border-radius:16px;overflow:hidden;margin-top:20px;margin-bottom:20px;">
 <tr><td style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:30px 40px;text-align:center;border-bottom:2px solid #c9a227;">
 <span style="font-size:2.5rem;display:block;color:#c9a227;">✝</span>
-<h1 style="color:#c9a227;margin:10px 0 5px;font-size:1.5rem;">Jesus.AI</h1>
+<h1 style="color:#c9a227;margin:10px 0 5px;font-size:1.5rem;">MetaPersona.AI</h1>
 <p style="color:#8888a0;margin:0;font-size:0.85rem;">Palavra do Dia</p>
 </td></tr>
 <tr><td style="padding:30px 40px;">
@@ -89,7 +89,7 @@ function confirmTemplate(name, confirmUrl) {
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:500px;margin:0 auto;background:#1a1a2e;border-radius:16px;overflow:hidden;margin-top:20px;margin-bottom:20px;">
 <tr><td style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:30px 40px;text-align:center;border-bottom:2px solid #c9a227;">
 <span style="font-size:2.5rem;display:block;color:#c9a227;">✝</span>
-<h1 style="color:#c9a227;margin:10px 0;font-size:1.5rem;">Jesus.AI</h1>
+<h1 style="color:#c9a227;margin:10px 0;font-size:1.5rem;">MetaPersona.AI</h1>
 </td></tr>
 <tr><td style="padding:30px 40px;text-align:center;">
 <h2 style="color:#e8e8e8;font-size:1.2rem;margin-bottom:15px;">Confirme sua inscrição${name ? ', ' + escapeHtml(name) : ''}!</h2>
@@ -100,7 +100,7 @@ function confirmTemplate(name, confirmUrl) {
 </table>
 </body>
 </html>`,
-    text: `Confirme sua inscrição no Jesus.AI!\n\nAcesse o link para confirmar: ${confirmUrl}\n\nSe você não se inscreveu, ignore este email.`,
+    text: `Confirme sua inscrição no MetaPersona.AI!\n\nAcesse o link para confirmar: ${confirmUrl}\n\nSe você não se inscreveu, ignore este email.`,
   };
 }
 
@@ -113,7 +113,7 @@ function contactReplyTemplate(name) {
 <table width="100%" cellpadding="0" cellspacing="0" style="max-width:500px;margin:0 auto;background:#1a1a2e;border-radius:16px;overflow:hidden;margin-top:20px;margin-bottom:20px;">
 <tr><td style="background:linear-gradient(135deg,#1a1a2e,#16213e);padding:30px 40px;text-align:center;border-bottom:2px solid #c9a227;">
 <span style="font-size:2.5rem;display:block;color:#c9a227;">✝</span>
-<h1 style="color:#c9a227;margin:10px 0;font-size:1.5rem;">Jesus.AI</h1>
+<h1 style="color:#c9a227;margin:10px 0;font-size:1.5rem;">MetaPersona.AI</h1>
 </td></tr>
 <tr><td style="padding:30px 40px;text-align:center;">
 <h2 style="color:#e8e8e8;font-size:1.1rem;margin-bottom:15px;">Recebemos sua mensagem${name ? ', ' + escapeHtml(name) : ''}!</h2>
@@ -142,7 +142,7 @@ async function subscribe(email, name = '') {
     await pool.execute('UPDATE newsletter_subscribers SET confirm_token = ?, name = ? WHERE email = ?', [confirmToken, name, email]);
     const confirmUrl = `${APP_URL}/api/email/confirm/${confirmToken}`;
     const tmpl = confirmTemplate(name, confirmUrl);
-    await sendMail(email, 'Confirme sua inscrição — Jesus.AI', tmpl.html, tmpl.text);
+    await sendMail(email, 'Confirme sua inscrição — MetaPersona.AI', tmpl.html, tmpl.text);
     return { status: 'confirmation_resent' };
   }
 
@@ -157,7 +157,7 @@ async function subscribe(email, name = '') {
 
   const confirmUrl = `${APP_URL}/api/email/confirm/${confirmToken}`;
   const tmpl = confirmTemplate(name, confirmUrl);
-  await sendMail(email, 'Confirme sua inscrição — Jesus.AI', tmpl.html, tmpl.text);
+  await sendMail(email, 'Confirme sua inscrição — MetaPersona.AI', tmpl.html, tmpl.text);
 
   return { status: 'confirmation_sent' };
 }
@@ -188,15 +188,15 @@ async function saveContactMessage(name, email, subject, message, userId = null) 
 
 async function sendContactNotification(name, email, subject, message) {
   const tmpl = {
-    html: `<h3>Novo contato via Jesus.AI</h3><p><strong>Nome:</strong> ${escapeHtml(name || 'Anônimo')}</p><p><strong>Email:</strong> ${escapeHtml(email)}</p><p><strong>Assunto:</strong> ${escapeHtml(subject)}</p><p><strong>Mensagem:</strong></p><p>${escapeHtml(message)}</p>`,
-    text: `Novo contato via Jesus.AI\nNome: ${name || 'Anônimo'}\nEmail: ${email}\nAssunto: ${subject}\nMensagem: ${message}`,
+    html: `<h3>Novo contato via MetaPersona.AI</h3><p><strong>Nome:</strong> ${escapeHtml(name || 'Anônimo')}</p><p><strong>Email:</strong> ${escapeHtml(email)}</p><p><strong>Assunto:</strong> ${escapeHtml(subject)}</p><p><strong>Mensagem:</strong></p><p>${escapeHtml(message)}</p>`,
+    text: `Novo contato via MetaPersona.AI\nNome: ${name || 'Anônimo'}\nEmail: ${email}\nAssunto: ${subject}\nMensagem: ${message}`,
   };
-  await sendMail(SMTP_USER, `[Jesus.AI] Contato: ${subject}`, tmpl.html, tmpl.text);
+  await sendMail(SMTP_USER, `[MetaPersona.AI] Contato: ${subject}`, tmpl.html, tmpl.text);
 }
 
 async function sendContactReply(email, name) {
   const tmpl = contactReplyTemplate(name);
-  await sendMail(email, 'Recebemos sua mensagem — Jesus.AI', tmpl.html, tmpl.text);
+  await sendMail(email, 'Recebemos sua mensagem — MetaPersona.AI', tmpl.html, tmpl.text);
 }
 
 async function sendDailyDevotional() {

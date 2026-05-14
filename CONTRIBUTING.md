@@ -1,4 +1,4 @@
-# Contribuindo para Jesus.AI
+# Contribuindo para MetaPersona.AI
 
 Obrigado por querer contribuir! Este projeto existe para que mais pessoas tenham acesso às palavras de Jesus, e toda contribuição é bem-vinda.
 
@@ -12,8 +12,8 @@ Obrigado por querer contribuir! Este projeto existe para que mais pessoas tenham
 ## Setup Rápido
 
 ```bash
-git clone https://github.com/anomalyco/jesus-ai.git
-cd jesus-ai
+git clone https://github.com/anomalyco/metapersona-ai.git
+cd metapersona-ai
 npm install
 cp .env.example .env
 # Adicione sua OLLAMA_API_KEY no .env
@@ -24,7 +24,7 @@ npm run dev      # Desenvolvimento (watch mode)
 ### Pré-requisitos
 
 1. Node.js 18+ e npm
-2. MySQL 8.4 rodando em localhost (root, sem senha, database `jesus_ai`)
+2. MySQL 8.4 rodando em localhost (root, sem senha, database `metapersona_ai`)
 3. Chave `OLLAMA_API_KEY` no `.env`
 4. *(Opcional)* `pip install edge-tts` para TTS
 
@@ -47,7 +47,7 @@ src/persona/config.js     → Define personas (Jesus, etc.) e templates por idio
 
 ### Reportando bugs
 
-1. Verifique se o bug já não foi reportado nas [Issues](https://github.com/anomalyco/jesus-ai/issues)
+1. Verifique se o bug já não foi reportado nas [Issues](https://github.com/anomalyco/metapersona-ai/issues)
 2. Abra uma nova Issue com:
    - Descrição clara do problema
    - Passos para reproduzir
@@ -160,7 +160,7 @@ A busca TF-IDF está em `src/knowledge/store.js`. Possíveis melhorias:
 
 ## Perguntas?
 
-Abra uma [Issue](https://github.com/anomalyco/jesus-ai/issues). Respondemos com prazer.
+Abra uma [Issue](https://github.com/anomalyco/metapersona-ai/issues). Respondemos com prazer.
 
 ---
 

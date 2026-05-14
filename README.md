@@ -1,8 +1,8 @@
 <div align="center">
 
-# ✝ Jesus.AI — Whitelabel AI Platform
+# MetaPersona.AI — Whitelabel AI Platform
 
-**Plataforma whitelabel de assistentes virtuais com RAG multimodal, multi-persona com Meta-RAG, onboarding automático, e gestão completa.**
+**Plataforma whitelabel de agentes virtuais inteligentes com RAG multimodal, multi-persona, cognição, gamificação e gestão operacional completa.**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-c9a227.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18+-339933.svg)](https://nodejs.org/)
@@ -12,44 +12,46 @@
 
 ---
 
-> *"Vocês receberam de graça; deem de graça." — Mateus 10:8*
-
 ## O que é?
 
-Jesus.AI é uma **plataforma whitelabel** de assistentes virtuais. Serve qualquer nicho — religioso, saúde, educação, negócios, coaching. A persona padrão é Jesus, mas você pode criar qualquer IA com `/persona create <descrição>`.
+MetaPersona.AI é uma **plataforma whitelabel de agentes virtuais cognitivos**. Serve qualquer nicho — educação, saúde, negócios, coaching, religioso, vendas, fitness, jurídico.
 
-Tudo é gerenciável via admin API, chat commands, ou painel web. Personas definem identidade, skills, conhecimento, onboarding, follow-ups, e marca whitelabel.
+A meta-persona é **admin god** — orquestra personas, cria skills, gerencia tarefas, agenda, CRM, automações, metas, estágios de conversa, e conhecimento organizacional. Tudo via conversa.
 
 ### Destaques
 
-- **Multi-Persona com Meta-RAG** — Crie personas via LLM a partir de uma descrição. Troque com `/persona <id>`. Cada persona tem conhecimento, voz e regras próprias. Histórico de mensagens é limpo ao trocar de persona.
-- **RAG Multimodal** — Bíblia, PDF, DOCX, imagens (OCR), áudio (STT), JSON, texto, APIs. Fontes plug-and-play. Cada persona pode ter suas próprias fontes de conhecimento com contextTemplate personalizado.
-- **Onboarding Automático** — Novo usuário? A IA pergunta nome, interesse, sentimento, email. State machine configurável em 3 idiomas.
-- **Follow-ups Automáticos** — A IA envia perguntas de acompanhamento a cada N mensagens. Tipos: espiritual, devocional, oração, custom.
-- **Surveys & Ratings** — Pesquisas com triggers, avaliações 1-5 estrelas com categorias.
-- **Role-Based Access** — guest (5/dia), user (30/dia), premium (100/dia), admin (999/dia), banned (403).
+- **Multi-Persona com Meta-RAG** — Crie personas via LLM a partir de uma descrição. Cada persona tem conhecimento, voz, skills, onboarding e marca próprios.
+- **RAG Multimodal** — PDF, DOCX, imagens (OCR), áudio (STT), JSON, texto, APIs. Fontes plug-and-play por persona.
+- **Agentic System** — Tarefas, calendário, CRM/contatos, automações, metas hierárquicas, estágios de conversa, memória organizacional.
+- **Cognitive Intelligence** — Detecta emoção, intenção, risco de churn, probabilidade de conversão, engajamento. A IA adapta comportamento em tempo real.
+- **Gamification** — XP, níveis, streaks, conquistas, ranking, progresso personalizado por persona.
+- **Self-Optimization** — A IA analisa padrões e sugere melhorias (tom, retenção, engajamento, automações).
+- **Human Override** — Humano assume a conversa com um clique. Tipos: full, approval, observation.
+- **Agent Thought Log** — Registra decisões da IA (tools usados, contexto injetado, raciocínio).
+- **Onboarding Automático** — State machine configurável em 3 idiomas (pt-BR, en-US, es-ES).
+- **Follow-ups Automáticos** — A cada N mensagens ou agendado. Tipos: check-in, conteúdo, custom.
+- **Role-Based Access** — guest, user, premium, admin, banned. Rate limiting per role.
 - **Multi-Bot** — Múltiplas instâncias Telegram + WhatsApp, cada uma com persona própria.
 - **Whitelabel** — Marca, cores, logo, saudações — tudo configurável via settings.
-- **3 idiomas** — pt-BR (default), en-US, es-ES. Prompts, UI, TTS, onboarding.
-- **3 plataformas** — Web, Telegram Bot, WhatsApp Bot (Evolution API v2).
-- **Voz natural pt-BR** — Kokoro TTS com vozes por persona (pm_alex, pf_dora, etc.) + Edge TTS fallback com mapeamento automático.
-- **Speech-to-Text** — Groq Whisper + OpenAI Whisper fallback + web mic.
-- **Blog automático** — Devocionais gerados por LLM diariamente.
-- **Auth completa** — Email/senha, Google OAuth, JWT com role.
-- **Admin Panel** — Painel web completo com 10 seções: Dashboard, Usuários, Personas, Conhecimento, Surveys, Ratings, Follow-ups, Bots, Integrações, Settings.
+- **26 LLM Tools** — create_persona, manage_tasks, manage_goals, manage_org_memory, get_cognitive_state, human_override, etc.
+- **30+ Chat Commands** — /persona, /goals, /xp, /progress, /stages, /orgmem, /dashboard, /contacts, /calendar, etc.
+- **3 idiomas** — pt-BR (default), en-US, es-ES.
+- **Voz natural** — Kokoro TTS com vozes por persona + Edge TTS fallback.
+- **Blog automático** — Conteúdo gerado por LLM diariamente.
+- **Admin API completa** — 80+ endpoints para gestão total.
 
 ## Stack
 
 | Camada | Tecnologia |
 |--------|-----------|
-| Runtime | Node.js 18+ + Express |
+| Runtime | Node.js 18+ / Express |
 | Database | MySQL 8.4 (mysql2/promise) |
-| LLM | GLM-5.1 via Ollama Cloud API (OpenAI-compatible, multi-key fallback) |
+| LLM | Ollama Cloud API (OpenAI-compatible, multi-key fallback) |
 | RAG | TF-IDF pluggable + multimodal ingestion |
 | Auth | JWT + bcrypt + Google OAuth + role-based + rate limiting |
 | Telegram | Multi-instance via bot manager |
 | WhatsApp | Multi-instance via Evolution API v2 |
-| TTS | Kokoro-82M (primary, persona voice) + Edge TTS + Google Translate (fallback) |
+| TTS | Kokoro-82M + Edge TTS + Google Translate (fallback) |
 | STT | Groq Whisper + OpenAI Whisper (fallback) |
 | i18n | pt-BR, en-US, es-ES |
 
@@ -58,67 +60,68 @@ Tudo é gerenciável via admin API, chat commands, ou painel web. Personas defin
 ```
 User message → Rate limit check + Ban check
              → Onboarding check (new user? → ask questions)
+             → Human override check (active? → pause AI)
              → Persona resolution (session → user → default)
              → Chat command? → handleChatCommand
-             → Extract context + Search knowledge (persona-aware RAG) + Build memory + Build profile
-             → buildSystemPrompt(persona, lang, ..., knowledgeSources)
+             → Extract context + Search knowledge (persona-aware RAG)
+             → Build memory + Build profile
+             → Analyze cognitive state (emotion, intent, churn risk, engagement)
+             → Update streak + XP
+             → Inject context into system prompt:
+               - Knowledge context
+               - Conversation memory
+               - Profile context
+               - Active goals
+               - Org memory (searched by keywords)
+               - Conversation stage
+               - XP/Level/Streak
+               - Progress state
+               - Cognitive state (emotion, intent, churn risk)
              → LLM call via IntegrationManager (with tools if enabled)
-             → Tool calls loop (bible_lookup, user_stats, etc.)
-             → CJK check → Save message → Auto follow-up scheduling
+             → Tool calls loop (26 tools for meta-persona)
+             → Log agent thought (tools used, context, reasoning)
+             → CJK check → Save message → Auto follow-up
              → Return response + sources + persona info + ttsVoice
 ```
 
-### Persona-Aware System Prompt
+## Módulos
 
-- `buildSystemPrompt()` suporta dois formatos de identity:
-  - **String**: DB personas usam `identity: { "pt-BR": "Você é um coach...", "en-US": "..." }` — texto direto
-  - **Object**: Default Jesus persona usa `identity: { "pt-BR": { core: "...", rules: "..." } }` — objeto com core + rules
-- Context template: usa o `contextTemplate` da fonte de conhecimento da persona (ex: "CONHECIMENTO DE VENDAS"), não "VERSÍCULOS BÍBLICOS"
-- Persona switch limpa o histórico de mensagens da sessão (evita contaminação)
-
-### Onboarding (Whitelabel)
-```
-New user → shouldOnboard(uid) → returns next step question
-User answers → processOnboardingAnswer(uid, message) → save to profile + DB
-               → next step? → return question
-               → done? → welcome message from persona
-Steps configurable via /api/admin/onboarding: name, interest, feeling, email, custom
-```
-
-### Multi-Persona + Meta-RAG
-```
-/persona create <description> → LLM generates FULL persona config
-/persona <id> → switch per-session, per-user, or per-bot-instance
-Meta-RAG: LLM creates personas from any description — biblical figure, health coach, business consultant, etc.
-Each persona: own knowledge sources, skills, onboarding questions, follow-up style, brand whitelabel
-/voice → list/switch TTS voice for current persona
-```
-
-### RAG Knowledge (Multimodal)
-```
-Sources: Bible verses, PDF, DOCX, images (OCR), audio (STT), text, JSON, API endpoints
-Ingestion: npm run ingest → reads all sources → TF-IDF index
-Per-persona: personas.knowledge_sources selects which sources to search
-  - searchMultiSource(query, sourceIds, topK) splits topK evenly across sources
-  - Each source has its own contextTemplate per language
-Upload: POST /api/admin/knowledge/upload (PDF, DOCX, image, audio, text, JSON)
-```
-
-### TTS Voice System
-```
-TTS Modes: kokoro (default), multivozes, edge-tts
-Kokoro voices: pm_alex (pt-BR male), pf_dora (pt-BR female), am_adam (en-US male), af_bella (en-US female), etc.
-Each persona has ttsVoice and ttsLang fields — passed through to WhatsApp, Telegram, Web
-/voice command → list available voices, switch persona voice
-Edge TTS fallback: Kokoro voice mapped to Edge TTS voice automatically
-Message chunk size configurable via MESSAGE_CHUNK_SIZE env var or message_chunk_size setting (default 200 chars)
-```
+| Módulo | Arquivo | Descrição |
+|--------|---------|-----------|
+| Chat Engine | `src/chat/engine.js` | Rate limit, onboarding, persona-aware RAG, tools, cognitive, override |
+| Persona Manager | `src/persona/manager.js` | Multi-persona DB, cache, invalidation |
+| Meta-RAG | `src/persona/meta-rag.js` | LLM persona generation, switchPersona |
+| Config | `src/persona/config.js` | buildSystemPrompt (string/object identity) |
+| Agent | `src/agent/index.js` | Tasks, calendar, contacts, automations, history, dashboard |
+| Skills | `src/skills/index.js` | Skills CRUD + invocation |
+| Goals | `src/goals/index.js` | Goal stack CRUD + hierarchy + progress + context injection |
+| Stages | `src/stages/index.js` | Conversation stages + user tracking + context injection |
+| Org Memory | `src/orgmemory/index.js` | Organizational memory CRUD + search + context injection |
+| Gamification | `src/gamification/index.js` | XP, levels, streaks, badges, leaderboard |
+| Progress | `src/progress/index.js` | Per-user progress state (JSON key-value per persona) |
+| Cognitive | `src/cognitive/index.js` | Emotion/intent detection, churn risk, engagement, suggested actions |
+| Override | `src/override/index.js` | Human override (full/approval/observation per session) |
+| Thoughts | `src/thoughts/index.js` | Agent thought log (tools used, context, reasoning, response time) |
+| Optimization | `src/optimization/index.js` | Self-optimization suggestions based on patterns |
+| Proactive | `src/proactive/index.js` | Cron-based proactive intelligence (streaks, goals, automations) |
+| LLM Tools | `src/llm/tools.js` | 26 tool definitions + execution logic |
+| Integration Mgr | `src/llm/integrationManager.js` | Multi-key fallback for all integrations |
+| Knowledge | `src/knowledge/` | TF-IDF RAG, multimodal ingestion, per-persona sources |
+| Auth | `src/auth/` | JWT, bcrypt, Google OAuth, role-based, rate limiting |
+| Onboarding | `src/onboarding/index.js` | State machine (3 langs, configurable steps) |
+| Survey | `src/survey/index.js` | Surveys, ratings, follow-ups |
+| TTS | `src/tts/` | Kokoro + Edge TTS + Google Translate fallback |
+| STT | `src/stt/` | Groq Whisper + OpenAI Whisper fallback |
+| i18n | `src/i18n/index.js` | pt-BR, en-US, es-ES |
+| Settings | `src/settings/index.js` | DB-backed runtime settings + whitelabel |
+| DB | `src/db/index.js` | MySQL pool + 39 tables + auto-migration |
+| Server | `src/server.js` | Express + routes + startup + meta-persona registration |
 
 ## Setup
 
 ```bash
-git clone https://github.com/anomalyco/jesus-ai.git
-cd jesus-ai
+git clone https://github.com/anomalyco/metapersona-ai.git
+cd metapersona-ai
 npm install
 cp .env.example .env
 # Configure OLLAMA_API_KEY in .env
@@ -126,48 +129,20 @@ npm run ingest   # First time: index knowledge corpus
 npm start        # or npm run dev
 ```
 
-Acesse `http://localhost:3000` · Admin: `http://localhost:3000/admin` (login: test@example.com / admin123)
+Acesse `http://localhost:3000` | Admin: `http://localhost:3000/admin`
 
-### Kokoro TTS (voz natural pt-BR)
+### Kokoro TTS (voz natural)
 ```bash
 npm run tts:install   # Install Python dependencies
 npm run tts:start     # Start Kokoro server on port 8001
-npm run tts:check     # Check if Kokoro is running
 ```
 
 ### Pré-requisitos
-1. **MySQL 8.4** em localhost (root, sem senha, database `jesus_ai`)
+1. **MySQL 8.4** em localhost (root, sem senha, database `metapersona_ai`)
 2. **OLLAMA_API_KEY** no `.env`
 3. `npm run ingest` antes do primeiro uso
-4. Schema criado automaticamente no startup
-5. **Kokoro TTS**: `npm run tts:install` → `npm run tts:start`
-
-### Variáveis de Ambiente
-
-Veja [`.env.example`](.env.example) para a lista completa:
-
-| Variável | Descrição |
-|---------|-----------|
-| `OLLAMA_API_KEY` | Chave da Ollama Cloud API (**obrigatória**) |
-| `JWT_SECRET` | Secret para JWT (**obrigatória em produção**) |
-| `DB_HOST/USER/PASSWORD/NAME` | MySQL config |
-| `PERSONA` | Persona padrão (`jesus`) |
-| `TELEGRAM_TOKEN` | Token do bot Telegram |
-| `EVO_API_URL/KEY` | Evolution API para WhatsApp |
-| `GROQ_API_KEY` | Para STT via Whisper |
-| `TTS_MODE/VOICE` | Engine e voz TTS |
-| `MESSAGE_CHUNK_SIZE` | Max chars por mensagem/áudio (default: 200) |
-
-## Comandos
-
-| Comando | Descrição |
-|---------|-----------|
-| `npm start` | Start the server |
-| `npm run dev` | Start with watch mode |
-| `npm run ingest` | Index knowledge sources |
-| `npm run ngrok` | Cloudflare tunnel para WhatsApp webhook |
-| `npm run tts:start` | Start Kokoro TTS server |
-| `npm run tts:install` | Install Kokoro Python deps |
+4. Schema criado automaticamente no startup (39 tabelas)
+5. **Kokoro TTS** (opcional): `npm run tts:install` → `npm run tts:start`
 
 ## Chat Commands
 
@@ -179,120 +154,138 @@ Veja [`.env.example`](.env.example) para a lista completa:
 | `/persona` | anyone | Listar personas |
 | `/persona <id>` | anyone | Trocar persona |
 | `/persona create <desc>` | admin | Criar persona via Meta-RAG |
-| `/persona edit <id> <campo> <valor>` | admin | Editar persona |
-| `/persona delete <id>` | admin | Deletar persona |
 | `/voice` | anyone | Listar/trocar voz TTS |
+| `/skills` | anyone | Listar skills |
+| `/tasks` | user | Listar tarefas |
+| `/calendar` | user | Próximos eventos |
+| `/contacts` | user | Listar contatos/CRM |
+| `/automations` | user | Listar automações |
+| `/dashboard` | user | Dashboard completo |
+| `/goals` | user | Gerenciar metas |
+| `/stages` | user | Ver/avançar estágios de conversa |
+| `/orgmem` | user | Gerenciar memória organizacional |
+| `/xp` | user | XP, nível, streak, conquistas, ranking |
+| `/progress` | user | Estado de progresso personalizado |
 | `/survey` | admin | Gerenciar pesquisas |
 | `/ratings` | admin | Estatísticas de avaliação |
 | `/followups` | admin | Status de follow-ups |
-| `/keys` | admin | Chaves de integração |
-| `/settings /set` | admin | Configurações |
-| `/users /promote /ban` | admin | Gestão de usuários |
+| `/keys, /addkey` | admin | Gestão de integrações |
+| `/settings, /set` | admin | Configurações |
+| `/users, /promote, /ban` | admin | Gestão de usuários |
 | `/health` | anyone | Saúde das integrações |
 | `/tools` | anyone | Ferramentas disponíveis |
 
-## API Endpoints
+## LLM Tools (26)
 
-### Público
-| Método | Rota | Descrição |
-|---|---|---|
-| POST | `/api/chat` | Chat (rate-limited, persona-aware, returns ttsVoice) |
-| POST | `/api/chat/stt` | Speech-to-text |
-| POST | `/api/chat/tts` | Text-to-speech (accepts voice param, 200 char limit) |
-| POST | `/api/chat/rating` | Submit rating |
-| GET | `/api/chat/personas` | List personas |
-| POST | `/api/chat/persona/switch` | Switch persona |
-| POST | `/api/chat/persona/create` | Meta-RAG create |
-| GET | `/api/chat/persona/current` | Current persona (returns ttsVoice, ttsLang) |
-| GET | `/api/chat/surveys/active` | Check active survey |
-| POST | `/api/chat/surveys/:id/respond` | Survey response |
-| GET | `/api/chat/followups/pending` | Check pending follow-up |
-| POST | `/api/chat/followups/:id/respond` | Respond follow-up |
-| POST | `/api/auth/register` | Register |
-| POST | `/api/auth/login` | Login (returns role) |
-| POST | `/api/auth/google` | Google OAuth |
-| GET | `/api/auth/me` | Current user (with role) |
+| Tool | Description |
+|------|-------------|
+| `bible_lookup` | Busca versículos bíblicos |
+| `user_stats` | Estatísticas do usuário |
+| `get_daily_devotional` | Devocional do dia |
+| `send_prayer_request` | Registrar pedido de oração |
+| `list_sessions` | Listar sessões |
+| `update_settings` | Atualizar configurações (admin) |
+| `manage_users` | Gerenciar usuários (admin) |
+| `send_email_to_user` | Enviar email (admin) |
+| `create_persona` | Criar persona via LLM |
+| `list_personas` | Listar personas |
+| `create_skill` | Criar skill |
+| `invoke_skill` | Invocar skill |
+| `list_skills` | Listar skills |
+| `add_knowledge_source` | Adicionar fonte de conhecimento |
+| `manage_tasks` | CRUD de tarefas |
+| `manage_calendar` | CRUD de eventos |
+| `manage_contacts` | CRUD de contatos/CRM |
+| `manage_automations` | CRUD de automações |
+| `manage_goals` | CRUD de metas hierárquicas |
+| `manage_conversation_stages` | CRUD de estágios de conversa |
+| `manage_org_memory` | CRUD de memória organizacional |
+| `manage_xp` | Gamificação (XP, streaks, badges) |
+| `manage_progress` | Estado de progresso personalizado |
+| `get_cognitive_state` | Emoção, intenção, churn risk, engajamento |
+| `human_override` | Intervenção humana na conversa |
+| `get_suggestions` | Sugestões de auto-otimização |
+| `get_dashboard` | Dashboard stats |
+| `get_history` | Histórico de conversas |
 
-### Admin
-| Método | Rota | Descrição |
-|---|---|---|
-| GET/POST/PUT/DELETE | `/api/admin/users/*` | User management |
-| GET/POST | `/api/admin/personas` | List/create personas |
-| POST | `/api/admin/personas/generate` | Meta-RAG generate |
-| GET/PUT/DELETE | `/api/admin/personas/:id` | Get/update/delete persona |
-| GET/POST | `/api/admin/surveys` | Survey CRUD |
-| GET | `/api/admin/ratings` | Rating stats |
-| GET/POST | `/api/admin/followups` | Follow-up management |
-| GET/POST | `/api/admin/bots` | Bot instance CRUD |
-| POST | `/api/admin/bots/:id/start` | Start bot |
-| GET/POST | `/api/admin/integrations` | Integration management |
-| GET/PUT | `/api/admin/settings` | Settings management |
-| GET/POST | `/api/admin/knowledge/*` | Knowledge management |
-| POST | `/api/admin/knowledge/upload` | Upload file (PDF, DOCX, image, audio, text) |
-| POST | `/api/admin/knowledge/reindex` | Reindex knowledge |
+## Database Schema (39 tabelas)
 
-## Estrutura do Projeto
+Core: `users`, `sessions`, `messages`, `profiles`, `settings`, `api_keys`
 
-```
-src/
-  server.js              — Express entry point + DB init + scheduling
-  chat/engine.js          — Central chat engine (rate limit, onboarding, persona-aware RAG, /voice command)
-  auth/
-    index.js              — Auth core (register, login, Google, JWT, role-based, createUser)
-    rateLimit.js          — Rate limiting per role + ban enforcement
-  onboarding/index.js     — Whitelabel onboarding state machine (3 langs, ensureUser)
-  survey/index.js         — Surveys, ratings, follow-ups engine
-  persona/
-    config.js             — Default persona definitions, buildSystemPrompt (string/object identity)
-    manager.js             — Multi-persona system (DB, cache, invalidation)
-    meta-rag.js            — Meta-RAG persona generation, switchPersona with history clear
-  bot/manager.js           — Multi-instance bot manager (Telegram + WhatsApp)
-  telegram/
-    handler.js             — Telegram handler factory (persona per instance)
-    bot.js                 — Telegram bot with commands, chat, voice, groups
-  whatsapp/
-    handler.js             — WhatsApp handler factory (persona per instance)
-    bot.js                 — WhatsApp bot (Evolution API v2, persona voice, chunk size)
-  llm/
-    index.js               — Central LLM service
-    integrationManager.js  — Multi-key fallback for ALL integrations
-    tools.js               — AI tool definitions for function calling
-  knowledge/
-    config.js               — Knowledge source definitions (multimodal, dynamic registry)
-    store.js                — Multi-source TF-IDF search (searchMultiSource, getAllSourceStats)
-    ingester.js             — Multi-source ingestion (PDF, DOCX, image, audio, JSON, text, API)
-    sources/
-      pdf.js               — PDF ingestion via pdf-parse v1.1.1
-      docx.js               — DOCX ingestion via mammoth
-      image.js              — OCR via tesseract.js
-      audio.js              — STT via Groq Whisper + OpenAI Whisper fallback
-      api.js                — API endpoint ingestion
-  memory/
-    session.js              — Session management (MySQL-backed)
-    profile.js              — Profile management (MySQL-backed)
-  settings/index.js         — Runtime settings (DB-backed, cached) + whitelabel
-  admin/index.js             — Admin logic (stats, users, personas, surveys, ratings, follow-ups, bots)
-  routes/
-    chat.js                  — Chat API (JSON, personas, TTS with voice, ratings, surveys, onboarding)
-    admin.js                 — Admin API (full CRUD for all entities + knowledge upload)
-    auth.js                  — Auth API (register, login, Google, profile with role)
-    blog.js                  — Blog API
-    whatsapp.js              — WhatsApp webhook
-    email.js                 — Email API
-  tts/
-    index.js                 — TTS engine (Kokoro + Edge TTS fallback, voice mapping, chunk truncation)
-    kokoro-manager.js        — Kokoro server health check + warmup
-  stt/                        — STT engine (Groq + OpenAI fallback)
-  i18n/index.js               — Internationalization (pt-BR, en-US, es-ES)
-  db/index.js                 — MySQL pool + schema + auto-migration
-public/
-  index.html                  — Landing page + auth + chat SPA
-  admin.html                  — Admin panel SPA (10 sections)
-  css/style.css               — Dark premium theme, glassmorphism
-  css/admin.css               — Admin panel dark glassmorphism theme
-  js/app.js                   — Frontend logic (chat, auth, i18n, persona, TTS voice)
-  js/admin.js                 — Admin panel logic (dashboard, users, personas, knowledge, settings)
-```
+Content: `posts`, `comments`, `feedback`, `newsletter_subscribers`, `contact_messages`
+
+Persona: `personas`, `persona_skills`, `persona_messages`, `mcp_servers`
+
+Agent: `persona_tasks`, `persona_calendar`, `persona_contacts`, `persona_automations`
+
+Intelligence: `persona_goals`, `persona_conversation_stages`, `persona_user_stages`, `persona_org_memory`
+
+Engagement: `surveys`, `survey_responses`, `ratings`, `follow_ups`, `bot_instances`, `onboarding_steps`, `user_onboarding`
+
+Cognitive: `cognitive_states`, `human_overrides`, `agent_thoughts`
+
+Gamification: `user_xp`, `user_xp_log`, `user_progress`
+
+Rate Limiting: `rate_limits`
+
+## Admin API (80+ endpoints)
+
+See [`AGENTS.md`](AGENTS.md) for the complete endpoint reference.
+
+Key endpoint groups:
+- **Users**: CRUD, role management, ban
+- **Personas**: CRUD, generate (Meta-RAG), activate/deactivate
+- **Skills**: CRUD, invoke
+- **Tasks/Calendar/Contacts/Automations**: Full CRUD
+- **Goals**: CRUD + hierarchy + progress stats
+- **Conversation Stages**: CRUD + user tracking + advancement
+- **Org Memory**: CRUD + keyword search
+- **Gamification**: XP, levels, badges, leaderboard
+- **Progress State**: Get/set/update per user+persona
+- **Cognitive**: State, history, stats
+- **Human Override**: Activate/deactivate/list
+- **Agent Thoughts**: Log + stats
+- **Self-Optimization**: Suggestions per persona
+- **Simulation**: Test persona with simulated input
+- **Knowledge**: Upload, reindex, stats
+- **Surveys/Ratings/Follow-ups**: Full CRUD
+- **Bots**: Multi-instance management
+- **Integrations**: Multi-key management
+- **Settings**: DB-backed runtime config
+
+## Key Concepts
+
+### Cognitive Intelligence Pipeline
+Every message is analyzed for:
+- **Emotion**: happy, frustrated, confused, excited, sad, angry, anxious, curious, neutral
+- **Intent**: purchase, support, information, complaint, chitchat, scheduling, feedback, cancellation
+- **Churn Risk**: 0-1 probability of user leaving
+- **Conversion Probability**: 0-1 probability of conversion
+- **Engagement Score**: 0-1 engagement level
+- **Suggested Action**: retain_user, convert_lead, escalate_support, etc.
+
+This context is injected into the system prompt, making the AI emotion-aware and intent-aware.
+
+### Goal Stack
+Hierarchical goals (strategic → tactical → operational) with progress tracking, target metrics, and parent-child relationships. Injected into system prompt so the AI knows active objectives.
+
+### Conversation Stages
+Configurable funnel stages per persona (greeting → discovery → engagement → conversion → retention). Users advance through stages automatically or manually.
+
+### Organizational Memory
+Business knowledge stored in categories (products, services, pricing, team, policies, FAQ, processes, brand, market). Searched by keywords and injected into context.
+
+### Gamification
+XP with level thresholds, daily streaks with best streak tracking, badges (auto-awarded), leaderboard. All per persona.
+
+### Progress State
+Free-form JSON state per user+persona. Track mastery, weak topics, learning style, engagement metrics, or any domain-specific data.
+
+### Human Override
+Three modes: **full** (human takes over), **approval** (human approves responses), **observation** (human watches). Per session.
+
+### Self-Optimization
+The system analyzes patterns and generates actionable suggestions: tone adjustments, retention strategies, engagement improvements, automation recommendations.
 
 ## Licença
 
@@ -300,4 +293,4 @@ MIT — Use, modifique, compartilhe.
 
 ---
 
-**Documentação completa**: [`AGENTS.md`](AGENTS.md) · **Créditos**: [`CREDITS.md`](CREDITS.md)
+**Documentação completa**: [`AGENTS.md`](AGENTS.md) | **Framework**: [`META_FRAMEWORK.md`](META_FRAMEWORK.md) | **Créditos**: [`CREDITS.md`](CREDITS.md)

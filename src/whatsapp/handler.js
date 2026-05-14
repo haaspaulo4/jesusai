@@ -4,7 +4,7 @@ const { handleChatCommand } = require('../chat/engine');
 
 function makeWhatsAppHandler(options = {}) {
   const instancePersonaId = options.personaId || null;
-  const botName = options.botName || 'Jesus.AI';
+  const botName = options.botName || 'MetaPersona.AI';
   const instanceId = options.instanceId || 'default';
 
   return async function handleIncomingMessage({ remoteJid, text, pushName, senderId, isGroup, instanceName }) {

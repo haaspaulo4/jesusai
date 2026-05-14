@@ -1,17 +1,19 @@
 # AGENTS.md
 
-## Project: Jesus.AI — Whitelabel AI Platform
+## Project: MetaPersona.AI — Whitelabel AI Platform
 
 Plataforma whitelabel de assistentes virtuais com RAG multimodal, multi-persona com Meta-RAG, onboarding automático, e gestão completa. Serve qualquer nicho — religioso, saúde, educação, negócios, etc.
 
-**Arquitetura:** Tudo é gerenciável via admin API, chat commands, ou painel web. Personas definem identidade, skills, conhecimento, onboarding, follow-ups, e marca whitelabel.
+**Arquitetura:** Tudo é gerenciável via admin API, chat commands, ou painel web. A **meta-persona** é admin god — orquestra personas, cria skills, gerencia tarefas, agenda, CRM, automações, e conhecimento RAG.
 
 ## Tech Stack
 - **Backend**: Node.js 18+ + Express
 - **Database**: MySQL 8.4 (via mysql2/promise)
 - **LLM**: Ollama Cloud API (OpenAI-compatible) — model glm-5.1, **multi-key fallback automático**
 - **RAG**: Pluggable TF-IDF + multimodal ingestion (PDF, DOCX, images/OCR, audio/STT, JSON, text, APIs)
-- **Persona**: **Multi-persona com Meta-RAG** — criar via LLM, trocar com `/persona`, skills configuráveis, whitelabel
+- **Persona**: **Multi-persona com Meta-RAG** — criar via LLM, trocar com `/persona`, **skills configuráveis e criáveis**, whitelabel
+- **Meta-Persona**: **Admin god** — orquestra personas, cria skills, gerencia tarefas, agenda, CRM, automações, RAG
+- **Agent**: **Agentic** — tasks, calendar, CRM/contacts, automations, goals, conversation stages, org memory, history, dashboard — tudo via tools LLM
 - **Onboarding**: State machine automático — novo usuário → pergunta nome, interesse, sentimento, email
 - **Follow-ups**: Automático por intervalo de mensagens ou agendado
 - **Auth**: JWT + bcrypt + Google OAuth + **role-based access (guest/user/premium/admin/banned)** + **rate limiting per role**
@@ -32,7 +34,7 @@ Plataforma whitelabel de assistentes virtuais com RAG multimodal, multi-persona 
 - `npm run ngrok` — Start Cloudflare tunnel and configure Evolution API webhook
 
 ## Prerequisites
-1. MySQL 8.4 running on localhost (root, no password, database `jesus_ai`)
+1. MySQL 8.4 running on localhost (root, no password, database `metapersona_ai`)
 2. Ollama Cloud API key in `.env`
 3. Run `npm run ingest` before first use
 4. DB schema auto-created and migrated on startup
@@ -47,9 +49,10 @@ User message → Rate limit check + Ban check
              → Persona resolution (session → user → default)
              → Chat command? → handleChatCommand
              → Extract context + Search knowledge (persona-aware) + Build memory + Build profile
-             → buildSystemPrompt(persona, lang, context, memory, profile, name, isGroup, knowledgeSources)
+             → Build goal context + Search org memory + Get conversation stage
+             → buildSystemPrompt(persona, lang, context, memory, profile, name, isGroup, knowledgeSources) + extra context (goals, org memory, stage)
              → LLM call via IntegrationManager (with tools if enabled)
-             → Tool calls loop (bible_lookup, user_stats, etc.)
+             → Tool calls loop (bible_lookup, user_stats, manage_goals, manage_org_memory, etc.)
              → CJK check → Save message → Auto follow-up scheduling
              → Return response + sources + persona info + ttsVoice
 ```
@@ -57,7 +60,7 @@ User message → Rate limit check + Ban check
 ### Persona-Aware System Prompt
 - `buildSystemPrompt()` handles both string and object identity formats
 - String identity: DB personas store `identity` as `{ "pt-BR": "...", "en-US": "...", "es-ES": "..." }` (flat strings)
-- Object identity: Default Jesus persona has `{ "pt-BR": { core: "...", rules: "..." } }` (nested object)
+- Object identity: Default persona (jesus) has `{ "pt-BR": { core: "...", rules: "..." } }` (nested object) — string identity (DB personas) is flat per-language
 - Context template: Uses the persona's knowledge source contextTemplate (e.g., "CONHECIMENTO DE VENDAS" for sales, not "VERSÍCULOS BÍBLICOS")
 - Falls back to primary source context template if no persona sources match
 
@@ -84,6 +87,88 @@ Steps are configurable via /api/admin/onboarding or DB:
 /persona <id> → switch per-session, per-user, or per-bot-instance
 Meta-RAG: uses LLM to create personas from any description — biblical figure, health coach, business consultant, teacher, etc.
 Each persona can have: own knowledge sources, skills, onboarding questions, follow-up style, brand whitelabel
+
+Meta-Persona (id: "meta-persona"):
+  - Admin god that orchestrates personas, skills, knowledge, tasks, calendar, CRM, automations, goals, stages, org memory
+  - Has ALL LLM tools enabled (create_persona, manage_tasks, manage_calendar, manage_contacts, manage_automations, etc.)
+  - Registered in DB on startup with priority 0
+  - Accessible via /persona meta-persona
+  - Tools: create_persona, list_personas, create_skill, invoke_skill, list_skills, add_knowledge_source,
+    manage_tasks, manage_calendar, manage_contacts, manage_automations, manage_goals, manage_conversation_stages,
+    manage_org_memory, get_dashboard, get_history
+```
+
+### Skills System
+```
+Skills: Reusable actions that personas can execute (stored in persona_skills table)
+  - Types: action, generator, communication, analysis, workflow
+  - Each skill has: id, persona_id (null = global), name, description, type, prompt, parameters, output_format
+  - Skills are invoked via invoke_skill tool or /skills command
+  - Created via LLM (create_skill tool) or admin API (POST /api/admin/skills)
+  - Skill prompt uses {input} placeholder for user input and {context} for context
+  - Cross-persona: skills with persona_id=null are available to all personas
+```
+
+### Agentic System (Tasks, Calendar, CRM, Automations, Goals, Stages, Org Memory)
+```
+Tasks (persona_tasks table):
+  - CRUD via manage_tasks tool or /tasks command
+  - Fields: title, description, status (pending/in_progress/completed/cancelled), priority (urgent/high/medium/low), due_date
+  - Get overdue tasks, filter by status/priority/persona
+
+Calendar (persona_calendar table):
+  - CRUD via manage_calendar tool or /calendar command
+  - Event types: meeting, reminder, task, followup, call, other
+  - Attendees, reminders, location, start/end time
+  - Get upcoming events for next N days
+
+Contacts/CRM (persona_contacts table):
+  - CRUD via manage_contacts tool or /contacts command
+  - Fields: name, email, phone, company, role, tags, notes, stage (lead/prospect/customer/churned/vip)
+  - Custom fields via JSON, search by name/email/company
+  - Stage tracking for sales funnel
+
+Automations (persona_automations table):
+  - CRUD via manage_automations tool or /automations command
+  - Triggers: keyword, interval_messages, schedule, on_contact_create, manual
+  - Actions: message, create_task, send_email, webhook, switch_persona, invoke_skill
+  - trigger_config: {keywords: [...], every_n: 10, cron: "0 9 * * *"}
+  - action_config: {message: "...", task_title: "...", email_to: "..."}
+  - Auto-check triggers on each message via checkAndRunAutomations()
+
+Goals (persona_goals table):
+  - CRUD via manage_goals tool or /goals command
+  - Goal types: strategic, tactical, operational, learning, relationship, financial, growth
+  - Fields: title, description, goal_type, priority, status (active/paused/completed/abandoned), progress (0-100)
+  - target_metric, target_value, current_value for measurable goals
+  - parent_goal_id for hierarchical goals (goal → sub-goals tree)
+  - getGoalHierarchy() returns tree structure
+  - getGoalProgress() returns aggregate stats by status
+  - formatGoalContext() injects active goals into system prompt
+
+Conversation Stages (persona_conversation_stages + persona_user_stages tables):
+  - Define funnel stages per persona: greeting → discovery → engagement → conversion → retention
+  - Default stages auto-created via ensureDefaultStages()
+  - Each stage: name, description, stage_order, triggers (JSON), responses (JSON)
+  - User stage tracking: getUserStage() / setUserStage() / advanceUserStage()
+  - getUserStageContext() injects current stage into system prompt
+  - Init defaults: /stages init or manage_conversation_stages init_defaults
+
+Organizational Memory (persona_org_memory table):
+  - Stores business knowledge: products, services, pricing, team, policies, FAQ, processes, brand, market
+  - CRUD via manage_org_memory tool or /orgmem command
+  - searchOrgMemory() for semantic keyword search across categories
+  - getOrgMemoryContext() injects relevant org knowledge into system prompt
+  - Categories: products, services, pricing, team, policies, faq, processes, brand, market, custom
+  - Tags for flexible categorization, priority levels, expiry support
+
+History (persona_messages table):
+  - Stores all messages with persona_id, session_id, user_id, role, content, tool_calls, tool_results
+  - Queryable via get_history tool
+  - Enables cross-session context for meta-persona
+
+Dashboard (get_dashboard tool or /dashboard command):
+  - Tasks by status, upcoming events, contacts by stage, active automations, personas, skills, goals by status, org memory by category
 ```
 
 ### RAG Knowledge (Multimodal + APIs)
@@ -115,6 +200,185 @@ Each persona has ttsVoice and ttsLang fields
 Edge TTS fallback: Kokoro voice mapped to Edge TTS voice (pm_alex → pt-BR-AntonioNeural, pf_dora → pt-BR-FranciscaNeural)
 Message chunk size configurable via MESSAGE_CHUNK_SIZE env var or message_chunk_size setting (default 200 chars)
 Audio/TTS truncated to 200 chars per generation by default
+```
+
+### Gamification System
+```
+XP + Levels:
+  - addXp(uid, personaId, amount, reason) — adds XP, auto-levels up
+  - getXp(uid, personaId) — returns { xp, level, streak, best_streak, badges }
+  - calculateLevel(xp) — thresholds: 0, 50, 150, 300, 500, 800, 1200, ...
+  - getXpForNextLevel(xp) — returns { needed, remaining }
+  - formatXpContext(xpData) — injects into system prompt: "GAMIFICATION: Level 5, 450 XP, Streak: 3 days"
+
+Streaks:
+  - updateStreak(uid, personaId) — auto-detects consecutive days, handles broken streaks
+  - Streak resets if >1 day gap, increments if yesterday, stays same if today
+  - Streak bonus: +5 XP per day streak maintained
+
+Badges:
+  - checkAndAwardBadges(uid, personaId) — auto-awards based on conditions
+  - Built-in badges: first_message, streak_3, streak_7, streak_30, level_5, level_10, xp_100, xp_500, xp_1000, xp_5000
+  - Admin can add custom badges via API or manage_xp tool
+  - Stored in user_xp.badges as JSON array [{id, name, earnedAt}]
+
+Leaderboard:
+  - getLeaderboard(personaId, limit) — top users by XP
+  - Per-persona or global ranking
+
+Context Injection:
+  - formatXpContext() injected into system prompt every message
+  - Shows: Level, XP, XP to next, Streak, Badges
+  - AI uses this to adapt tone (congratulate level ups, encourage streaks)
+```
+
+### Progress State System
+```
+Per-user Persona-specific State (user_progress table):
+  - getProgressState(uid, personaId) — returns { state: { weak_topics: [...], mastery_level: 7, engagement: 0.85 } }
+  - updateProgressState(uid, personaId, updates) — merge updates into state
+  - incrementProgressField(uid, personaId, field, amount) — +1 counter
+  - pushProgressArray(uid, personaId, field, value) — add to array (no duplicates)
+  - removeProgressArray(uid, personaId, field, value) — remove from array
+  - formatProgressContext(progress) — injects into system prompt: "PROGRESS STATE: ..."
+
+Use cases:
+  - Education: weak_topics, mastery_level, learning_style, study_streak
+  - Health: symptoms, medications, adherence_score, recovery_stage
+  - Sales: funnel_stage, budget, objections, interest_level
+  - Religion: prayer_requests_count, spiritual_stage, verse_bookmarks
+```
+
+### Cognitive Pipeline
+```
+Every message is analyzed by analyzeCognitiveState():
+
+Emotion Analysis (keyword-based):
+  - happy: "obrigado", "legal", "adorei", "ótimo", "great", "love", "thanks"
+  - frustrated: "não funciona", "erro", "problema", "doesn't work", "bad"
+  - confused: "não entendo", "como", "explica", "how", "what", "help"
+  - excited: "quero", "vamos", "incrível", "wow", "can't wait"
+  - sad: "triste", "sozinho", "desanimado", "sad", "lonely"
+  - angry: "raiva", "ódio", "reclamar", "angry", "furious"
+  - anxious: "preocupado", "medo", "nervoso", "worried", "anxious"
+  - curious: "como funciona", "interessante", "tell me more"
+  - neutral: (default)
+
+Intent Analysis (keyword-based):
+  - purchase: "comprar", "preço", "plano", "buy", "subscribe"
+  - support: "ajuda", "problema", "erro", "help", "bug"
+  - information: "como", "o que", "explique", "how", "what"
+  - complaint: "reclamar", "insatisfeito", "complaint"
+  - chitchat: "oi", "olá", "hey", "hello"
+  - scheduling: "agendar", "horário", "schedule", "appointment"
+  - feedback: "feedback", "avaliação", "suggest"
+  - cancellation: "cancelar", "desistir", "cancel", "stop"
+
+Scoring:
+  - churn_risk: 0-1 (blended with previous state, 60/40 weight)
+  - conversion_probability: 0-1 (based on intent + emotion)
+  - engagement_score: 0-1 (based on emotion + history)
+  - suggested_action: retain_user, convert_lead, escalate_support, prevent_churn, schedule_appointment, re_engage
+
+Context Injection:
+  - formatCognitiveContext(state) — injects: "COGNITIVE STATE: emotion=excited (87%), intent=purchase (72%)\nCONVERSION PROBABILITY: 73% — high intent detected"
+  - High churn_risk → "CHURN RISK: 70% — consider retention strategy"
+  - Low engagement → "ENGAGEMENT: low (25%) — consider re-engagement"
+
+Stats:
+  - getCognitiveStats(personaId, days) — aggregated emotion distribution, intent distribution, avg churn/conversion/engagement
+```
+
+### Human Override System
+```
+Three override modes per session:
+  - full: AI pauses completely, human handles conversation
+  - approval: AI generates response, human approves before sending
+  - observation: AI responds normally, human watches logs
+
+Management:
+  - setOverride(sessionId, { is_active, override_type, human_message })
+  - clearOverride(sessionId) — deactivate override
+  - isOverridden(sessionId) — check if override is active
+  - listOverrides({ is_active: true }) — list active overrides
+
+Chat Engine Check:
+  - processMessage checks override before LLM call
+  - If full override + human_message → sends human message directly
+  - If full override + no human_message → returns "human handling" message
+
+API Endpoints:
+  - POST /api/admin/override/activate
+  - POST /api/admin/override/deactivate
+  - GET /api/admin/override/status/:sessionId
+  - GET /api/admin/override/list
+```
+
+### Agent Thought Log
+```
+Every message response is logged via logThought():
+  - session_id, user_id, persona_id
+  - message_input (truncated 500 chars)
+  - message_output (truncated 500 chars)
+  - tools_used: array of tool names invoked
+  - context_injected: { hasGoals, hasOrgMemory, hasStage, hasXp, hasProgress, hasCognitive }
+  - reasoning: emotion/intent from cognitive state
+  - decision: suggested_action from cognitive state
+  - response_time_ms, tokens_used
+
+Stats:
+  - getThoughtStats(personaId, days) — avg response time, avg tokens, thought count, tool usage
+  - getThoughts(filters) — query by session, user, persona
+
+Admin API:
+  - GET /api/admin/thoughts — list thoughts
+  - GET /api/admin/thoughts/stats — aggregated statistics
+```
+
+### Self-Optimization Suggestions
+```
+generateSuggestions(personaId, days) analyzes:
+
+  1. Emotion Distribution: if frustrated/angry > 30% → suggest tone adjustment
+  2. Churn Risk: avg > 50% → suggest retention strategy
+  3. Engagement: avg < 40% → suggest gamification/re-engagement
+  4. Tool Usage: most-used tool → suggest dedicated skill
+  5. Goals: active >> completed ratio → simplify objectives
+  6. Automations: 0 active with 20+ messages → suggest automatic follow-ups
+  7. Human Overrides: 3+ active → suggest personality/rules adjustment
+
+Returns: { persona_id, period_days, total_messages, suggestions: [...] }
+Each suggestion: { type, priority, title, description, data }
+
+Admin API:
+  - GET /api/admin/suggestions?persona_id=X&days=7
+  - Also available via get_suggestions LLM tool
+```
+
+### Proactive Intelligence (cron-based)
+```
+ProactiveEngine runs on configurable interval (default: 60 min):
+  - checkAutomations() — triggers schedule-type automations
+  - checkStreakReminders() — warns users about streak at risk
+  - checkGoalDeadlines() — flags goals due within 3 days
+  - createFollowUp() — creates follow-up entries for proactive messages
+
+Future: connect to WhatsApp/Telegram/Email for proactive outreach
+```
+
+### Conversation Simulation
+```
+POST /api/admin/simulate
+Body: { message, persona_id, user_id, language }
+
+Runs processMessage() with simulated user, returns full response including:
+  - cognitive state (emotion, intent, churn risk)
+  - tool calls used
+  - sources found
+  - persona info
+  - TTS voice
+
+Use case: test persona behavior before deploy, evaluate tone, debug context injection
 ```
 
 ### Survey + Rating + Follow-up System
@@ -176,6 +440,17 @@ Onboarding: auto-creates user for bot users (ensureUser)
 | `/survey` | admin | Manage surveys |
 | `/ratings` | admin | Rating stats |
 | `/followups` | admin | Follow-up status |
+| `/skills` | anyone | List skills |
+| `/tasks` | user | List your tasks (/tasks overdue\|pending\|in_progress) |
+| `/calendar` | user | Upcoming events (/calendar upcoming) |
+| `/contacts` | user | List contacts (/contacts search <name>) |
+| `/automations` | user | List automations |
+| `/dashboard` | user | Dashboard overview |
+| `/goals` | user | List/manage goals (/goals create <title>, /goals <id>, /goals progress) |
+| `/stages` | user | View/advance conversation stages (/stages init, /stages advance) |
+| `/orgmem` | user | Manage org memory (/orgmem create, /orgmem search <query>) |
+| `/xp` | user | Gamification — XP, level, streak, badges, leaderboard |
+| `/progress` | user | View/update progress state (key-value per user+persona) |
 | `/keys, /addkey, /removekey, /togglekey` | admin | Integration management |
 | `/health` | anyone | Integration health |
 | `/settings, /set` | admin | Settings management |
@@ -198,6 +473,34 @@ Onboarding: auto-creates user for bot users (ensureUser)
 | POST | `/api/admin/personas/:id/toggle` | Enable/disable |
 | POST | `/api/admin/personas/:id/activate` | Activate |
 | POST | `/api/admin/personas/:id/deactivate` | Deactivate |
+| **Skills** |||
+| GET | `/api/admin/skills` | List skills (filter by persona_id) |
+| POST | `/api/admin/skills` | Create skill |
+| PUT | `/api/admin/skills/:id` | Update skill |
+| DELETE | `/api/admin/skills/:id` | Delete skill |
+| POST | `/api/admin/skills/:id/invoke` | Invoke a skill |
+| **Tasks** |||
+| GET | `/api/admin/tasks` | List tasks |
+| POST | `/api/admin/tasks` | Create task |
+| PUT | `/api/admin/tasks/:id` | Update task |
+| DELETE | `/api/admin/tasks/:id` | Delete task |
+| **Calendar** |||
+| GET | `/api/admin/calendar` | List events |
+| POST | `/api/admin/calendar` | Create event |
+| PUT | `/api/admin/calendar/:id` | Update event |
+| DELETE | `/api/admin/calendar/:id` | Delete event |
+| **Contacts (CRM)** |||
+| GET | `/api/admin/contacts` | List contacts |
+| POST | `/api/admin/contacts` | Create contact |
+| PUT | `/api/admin/contacts/:id` | Update contact |
+| DELETE | `/api/admin/contacts/:id` | Delete contact |
+| **Automations** |||
+| GET | `/api/admin/automations` | List automations |
+| POST | `/api/admin/automations` | Create automation |
+| PUT | `/api/admin/automations/:id` | Update automation |
+| DELETE | `/api/admin/automations/:id` | Delete automation |
+| **Dashboard** |||
+| GET | `/api/admin/dashboard` | Dashboard stats (tasks, events, contacts, automations, personas, skills, goals, org memory) |
 | **Surveys** |||
 | GET | `/api/admin/surveys` | List surveys |
 | POST | `/api/admin/surveys` | Create survey |
@@ -211,6 +514,29 @@ Onboarding: auto-creates user for bot users (ensureUser)
 | GET | `/api/admin/followups` | List follow-ups |
 | POST | `/api/admin/followups` | Create follow-up |
 | POST | `/api/admin/followups/:id/send` | Mark as sent |
+| **Goals** |||
+| GET | `/api/admin/goals` | List goals |
+| POST | `/api/admin/goals` | Create goal |
+| GET | `/api/admin/goals/:id` | Get goal |
+| PUT | `/api/admin/goals/:id` | Update goal |
+| DELETE | `/api/admin/goals/:id` | Delete goal |
+| GET | `/api/admin/goals/progress` | Goal progress stats |
+| GET | `/api/admin/goals/hierarchy` | Goal hierarchy tree |
+| **Conversation Stages** |||
+| GET | `/api/admin/stages` | List stages |
+| POST | `/api/admin/stages` | Create stage |
+| PUT | `/api/admin/stages/:id` | Update stage |
+| DELETE | `/api/admin/stages/:id` | Delete stage |
+| POST | `/api/admin/stages/init-defaults` | Create default stages |
+| GET | `/api/admin/stages/user/:userId` | Get user stage |
+| POST | `/api/admin/stages/user/:userId/advance` | Advance user stage |
+| **Org Memory** |||
+| GET | `/api/admin/org-memory` | List org memories |
+| POST | `/api/admin/org-memory` | Create org memory |
+| GET | `/api/admin/org-memory/search` | Search org memories |
+| GET | `/api/admin/org-memory/:id` | Get org memory |
+| PUT | `/api/admin/org-memory/:id` | Update org memory |
+| DELETE | `/api/admin/org-memory/:id` | Delete org memory |
 | **Bot Instances** |||
 | GET | `/api/admin/bots` | List bot instances |
 | GET | `/api/admin/bots/active` | List running bots |
@@ -268,6 +594,16 @@ Onboarding: auto-creates user for bot users (ensureUser)
 - **settings** — setting_key (PK), setting_value (TEXT)
 - **api_keys** — id, service_type, api_key, base_url, model, label, priority, is_active, extra_config (JSON)
 - **personas** — persona_id (PK), name, name_en, name_es, identity (JSON), commands (JSON), knowledge_sources (JSON), tts_voice, tts_lang, model, priority, is_active, topic_keywords (JSON), emotion_keywords (JSON), name_patterns (JSON), disclaimer (JSON), conversation_with (JSON), memory_block (JSON), profile_block (JSON), group_context (JSON), cjk_fallback (JSON), llm_error (JSON), welcome_title (JSON), welcome_body (JSON), prayer_prompt (JSON), blog_prompt (JSON), blog_topics (JSON), donate_verse (JSON), summary_prompt (JSON), profile_summary_prompt (JSON)
+- **persona_skills** — id (PK), persona_id (FK nullable), name, description, type (action/generator/communication/analysis/workflow), prompt, parameters (JSON), output_format, is_active, created_at, updated_at
+- **persona_tasks** — id (PK), persona_id, owner_id, title, description, status (pending/in_progress/completed/cancelled), priority (urgent/high/medium/low), due_date, assigned_to, result, auto_execute, skill_id, created_at, updated_at
+- **persona_calendar** — id (PK), persona_id, owner_id, title, description, event_type (meeting/reminder/task/followup/call/other), start_time, end_time, location, attendees (JSON), reminders (JSON), status, created_at, updated_at
+- **persona_contacts** — id (PK), persona_id, owner_id, name, email, phone, company, role, tags (JSON), notes, stage (lead/prospect/customer/churned/vip), custom_fields (JSON), last_contact_at, created_at, updated_at
+- **persona_automations** — id (PK), persona_id, owner_id, name, description, trigger_type (keyword/interval_messages/schedule/on_contact_create/manual), trigger_config (JSON), action_type (message/create_task/send_email/webhook/switch_persona/invoke_skill), action_config (JSON), is_active, last_run_at, run_count, created_at, updated_at
+- **persona_messages** — id (PK), persona_id, session_id, user_id, role (user/assistant/system/tool), content, tool_calls (JSON), tool_results (JSON), metadata (JSON), created_at
+- **persona_goals** — id (PK), persona_id, owner_id, title, description, goal_type (strategic/tactical/operational/learning/relationship/financial/growth), priority (urgent/high/medium/low), status (active/paused/completed/abandoned), progress (0-100), target_metric, target_value, current_value, parent_goal_id, due_date, completed_at, created_at, updated_at
+- **persona_conversation_stages** — id (PK), persona_id, name, description, stage_order, triggers (JSON), responses (JSON), is_active, created_at
+- **persona_user_stages** — id (PK), user_id, persona_id, session_id, current_stage, stage_data (JSON), stage_history (JSON), updated_at
+- **persona_org_memory** — id (PK), persona_id, owner_id, category (products/services/pricing/team/policies/faq/processes/brand/market/custom), title, content, tags (JSON), priority (urgent/high/medium/low), is_active, expires_at, created_at, updated_at
 - **rate_limits** — id, user_id, service_type, request_count, window_start
 - **surveys** — id, title, description, questions (JSON), is_active, trigger_type, trigger_config (JSON)
 - **survey_responses** — id, survey_id, user_id, session_id, answers (JSON), completed_at
@@ -277,35 +613,50 @@ Onboarding: auto-creates user for bot users (ensureUser)
 - **onboarding_steps** — id, step_key, step_order, question, question_en, question_es, field, field_type, choices (JSON), required, is_active
 - **user_onboarding** — id, user_id, step_key, answer, answered_at
 - **mcp_servers** — id, name, command, args (JSON), env_vars (JSON), is_active, created_at
+- **user_xp** — user_id, persona_id, xp, level, streak, best_streak, last_activity, badges (JSON) (composite PK user_id+persona_id)
+- **user_xp_log** — id, user_id, persona_id, amount, reason, created_at
+- **user_progress** — user_id, persona_id, state (JSON), created_at, updated_at (composite PK user_id+persona_id)
+- **cognitive_states** — id, user_id, persona_id, session_id, message_id, emotion, emotion_confidence, intent, intent_confidence, topics (JSON), churn_risk, conversion_probability, engagement_score, suggested_action, context_snapshot (JSON), created_at
+- **human_overrides** — id, session_id (unique), user_id, persona_id, is_active, override_type (full/approval/observation), human_message, metadata (JSON), created_at, updated_at
+- **agent_thoughts** — id, session_id, user_id, persona_id, message_input, message_output, tools_used (JSON), context_injected (JSON), reasoning, decision, response_time_ms, tokens_used, created_at
 
 ## Key File Structure
-- `src/chat/engine.js` — Central chat engine (rate limit, onboarding, persona-aware RAG, tools, follow-ups, /voice command)
+- `src/chat/engine.js` — Central chat engine (rate limit, onboarding, persona-aware RAG, tools, agentic loop for meta-persona)
 - `src/auth/index.js` — Auth core (register, login, Google OAuth, JWT, role-based, createUser)
 - `src/auth/rateLimit.js` — Rate limiting per role + ban enforcement
 - `src/onboarding/index.js` — Onboarding state machine (whitelabel, 3 langs, ensureUser)
 - `src/survey/index.js` — Surveys, ratings, follow-ups engine
 - `src/persona/manager.js` — Multi-persona with DB persistence, cache invalidation
-- `src/persona/meta-rag.js` — Meta-RAG persona generation, switchPersona with history clear
+- `src/persona/meta-rag.js` — Meta-RAG persona generation (any niche, not just biblical), switchPersona, getMetaPersona
 - `src/persona/config.js` — Default persona definitions, buildSystemPrompt (handles string/object identity)
+- `src/skills/index.js` — Skills CRUD + invocation (create, list, invoke, getForPersona)
+- `src/agent/index.js` — Agentic system (tasks, calendar, contacts, automations, history, dashboard, checkAndRunAutomations)
+- `src/goals/index.js` — Goal stack CRUD + hierarchy + progress + context injection (createGoal, listGoals, getGoalHierarchy, getGoalProgress, formatGoalContext)
+- `src/stages/index.js` — Conversation stages CRUD + user stage tracking + context injection (createConversationStage, getUserStage, advanceUserStage, getUserStageContext, ensureDefaultStages)
+- `src/orgmemory/index.js` — Organizational memory CRUD + search + context injection (createOrgMemory, searchOrgMemory, getOrgMemoryContext)
+- `src/gamification/index.js` — XP, levels, streaks, badges, leaderboard, auto-award (getXp, addXp, updateStreak, addBadge, checkAndAwardBadges, formatXpContext)
+- `src/progress/index.js` — Per-user progress state (getProgressState, updateProgressState, incrementProgressField, pushProgressArray, formatProgressContext)
+- `src/cognitive/index.js` — Cognitive state analysis (analyzeCognitiveState, formatCognitiveContext, getCognitiveStats) — emotion, intent, churn risk, engagement
+- `src/override/index.js` — Human override (setOverride, getOverride, clearOverride, isOverridden) — full/approval/observation
+- `src/thoughts/index.js` — Agent thought logging (logThought, getThoughts, getThoughtStats) — tools used, context, reasoning, response time
+- `src/optimization/index.js` — Self-optimization suggestions (generateSuggestions) — tone, retention, engagement, automation
+- `src/proactive/index.js` — Proactive intelligence engine (cron-based: streak reminders, goal deadlines, scheduled automations)
+- `src/llm/tools.js` — LLM tool definitions (26 tools: create_persona, manage_tasks, manage_calendar, manage_contacts, manage_automations, manage_goals, manage_conversation_stages, manage_org_memory, manage_xp, manage_progress, get_cognitive_state, human_override, get_suggestions, get_dashboard, get_history, etc.)
+- `src/llm/integrationManager.js` — Multi-key fallback for ALL integrations
 - `src/bot/manager.js` — Multi-instance bot manager (Telegram + WhatsApp)
 - `src/telegram/handler.js` — Telegram handler factory (persona per instance)
 - `src/whatsapp/bot.js` — WhatsApp handler (persona-aware, voice pass-through, chunk size)
-- `src/llm/integrationManager.js` — Multi-key fallback for ALL integrations
-- `src/llm/tools.js` — AI tool definitions for function calling
 - `src/settings/index.js` — Runtime settings (DB-backed, cached) with whitelabel configs
 - `src/knowledge/config.js` — Knowledge source definitions (multimodal, dynamic registry)
 - `src/knowledge/store.js` — Multi-source TF-IDF search (searchMultiSource, getAllSourceStats)
 - `src/knowledge/ingester.js` — Multi-source ingestion (PDF, DOCX, image, audio, JSON, text, API, upload)
-- `src/knowledge/sources/pdf.js` — PDF ingestion via pdf-parse v1.1.1
-- `src/knowledge/sources/docx.js` — DOCX ingestion via mammoth
-- `src/knowledge/sources/image.js` — OCR via tesseract.js
-- `src/knowledge/sources/audio.js` — STT via Groq Whisper + OpenAI Whisper fallback
-- `src/knowledge/sources/api.js` — API endpoint ingestion
 - `src/tts/index.js` — TTS engine (Kokoro + Edge TTS fallback, voice mapping, chunk truncation)
-- `src/routes/admin.js` — Admin API (users, personas, surveys, ratings, follow-ups, bots, integrations, knowledge)
-- `src/routes/chat.js` — Chat API (JSON response, personas, TTS with voice, ratings, surveys, onboarding)
+- `src/routes/admin.js` — Admin API (users, personas, skills, tasks, calendar, contacts, automations, goals, stages, org memory, dashboard, surveys, ratings, follow-ups, bots, integrations, knowledge)
+- `src/routes/chat.js` — Chat API (JSON response, personas, TTS with voice, ratings, surveys, onboarding, persona/create public)
 - `src/routes/auth.js` — Auth API (register, login, Google, profile with role)
-- `src/db/index.js` — MySQL pool + schema init + auto-migration
+- `src/server/templates.js` — `escapeHtml`, `buildPersonaPage`, `buildSitePage`, `buildCreatePersonaPage` (string concatenation)
+- `src/server.js` — Express server, routes, startup (registers meta-persona in DB)
+- `src/db/index.js` — MySQL pool + schema init + auto-migration (39 tables)
 
 ## User Roles & Access Levels
 | Role | Chat | Commands | Admin API | Custom Persona | Onboarding |
@@ -346,3 +697,13 @@ Onboarding: auto-creates user for bot users (ensureUser)
 - `switchPersona()` clears message history to prevent persona contamination
 - Message saving: `processMessage` saves assistant messages — do NOT double-save in bot handlers
 - TTS voice: persona.ttsVoice is passed through to Kokoro/Edge TTS — KOKORO_EDGE_VOICE_MAP handles fallback
+- Meta-persona (id: "meta-persona") has ALL tools enabled — admin god that orchestrates everything
+- Agent module CRUD operations use VARCHAR primary keys generated as `prefix_timestamp_random`
+- `createPersona()` must preserve existing fields from cache
+- `loadPersonas()` must NOT fallback to Jesus persona fields for custom personas
+- Skills provide specialized instructions and workflows for specific tasks.
+- Goal context is injected into system prompt via `formatGoalContext()` — active goals only
+- Org memory is injected via `getOrgMemoryContext()` — searched by user message keywords
+- Conversation stage is injected via `getUserStageContext()` — shows current funnel stage
+- Dashboard stats now include goals by status and org memory by category
+- `ensureDefaultStages()` creates default funnel stages (greeting → discovery → engagement → conversion → retention)

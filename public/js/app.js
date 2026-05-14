@@ -1,13 +1,13 @@
 // ========== STATE ==========
 let isStreaming = false;
-let currentUserId = localStorage.getItem('jesus_ai_user_id') || 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
-let sessionId = localStorage.getItem('jesus_ai_session_id') || '';
+let currentUserId = localStorage.getItem('mp_user_id') || 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+let sessionId = localStorage.getItem('mp_session_id') || '';
 let chatHistory = [];
-let authToken = localStorage.getItem('jesus_ai_token') || null;
+let authToken = localStorage.getItem('mp_token') || null;
 let isRecording = false;
 let mediaRecorder = null;
 let audioChunks = [];
-let currentLang = localStorage.getItem('jesus_ai_lang') || 'pt-BR';
+let currentLang = localStorage.getItem('mp_lang') || 'pt-BR';
 let i18n = {};
 
 // ========== DOM ==========
@@ -36,8 +36,8 @@ const profileJourney = document.getElementById('profileJourney');
 const profileMeta = document.getElementById('profileMeta');
 const feedbackTypeBtns = document.querySelectorAll('.feedback-type');
 
-if (!localStorage.getItem('jesus_ai_user_id')) {
-  localStorage.setItem('jesus_ai_user_id', currentUserId);
+if (!localStorage.getItem('mp_user_id')) {
+  localStorage.setItem('mp_user_id', currentUserId);
 }
 
 // ========== i18N ==========
@@ -48,7 +48,7 @@ async function loadTranslations(lang) {
     if (res.ok) {
       i18n = await res.json();
       currentLang = lang;
-      localStorage.setItem('jesus_ai_lang', lang);
+      localStorage.setItem('mp_lang', lang);
       applyTranslations();
     }
   } catch {}
@@ -118,7 +118,7 @@ async function submitOnboardingAnswer(answer) {
     if (res.ok) {
       const data = await res.json();
       if (data.onboardingDone || data.onboarding === false) {
-        localStorage.setItem('jesus_ai_onboarded', 'true');
+        localStorage.setItem('mp_onboarded', 'true');
         hideOnboarding();
         return null;
       }
@@ -162,7 +162,7 @@ function showOnboardingPrompt(question) {
     }
   });
   document.getElementById('onboardingSkipBtn').addEventListener('click', () => {
-    localStorage.setItem('jesus_ai_onboarded', 'true');
+    localStorage.setItem('mp_onboarded', 'true');
     hideOnboarding();
   });
 }
@@ -172,7 +172,7 @@ function hideOnboarding() {
 }
 
 function showOnboarding() {
-  if (localStorage.getItem('jesus_ai_onboarded')) return;
+  if (localStorage.getItem('mp_onboarded')) return;
   checkServerOnboarding();
 }
 
@@ -224,7 +224,7 @@ if (newChatBtnSidebar) {
   newChatBtnSidebar.addEventListener('click', () => {
     if (isStreaming) return;
     sessionId = generateId();
-    localStorage.setItem('jesus_ai_session_id', sessionId);
+    localStorage.setItem('mp_session_id', sessionId);
     chatHistory = [];
     messagesDiv.innerHTML = `
       <div class="message bot welcome-message">
@@ -285,7 +285,7 @@ function renderConversations(sessions) {
 async function switchToConversation(id) {
   if (isStreaming) return;
   sessionId = id;
-  localStorage.setItem('jesus_ai_session_id', sessionId);
+  localStorage.setItem('mp_session_id', sessionId);
   try {
     const res = await fetch(`/api/session/${id}`);
     if (!res.ok) return;
@@ -466,12 +466,12 @@ chatForm.addEventListener('submit', async (e) => {
 
     if (data.onboardingDone) {
       hideOnboarding();
-      localStorage.setItem('jesus_ai_onboarded', 'true');
+      localStorage.setItem('mp_onboarded', 'true');
     }
 
     if (data.sessionId) {
       sessionId = data.sessionId;
-      localStorage.setItem('jesus_ai_session_id', sessionId);
+      localStorage.setItem('mp_session_id', sessionId);
     }
 
     chatHistory.push({ role: 'assistant', content: fullText });
@@ -746,8 +746,8 @@ async function login(email, password) {
   if (!res.ok) throw new Error(data.error || 'Erro ao fazer login');
   authToken = data.token;
   currentUserId = data.user.id;
-  localStorage.setItem('jesus_ai_token', authToken);
-  localStorage.setItem('jesus_ai_user_id', currentUserId);
+  localStorage.setItem('mp_token', authToken);
+  localStorage.setItem('mp_user_id', currentUserId);
   return data.user;
 }
 
@@ -761,8 +761,8 @@ async function register(email, password, name) {
   if (!res.ok) throw new Error(data.error || 'Erro ao criar conta');
   authToken = data.token;
   currentUserId = data.user.id;
-  localStorage.setItem('jesus_ai_token', authToken);
-  localStorage.setItem('jesus_ai_user_id', currentUserId);
+  localStorage.setItem('mp_token', authToken);
+  localStorage.setItem('mp_user_id', currentUserId);
   return data.user;
 }
 
@@ -1107,7 +1107,7 @@ async function initApp() {
       if (res.ok) {
         const data = await res.json();
         if (data?.messages?.length) {
-          localStorage.setItem('jesus_ai_session_id', sessionId);
+          localStorage.setItem('mp_session_id', sessionId);
           messagesDiv.innerHTML = '';
           for (const msg of data.messages) {
             const isBot = msg.role === 'bot' || msg.role === 'assistant';

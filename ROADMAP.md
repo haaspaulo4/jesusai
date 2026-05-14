@@ -1,4 +1,4 @@
-# Jesus.AI — Roadmap
+# MetaPersona.AI — Roadmap
 
 > Planejamento de evolução do projeto, organizado por prioridade e impacto.
 

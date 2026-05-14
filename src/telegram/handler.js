@@ -49,7 +49,7 @@ function escapeMarkdown(text) {
 
 function makeTelegramHandler(options = {}) {
   const instancePersonaId = options.personaId || null;
-  const botName = options.botName || 'Jesus.AI';
+  const botName = options.botName || 'MetaPersona.AI';
   const instanceId = options.instanceId || 'default';
 
   async function getPersona(chatId, userId) {

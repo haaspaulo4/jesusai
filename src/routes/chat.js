@@ -314,13 +314,22 @@ router.post('/persona/switch', async (req, res) => {
   }
 });
 
-router.post('/persona/create', authMiddleware, async (req, res) => {
+router.post('/persona/create', async (req, res) => {
   try {
-    const { description } = req.body;
+    const { description, name, lang } = req.body;
     if (!description) return res.status(400).json({ error: 'description is required' });
-
-    const persona = await metaRag.createPersonaFromDescription(description, req.userId);
-    res.json(persona);
+    const userId = req.userId || 'anonymous';
+    const options = {};
+    if (name) options.name = name;
+    if (lang) options.lang = lang;
+    const persona = await metaRag.createPersonaFromDescription(description, userId, options);
+    res.json({
+      id: persona.id,
+      name: persona.name,
+      nameEn: persona.nameEn,
+      nameEs: persona.nameEs,
+      knowledgeSources: persona.knowledgeSources,
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

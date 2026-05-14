@@ -12,11 +12,12 @@ const { startWhatsAppBot } = require('./whatsapp/bot');
 const { generateDailyPost, scheduleDailyPost } = require('./blog');
 const { scheduleDailyDevotional } = require('./email');
 const { initDatabase } = require('./db');
-const { getActivePersona } = require('./persona/config');
-const { loadPersonas } = require('./persona/manager');
+const personaManager = require('./persona/manager');
+const { loadPersonas } = personaManager;
 const { startKokoroServer, stopKokoroServer } = require('./tts/kokoro-manager');
+const { escapeHtml, buildPersonaPage, buildSitePage, buildCreatePersonaPage } = require('./server/templates');
 const integrations = require('./llm/integrationManager');
-const { loadSettings } = require('./settings');
+const { loadSettings, getSetting } = require('./settings');
 
 
 const app = express();
@@ -59,131 +60,91 @@ app.get('/admin', (req, res) => {
 
 app.get('/p/:personaId', async (req, res) => {
   try {
-    const personaManager = require('./persona/manager');
     await personaManager.loadPersonas();
     const persona = await personaManager.getPersona(req.params.personaId);
     if (!persona || !persona.isActive) {
       return res.status(404).send('Persona not found');
     }
-    const { getSetting } = require('./settings');
     const brandName = await getSetting('brand_name') || persona.name;
-    const brandTagline = await getSetting('brand_tagline') || '';
     const brandPrimaryColor = await getSetting('brand_primary_color') || '#c9a227';
     const brandSecondaryColor = await getSetting('brand_secondary_color') || '#1a1a2e';
-
+    const brandLogoUrl = await getSetting('brand_logo_url') || '';
+    const allPersonas = [...personaManager.cache.values()].filter(p => p.isActive && p.id !== persona.id);
     const lang = req.query.lang || 'pt-BR';
     const identityRaw = persona.identity[lang] || persona.identity['pt-BR'] || persona.identity || '';
     const identityStr = typeof identityRaw === 'string' ? identityRaw : (identityRaw.core || '');
+    const identityRules = typeof identityRaw === 'string' ? '' : (identityRaw.rules || '');
     const shortDesc = identityStr.split('.')[0] || persona.name;
-
+    const fullDesc = identityStr.substring(0, 300) || shortDesc;
     const welcomeTitle = persona.welcomeTitle?.[lang] || persona.welcomeTitle?.['pt-BR'] || persona.name;
-    const welcomeBody = persona.welcomeBody?.[lang] || persona.welcomeBody?.['pt-BR'] || '';
+    const welcomeBody = persona.welcomeBody?.[lang] || persona.welcomeBody?.['pt-BR'] || fullDesc;
     const personaName = lang === 'en-US' ? (persona.nameEn || persona.name) : (lang === 'es-ES' ? (persona.nameEs || persona.name) : persona.name);
+    const disclaimer = persona.disclaimer?.[lang] || persona.disclaimer?.['pt-BR'] || '';
+    const kSources = persona.knowledgeSources || [];
 
-    const html = `<!DOCTYPE html>
-<html lang="${lang}">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>${personaName} - ${shortDesc}</title>
-  <meta name="description" content="${shortDesc}">
-  <link rel="stylesheet" href="/css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
-  <style>
-    :root {
-      --gold: ${brandPrimaryColor};
-      --dark-bg: ${brandSecondaryColor};
-    }
-    .landing-cross-bg { display: none; }
-    .hero-badge .badge-dot { background: ${brandPrimaryColor}; }
-    .cross-icon { display: none; }
-    .persona-icon { font-size: 1.5rem; margin-right: 0.25rem; }
-    .hero-verse { font-style: italic; opacity: 0.7; margin-top: 1rem; }
-  </style>
-</head>
-<body>
-  <div class="landing" id="landingPage">
-    <div class="landing-bg">
-      <div class="bg-gradient"></div>
-      <div class="bg-grid"></div>
-      <div class="bg-orbs">
-        <div class="orb orb-1"></div>
-        <div class="orb orb-2"></div>
-        <div class="orb orb-3"></div>
-      </div>
-    </div>
+    const otherPersonasHtml = allPersonas.slice(0, 4).map(p => {
+      const pName = lang === 'en-US' ? (p.nameEn || p.name) : (lang === 'es-ES' ? (p.nameEs || p.name) : p.name);
+      const pIdentity = p.identity?.[lang] || p.identity?.['pt-BR'] || p.identity || '';
+      const pStr = typeof pIdentity === 'string' ? pIdentity : (pIdentity?.core || '');
+      const pDesc = pStr.split('.')[0] || pName;
+      return '<a href="/p/' + p.id + '" class="persona-card-mini"><span class="pcm-icon">🤖</span><div><strong>' + escapeHtml(pName) + '</strong><small>' + escapeHtml(pDesc) + '</small></div><span class="pcm-arrow">→</span></a>';
+    }).join('\n          ');
 
-    <nav class="landing-nav">
-      <div class="landing-logo">
-        <span class="persona-icon">🤖</span>
-        <span class="logo-text">${brandName || personaName}</span>
-      </div>
-      <div class="landing-nav-links">
-        <a href="#features" class="nav-link">Como funciona</a>
-        <button class="nav-cta-btn" id="navLoginBtn" onclick="startChat()">Conversar</button>
-      </div>
-    </nav>
+    const identityRulesHtml = identityRules
+      ? identityRules.split('\n').filter(r => r.trim()).slice(0, 6).map(r => '<div class="pl-rule-item">' + escapeHtml(r.replace(/^[-•*]\s*/, '').trim()) + '</div>').join('\n')
+      : '';
 
-    <section class="landing-hero" id="hero">
-      <div class="hero-content animate-in">
-        <div class="hero-badge">
-          <span class="badge-dot"></span>
-          ${shortDesc}
-        </div>
-        <h1 class="hero-title">${typeof welcomeTitle === 'string' ? welcomeTitle : personaName}</h1>
-        <p class="hero-subtitle">${typeof welcomeBody === 'string' ? welcomeBody : identityStr.substring(0, 200)}</p>
-        <div class="hero-actions">
-          <button class="hero-btn primary" onclick="startChat()">
-            <span>Começar a conversar</span>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
-          </button>
-        </div>
-      </div>
-    </section>
-
-    <section class="landing-features" id="features">
-      <h2 class="section-title">Como funciona</h2>
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon">💬</div>
-          <h3>Conversa natural</h3>
-          <p>Respostas baseadas no conteúdo e conhecimento especializado.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">🎯</div>
-          <h3>Personalizado</h3>
-          <p>Adapta ao seu interesse e remember suas conversas.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">🔊</div>
-          <h3>Áudio e texto</h3>
-          <p>Ouça as respostas em voz natural ou leia no chat.</p>
-        </div>
-        <div class="feature-card">
-          <div class="feature-icon">🌍</div>
-          <h3>3 idiomas</h3>
-          <p>Português, inglês e espanhol — responde no seu idioma.</p>
-        </div>
-      </div>
-    </section>
-
-    <footer class="landing-footer">
-      <p>${brandName || personaName} &copy; ${new Date().getFullYear()}</p>
-    </footer>
-  </div>
-
-  <script>
-    const PERSONA_ID = '${persona.id}';
-    function startChat() {
-      window.location.href = '/?persona=' + PERSONA_ID;
-    }
-  </script>
-</body>
-</html>`;
-    res.send(html);
+    res.send(buildPersonaPage({
+      personaName, welcomeTitle, welcomeBody, shortDesc,
+      hasKnowledge: kSources.length > 0,
+      brandName, brandPrimaryColor, brandSecondaryColor, brandLogoUrl,
+      otherPersonasHtml, disclaimer, identityRulesHtml,
+      personaId: persona.id
+    }));
   } catch (err) {
     console.error('[Persona Landing] Error:', err.message);
     res.status(500).send('Error loading persona');
+  }
+});
+
+app.get('/site', async (req, res) => {
+  try {
+    const brandName = await getSetting('brand_name') || 'MetaPersona.AI';
+    const brandTagline = await getSetting('brand_tagline') || '';
+    const brandPrimaryColor = await getSetting('brand_primary_color') || '#c9a227';
+    const brandSecondaryColor = await getSetting('brand_secondary_color') || '#1a1a2e';
+    const brandLogoUrl = await getSetting('brand_logo_url') || '';
+    await personaManager.loadPersonas();
+    const allPersonas = [...personaManager.cache.values()].filter(p => p.isActive);
+    const lang = req.query.lang || 'pt-BR';
+    res.send(buildSitePage({
+      brandName, brandTagline, brandPrimaryColor, brandSecondaryColor, brandLogoUrl,
+      personas: allPersonas.map(p => ({
+        id: p.id,
+        name: p.name,
+        nameEn: p.nameEn,
+        nameEs: p.nameEs,
+        identity: p.identity,
+        knowledgeSources: p.knowledgeSources
+      })),
+      lang
+    }));
+  } catch (err) {
+    console.error('[Site] Error:', err.message);
+    res.status(500).send('Error loading site');
+  }
+});
+app.get('/create-persona', async (req, res) => {
+  try {
+    const brandName = await getSetting('brand_name') || 'MetaPersona.AI';
+    const brandTagline = await getSetting('brand_tagline') || '';
+    const brandPrimaryColor = await getSetting('brand_primary_color') || '#c9a227';
+    const brandSecondaryColor = await getSetting('brand_secondary_color') || '#1a1a2e';
+    const brandLogoUrl = await getSetting('brand_logo_url') || '';
+    res.send(buildCreatePersonaPage({ brandName, brandTagline, brandPrimaryColor, brandSecondaryColor, brandLogoUrl }));
+  } catch (err) {
+    console.error('[CreatePersona] Error:', err.message);
+    res.status(500).send('Error loading create persona page');
   }
 });
 
@@ -219,6 +180,38 @@ async function start() {
 
   try {
     await loadPersonas();
+
+    const { getMetaPersona } = require('./persona/meta-rag');
+    const metaPersona = getMetaPersona();
+    if (!personaManager.cache.has('meta-persona')) {
+      await personaManager.createPersona({
+        id: 'meta-persona',
+        name: metaPersona.name,
+        name_en: metaPersona.nameEn,
+        name_es: metaPersona.nameEs,
+        identity: metaPersona.identity,
+        commands: metaPersona.commands,
+        topicKeywords: metaPersona.topicKeywords,
+        emotionKeywords: metaPersona.emotionKeywords,
+        namePatterns: metaPersona.namePatterns,
+        disclaimer: metaPersona.disclaimer,
+        conversationWith: metaPersona.conversationWith,
+        memoryBlock: metaPersona.memoryBlock,
+        profileBlock: metaPersona.profileBlock,
+        groupContext: metaPersona.groupContext,
+        cjkFallback: metaPersona.cjkFallback,
+        llmError: metaPersona.llmError,
+        welcomeTitle: metaPersona.welcomeTitle,
+        welcomeBody: metaPersona.welcomeBody,
+        prayerPrompt: metaPersona.prayerPrompt,
+        summaryPrompt: metaPersona.summaryPrompt,
+        profileSummaryPrompt: metaPersona.profileSummaryPrompt,
+        tts_voice: 'pm_alex',
+        tts_lang: 'p',
+        priority: 0,
+      });
+      console.log('  Meta-persona registered');
+    }
   } catch (err) {
     console.error('Warning: Personas load failed:', err.message);
   }
@@ -230,16 +223,18 @@ async function start() {
   }
 
   app.listen(PORT, async () => {
-    const persona = getActivePersona();
-    const nameLen = persona.name.length;
-    const padding = Math.max(0, 28 - nameLen);
-    const padLeft = Math.floor(padding / 2);
-    const padRight = padding - padLeft;
+    const brandName = (await getSetting('brand_name')) || 'MetaPersona.AI';
     console.log(`
-  ╔══════════════════════════════════════╗
-  ║${' '.repeat(padLeft)}${persona.name} is running${' '.repeat(padRight)}║
-  ║    http://localhost:${PORT}              ║
-  ╚══════════════════════════════════════╝
+  ╔══════════════════════════════════════════╗
+  ║  ${brandName} — http://localhost:${PORT}
+  ║  /site           — Site institucional
+  ║  /p/:id          — Landing page por persona
+  ║  /create-persona — Criar persona
+  ║  /admin          — Painel administrativo
+  ║  
+  ║  Meta-persona: /persona meta-persona
+  ║  Skills, Tasks, Calendar, CRM, Automations
+  ╚══════════════════════════════════════════╝
     `);
 
     await startKokoroServer();

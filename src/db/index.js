@@ -289,6 +289,288 @@ CREATE TABLE IF NOT EXISTS user_onboarding (
   UNIQUE KEY idx_onboarding_user_step (user_id, step_key),
   KEY idx_onboarding_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS persona_skills (
+  id VARCHAR(100) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  type VARCHAR(50) DEFAULT 'action',
+  prompt TEXT NOT NULL,
+  parameters JSON,
+  output_format VARCHAR(20) DEFAULT 'text',
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_skills_persona (persona_id),
+  KEY idx_skills_type (type),
+  KEY idx_skills_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS persona_tasks (
+  id VARCHAR(100) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  owner_id VARCHAR(60) NOT NULL,
+  title VARCHAR(500) NOT NULL,
+  description TEXT,
+  status VARCHAR(30) DEFAULT 'pending',
+  priority VARCHAR(20) DEFAULT 'medium',
+  due_date TIMESTAMP NULL,
+  assigned_to VARCHAR(60) DEFAULT NULL,
+  result TEXT,
+  auto_execute TINYINT(1) DEFAULT 0,
+  skill_id VARCHAR(100) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_tasks_owner (owner_id),
+  KEY idx_tasks_persona (persona_id),
+  KEY idx_tasks_status (status),
+  KEY idx_tasks_due (due_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS persona_calendar (
+  id VARCHAR(100) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  owner_id VARCHAR(60) NOT NULL,
+  title VARCHAR(500) NOT NULL,
+  description TEXT,
+  event_type VARCHAR(50) DEFAULT 'meeting',
+  start_time TIMESTAMP NOT NULL,
+  end_time TIMESTAMP NULL,
+  location VARCHAR(500) DEFAULT NULL,
+  attendees JSON,
+  reminders JSON,
+  status VARCHAR(20) DEFAULT 'confirmed',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_calendar_owner (owner_id),
+  KEY idx_calendar_persona (persona_id),
+  KEY idx_calendar_start (start_time),
+  KEY idx_calendar_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS persona_contacts (
+  id VARCHAR(100) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  owner_id VARCHAR(60) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) DEFAULT NULL,
+  phone VARCHAR(50) DEFAULT NULL,
+  company VARCHAR(255) DEFAULT NULL,
+  role VARCHAR(255) DEFAULT NULL,
+  tags JSON,
+  notes TEXT,
+  stage VARCHAR(50) DEFAULT 'lead',
+  custom_fields JSON,
+  last_contact_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_contacts_owner (owner_id),
+  KEY idx_contacts_persona (persona_id),
+  KEY idx_contacts_email (email),
+  KEY idx_contacts_stage (stage)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS persona_automations (
+  id VARCHAR(100) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  owner_id VARCHAR(60) NOT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  trigger_type VARCHAR(50) NOT NULL,
+  trigger_config JSON,
+  action_type VARCHAR(50) NOT NULL,
+  action_config JSON,
+  is_active TINYINT(1) DEFAULT 1,
+  last_run_at TIMESTAMP NULL,
+  run_count INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_auto_owner (owner_id),
+  KEY idx_auto_persona (persona_id),
+  KEY idx_auto_trigger (trigger_type),
+  KEY idx_auto_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS persona_messages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  session_id VARCHAR(80) DEFAULT NULL,
+  user_id VARCHAR(60) NOT NULL,
+  role ENUM('user','assistant','system','tool') NOT NULL,
+  content TEXT NOT NULL,
+  tool_calls JSON,
+  tool_results JSON,
+  metadata JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_msgs_user (user_id),
+  KEY idx_msgs_session (session_id),
+  KEY idx_msgs_persona (persona_id),
+  KEY idx_msgs_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS persona_goals (
+  id VARCHAR(100) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  owner_id VARCHAR(60) NOT NULL,
+  title VARCHAR(500) NOT NULL,
+  description TEXT,
+  goal_type VARCHAR(30) DEFAULT 'strategic',
+  priority VARCHAR(20) DEFAULT 'medium',
+  status VARCHAR(20) DEFAULT 'active',
+  progress INT DEFAULT 0,
+  target_metric VARCHAR(255) DEFAULT NULL,
+  target_value VARCHAR(255) DEFAULT NULL,
+  current_value VARCHAR(255) DEFAULT NULL,
+  parent_goal_id VARCHAR(100) DEFAULT NULL,
+  due_date TIMESTAMP NULL,
+  completed_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_goals_owner (owner_id),
+  KEY idx_goals_persona (persona_id),
+  KEY idx_goals_status (status),
+  KEY idx_goals_type (goal_type),
+  KEY idx_goals_parent (parent_goal_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS persona_conversation_stages (
+  id VARCHAR(100) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  stage_order INT DEFAULT 0,
+  triggers JSON,
+  responses JSON,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS persona_user_stages (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  session_id VARCHAR(80) DEFAULT NULL,
+  current_stage VARCHAR(100) NOT NULL,
+  stage_data JSON,
+  stage_history JSON,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_user_stage (user_id, persona_id),
+  KEY idx_user_stage_session (user_id, session_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS persona_org_memory (
+  id VARCHAR(100) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  owner_id VARCHAR(60) NOT NULL,
+  category VARCHAR(50) NOT NULL,
+  title VARCHAR(500) NOT NULL,
+  content TEXT NOT NULL,
+  tags JSON,
+  priority VARCHAR(20) DEFAULT 'medium',
+  is_active TINYINT(1) DEFAULT 1,
+  expires_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_org_owner (owner_id),
+  KEY idx_org_persona (persona_id),
+  KEY idx_org_category (category),
+  KEY idx_org_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_xp (
+  user_id VARCHAR(60) NOT NULL,
+  persona_id VARCHAR(60) NOT NULL,
+  xp INT DEFAULT 0,
+  level INT DEFAULT 1,
+  streak INT DEFAULT 0,
+  best_streak INT DEFAULT 0,
+  last_activity TIMESTAMP NULL,
+  badges JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, persona_id),
+  KEY idx_xp_level (level),
+  KEY idx_xp_streak (streak)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_xp_log (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  persona_id VARCHAR(60) NOT NULL,
+  amount INT NOT NULL,
+  reason VARCHAR(255) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_xplog_user (user_id, persona_id),
+  KEY idx_xplog_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS user_progress (
+  user_id VARCHAR(60) NOT NULL,
+  persona_id VARCHAR(60) NOT NULL,
+  state JSON NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  PRIMARY KEY (user_id, persona_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS cognitive_states (
+  id VARCHAR(100) PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  session_id VARCHAR(80) DEFAULT NULL,
+  message_id INT DEFAULT NULL,
+  emotion VARCHAR(30) DEFAULT 'neutral',
+  emotion_confidence FLOAT DEFAULT 0.5,
+  intent VARCHAR(50) DEFAULT 'general',
+  intent_confidence FLOAT DEFAULT 0.5,
+  topics JSON,
+  churn_risk FLOAT DEFAULT 0,
+  conversion_probability FLOAT DEFAULT 0,
+  engagement_score FLOAT DEFAULT 0.5,
+  suggested_action VARCHAR(100) DEFAULT NULL,
+  context_snapshot JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_cog_user (user_id),
+  KEY idx_cog_persona (persona_id),
+  KEY idx_cog_emotion (emotion),
+  KEY idx_cog_intent (intent),
+  KEY idx_cog_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS human_overrides (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  session_id VARCHAR(80) NOT NULL,
+  user_id VARCHAR(60) DEFAULT NULL,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  is_active TINYINT(1) DEFAULT 0,
+  override_type ENUM('full','approval','observation') DEFAULT 'full',
+  human_message TEXT,
+  metadata JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_override_session (session_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS agent_thoughts (
+  id VARCHAR(100) PRIMARY KEY,
+  session_id VARCHAR(80) DEFAULT NULL,
+  user_id VARCHAR(60) DEFAULT NULL,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  message_input TEXT,
+  message_output TEXT,
+  tools_used JSON,
+  context_injected JSON,
+  reasoning TEXT,
+  decision VARCHAR(500) DEFAULT NULL,
+  response_time_ms INT DEFAULT NULL,
+  tokens_used INT DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_thoughts_session (session_id),
+  KEY idx_thoughts_user (user_id),
+  KEY idx_thoughts_persona (persona_id),
+  KEY idx_thoughts_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
 async function initDatabase() {
@@ -301,6 +583,15 @@ async function initDatabase() {
   try { await pool.execute("ALTER TABLE users ADD COLUMN persona_id VARCHAR(60) DEFAULT NULL"); } catch {}
   try { await pool.execute("ALTER TABLE sessions ADD COLUMN persona_id VARCHAR(60) DEFAULT NULL"); } catch {}
   try { await pool.execute('CREATE INDEX idx_users_role ON users (role)'); } catch {}
+
+  try { await pool.execute("ALTER TABLE personas ADD COLUMN genome JSON DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE personas ADD COLUMN permissions JSON DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE personas ADD COLUMN compliance_rules JSON DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE personas ADD COLUMN conversation_stages JSON DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE personas ADD COLUMN goal_hierarchy JSON DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE personas ADD COLUMN org_memory JSON DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE sessions ADD COLUMN human_override TINYINT(1) DEFAULT 0"); } catch {}
+  try { await pool.execute("ALTER TABLE sessions ADD COLUMN override_type VARCHAR(20) DEFAULT NULL"); } catch {}
 
   console.log('Database schema initialized (with migrations)');
 }

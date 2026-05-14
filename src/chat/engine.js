@@ -18,6 +18,14 @@ const { SUPPORTED_TTS_LANGS } = require('../tts');
 const { checkRateLimit, getUserRole } = require('../auth/rateLimit');
 const surveyEngine = require('../survey');
 const onboarding = require('../onboarding');
+const overrideModule = require('../override');
+const goalsModule = require('../goals');
+const stagesModule = require('../stages');
+const orgMemoryModule = require('../orgmemory');
+const gamificationModule = require('../gamification');
+const progressModule = require('../progress');
+const cognitiveModule = require('../cognitive');
+const thoughtsModule = require('../thoughts');
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -119,6 +127,17 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   const userContext = extractContextFromMessage(message);
   await updateSessionContext(sid, userContext);
 
+  const override = await overrideModule.getOverride(sid);
+  if (override && override.is_active) {
+    if (override.override_type === 'full') {
+      if (override.human_message) {
+        await addMessage(sid, 'assistant', override.human_message);
+        return { response: override.human_message, sessionId: sid, sources: [], language: lang, humanOverride: true };
+      }
+      return { response: 'Um atendente humano está cuidando desta conversa. Aguarde um momento.', sessionId: sid, sources: [], language: lang, humanOverride: true };
+    }
+  }
+
   const persona = await getPersonaForContext(sid, uid);
   const numVerses = parseInt(await getSetting('search_verses_count', '8')) || 8;
   const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
@@ -132,10 +151,46 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   const memoryStr = await buildMemoryContext(sid);
   const profileStr = await buildProfileContext(uid);
 
+  let goalContext = '';
+  let orgContext = '';
+  let stageContext = '';
+  let xpContext = '';
+  let progressContext = '';
+  try {
+    const goals = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 10 });
+    goalContext = goalsModule.formatGoalContext(goals);
+  } catch {}
+  try {
+    const orgMemories = await orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5);
+    orgContext = orgMemoryModule.getOrgMemoryContext(orgMemories);
+  } catch {}
+  try {
+    stageContext = await stagesModule.getUserStageContext(uid, persona.id);
+  } catch {}
+  try {
+    const xpData = await gamificationModule.getXp(uid, persona.id);
+    xpContext = gamificationModule.formatXpContext(xpData);
+    await gamificationModule.updateStreak(uid, persona.id);
+  } catch {}
+  try {
+    const progressData = await progressModule.getProgressState(uid, persona.id);
+    progressContext = progressModule.formatProgressContext(progressData);
+  } catch {}
+  let cognitiveContext = '';
+  let cognitiveState = null;
+  try {
+    cognitiveState = await cognitiveModule.analyzeCognitiveState(uid, persona.id, message, sid);
+    cognitiveContext = cognitiveModule.formatCognitiveContext(cognitiveState);
+  } catch {}
+
   const session = await getSession(sid);
   const displayName = userName || session.userName || session.userContext?.name;
 
+  const extraContext = [goalContext, orgContext, stageContext, xpContext, progressContext, cognitiveContext].filter(Boolean).join('\n\n');
   let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources);
+  if (extraContext) {
+    systemPrompt += '\n\n' + extraContext;
+  }
 
   console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : 'bible'}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}`);
 
@@ -168,9 +223,21 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   const maxTokens = parseInt(await getSetting('max_tokens', '4096')) || 4096;
   const temperature = parseFloat(await getSetting('temperature', '0.7')) || 0.7;
 
+  const isMetaPersona = persona.id === 'meta-persona';
+
   while (toolRounds < MAX_TOOL_ROUNDS) {
-    const tools = toolsEnabled ? getToolDefinitions() : null;
+    const allTools = getToolDefinitions();
+    const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user'];
     const isAdmin = await isUserAdmin(uid);
+
+    let tools;
+    if (isMetaPersona) {
+      tools = allTools;
+    } else if (isAdmin) {
+      tools = allTools;
+    } else {
+      tools = toolsEnabled ? allTools.filter(t => !metaPersonaOnlyTools.includes(t.function.name)) : null;
+    }
 
     const result = await integrations.callLLM(messages, {
       userId: uid,
@@ -179,7 +246,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
       numPredict: maxTokens,
       retries: 2,
       timeout: parseInt(await getSetting('llm_timeout', '30000')) || 30000,
-      tools: isAdmin ? tools : (toolsEnabled ? tools : null),
+      tools: tools,
     });
 
     const toolCalls = result.tool_calls;
@@ -195,7 +262,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     for (const tc of toolCalls) {
       const fnName = tc.function?.name || tc.name;
       const fnArgs = tc.function?.arguments ? (typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments) : {};
-      const toolResult = await executeTool(fnName, fnArgs, { userId: uid, lang, isAdmin });
+      const toolResult = await executeTool(fnName, fnArgs, { userId: uid, lang, isAdmin: isAdmin || isMetaPersona });
 
       messages.push({
         role: 'tool',
@@ -289,10 +356,44 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   const memoryStr = await buildMemoryContext(sid);
   const profileStr = await buildProfileContext(uid);
 
+  let goalContextStream = '';
+  let orgContextStream = '';
+  let stageContextStream = '';
+  let xpContextStream = '';
+  let progressContextStream = '';
+  try {
+    const goals = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 10 });
+    goalContextStream = goalsModule.formatGoalContext(goals);
+  } catch {}
+  try {
+    const orgMemories = await orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5);
+    orgContextStream = orgMemoryModule.getOrgMemoryContext(orgMemories);
+  } catch {}
+  try {
+    stageContextStream = await stagesModule.getUserStageContext(uid, persona.id);
+  } catch {}
+  try {
+    const xpData = await gamificationModule.getXp(uid, persona.id);
+    xpContextStream = gamificationModule.formatXpContext(xpData);
+  } catch {}
+  try {
+    const progressData = await progressModule.getProgressState(uid, persona.id);
+    progressContextStream = progressModule.formatProgressContext(progressData);
+  } catch {}
+  let cognitiveContextStream = '';
+  try {
+    const cogState = await cognitiveModule.analyzeCognitiveState(uid, persona.id, message, sid);
+    cognitiveContextStream = cognitiveModule.formatCognitiveContext(cogState);
+  } catch {}
+
   const session = await getSession(sid);
   const displayName = (source === 'whatsapp' || source === 'telegram') ? undefined : (session.userName || session.userContext?.name);
 
+  const extraContextStream = [goalContextStream, orgContextStream, stageContextStream, xpContextStream, progressContextStream, cognitiveContextStream].filter(Boolean).join('\n\n');
   let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources);
+  if (extraContextStream) {
+    systemPrompt += '\n\n' + extraContextStream;
+  }
 
   const historyLimit = parseInt(await getSetting('history_limit', '10')) || 10;
   const history = await getHistoryForLLM(sid, historyLimit);
@@ -354,7 +455,26 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
       generateProfileSummary(uid).catch(() => {});
     }
 
-    surveyEngine.autoCreateFollowUp(uid, sid).catch(() => {});
+  surveyEngine.autoCreateFollowUp(uid, sid).catch(() => {});
+
+  thoughtsModule.logThought({
+    session_id: sid,
+    user_id: uid,
+    persona_id: persona.id,
+    message_input: message.substring(0, 500),
+    message_output: fullResponse.substring(0, 500),
+    tools_used: toolRounds > 0 ? messages.filter(m => m.role === 'tool').map(m => m.name) : null,
+    context_injected: {
+      hasGoals: goalContext.length > 0,
+      hasOrgMemory: orgContext.length > 0,
+      hasStage: stageContext.length > 0,
+      hasXp: xpContext.length > 0,
+      hasProgress: progressContext.length > 0,
+      hasCognitive: cognitiveContext.length > 0,
+    },
+    reasoning: cognitiveState ? `${cognitiveState.emotion}/${cognitiveState.intent}` : null,
+    decision: cognitiveState?.suggested_action || null,
+  }).catch(() => {});
 
     const sources = relevantVerses.slice(0, 4).map(v => ({
       reference: v.reference,
@@ -701,6 +821,285 @@ async function handleChatCommand(text, userId, source, sessionId) {
       const toolDefs = getToolDefinitions();
       const lines = toolDefs.map(t => `• ${t.function.name}: ${t.function.description.split('.')[0]}`);
       return `🔧 Ferramentas disponíveis:\n${lines.join('\n')}`;
+    }
+
+    case '/skills': {
+      const skills = await require('../skills').listSkills(args ? { persona_id: args.trim() } : {});
+      if (skills.length === 0) return '📋 Nenhuma skill encontrada.';
+      const lines = skills.map(s => `• ${s.name} (${s.type}) ${s.is_active ? '✅' : '❌'} ${s.persona_id ? '[' + s.persona_id + ']' : '[global]'} - ${s.description?.substring(0, 60) || ''}`);
+      return `🎭 Skills (${skills.length}):\n${lines.join('\n')}\n\nUse: /skill <id> para ver detalhes`;
+    }
+
+    case '/tasks': {
+      const taskFilters = {};
+      if (args) {
+        const parts = args.trim().split(/\s+/);
+        if (parts[0] === 'overdue') { const tasks = await agent.getOverdueTasks(uid); return `⚠️ Tarefas atrasadas (${tasks.length}):\n${tasks.map(t => `• [${t.priority}] ${t.title} - ${t.status} ${t.due_date ? '(Prazo: ' + t.due_date + ')' : ''}`).join('\n')}`; }
+        if (['pending', 'in_progress', 'completed', 'cancelled'].includes(parts[0])) taskFilters.status = parts[0];
+      }
+      taskFilters.owner_id = uid;
+      taskFilters.limit = 20;
+      const tasks = await agent.listTasks(taskFilters);
+      if (tasks.length === 0) return '📋 Nenhuma tarefa encontrada.';
+      return `📋 Tarefas (${tasks.length}):\n${tasks.map(t => `• [${t.priority}] ${t.title} - ${t.status} ${t.due_date ? '(Prazo: ' + t.due_date + ')' : ''}`).join('\n')}`;
+    }
+
+    case '/calendar': {
+      if (!args || args === 'upcoming' || args === 'semana') {
+        const events = await agent.getUpcomingEvents(uid, 7);
+        if (events.length === 0) return '📅 Nenhum evento nos próximos 7 dias.';
+        return `📅 Próximos eventos (${events.length}):\n${events.map(e => `• ${e.start_time}: ${e.title} (${e.event_type}) ${e.location ? '@ ' + e.location : ''}`).join('\n')}`;
+      }
+      return '📅 Use: /calendar [upcoming|semana]\nOu peça para criar um evento no chat.';
+    }
+
+    case '/contacts': {
+      const contactFilters = {};
+      if (args) {
+        const parts = args.trim().split(/\s+/);
+        if (['lead', 'prospect', 'customer', 'churned', 'vip'].includes(parts[0])) contactFilters.stage = parts[0];
+        else contactFilters.search = args.trim();
+      }
+      contactFilters.owner_id = uid;
+      contactFilters.limit = 20;
+      const contacts = await agent.listContacts(contactFilters);
+      if (contacts.length === 0) return '👥 Nenhum contato encontrado.';
+      return `👥 Contatos (${contacts.length}):\n${contacts.map(c => `• ${c.name} [${c.stage}] ${c.email || ''} ${c.company ? '@ ' + c.company : ''} ${c.tags ? '(' + (Array.isArray(c.tags) ? c.tags.join(',') : c.tags) + ')' : ''}`).join('\n')}`;
+    }
+
+    case '/automations': {
+      const automations = await agent.listAutomations({ owner_id: uid, limit: 20 });
+      if (automations.length === 0) return '🤖 Nenhuma automação configurada.';
+      return `🤖 Automações (${automations.length}):\n${automations.map(a => `• ${a.name} [${a.trigger_type} → ${a.action_type}] ${a.is_active ? '✅' : '❌'}`).join('\n')}`;
+    }
+
+    case '/dashboard': {
+      const stats = await agent.getDashboardStats(uid);
+      const goals2 = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 5 });
+      return `📊 Dashboard:\n• Tarefas: ${stats.tasks.total} (${Object.entries(stats.tasks.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ')})\n• Eventos (7d): ${stats.upcomingEvents}\n• Contatos: ${stats.contacts.total} (${Object.entries(stats.contacts.byStage).map(([k, v]) => `${k}: ${v}`).join(', ')})\n• Automações ativas: ${stats.activeAutomations}\n• Personas: ${stats.activePersonas}\n• Skills: ${stats.activeSkills}${stats.goals ? '\n• Metas: ' + stats.goals.total + ' (' + Object.entries(stats.goals.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ') + ')' : ''}${stats.orgMemory && stats.orgMemory.total > 0 ? '\n• Memória Org: ' + stats.orgMemory.total + ' itens' : ''}${goals2.length > 0 ? '\n• Metas ativas: ' + goals2.map(g => g.title).join(', ') : ''}`;
+    }
+
+    case '/goals':
+    case '/metas': {
+      if (!args || args === 'list' || args === 'lista') {
+        const goals = await goalsModule.listGoals({ owner_id: uid, limit: 20 });
+        if (goals.length === 0) return '🎯 Nenhuma meta encontrada. Use: /goals create <título>';
+        const lines = goals.map(g => {
+          const statusIcon = g.status === 'completed' ? '✅' : g.status === 'paused' ? '⏸️' : g.status === 'abandoned' ? '❌' : '🎯';
+          const progressStr = g.progress > 0 ? ` (${g.progress}%)` : '';
+          return `${statusIcon} [${g.goal_type}] ${g.title} - ${g.status}${progressStr}`;
+        });
+        return `🎯 Metas (${goals.length}):\n${lines.join('\n')}\n\nComandos:\n/goals create <título>\n/goals <id> edit <campo> <valor>\n/goals <id> progress <0-100>\n/goals progress - Progresso geral`;
+      }
+
+      if (args === 'progress' || args === 'progresso') {
+        const progress = await goalsModule.getGoalProgress(uid);
+        const statusLines = Object.entries(progress.byStatus).map(([s, d]) => `${s}: ${d.count} (média ${d.avgProgress}%)`);
+        return `📊 Progresso das metas:\n• Total: ${progress.total}\n${statusLines.join('\n')}`;
+      }
+
+      if (args.startsWith('create ') || args.startsWith('criar ')) {
+        const title = args.replace(/^(create|criar)\s+/i, '').trim();
+        if (!title) return 'Uso: /goals create <título>';
+        try {
+          const goal = await goalsModule.createGoal({ owner_id: uid, title });
+          return `🎯 Meta "${title}" criada! (ID: ${goal.id})\n\nUse /goals para listar, ou edite com /goals ${goal.id} edit <campo> <valor>`;
+        } catch (err) {
+          return `❌ Erro: ${err.message}`;
+        }
+      }
+
+      const goalParts = args.trim().split(/\s+/);
+      const goalId = goalParts[0];
+      if (goalParts[1] === 'edit') {
+        const field = goalParts[2];
+        const value = goalParts.slice(3).join(' ');
+        if (!field) return 'Campos: title, description, goal_type, priority, status, target_metric, target_value, due_date';
+        try {
+          const updates = {};
+          if (field === 'progress') updates.progress = parseInt(value) || 0;
+          else if (field === 'status') updates.status = value;
+          else if (field === 'priority') updates.priority = value;
+          else if (field === 'goal_type') updates.goal_type = value;
+          else if (field === 'title') updates.title = value;
+          else if (field === 'description') updates.description = value;
+          else if (field === 'target_metric') updates.target_metric = value;
+          else if (field === 'target_value') updates.target_value = value;
+          else if (field === 'due_date') updates.due_date = value;
+          else return `Campo inválido: ${field}`;
+          const goal = await goalsModule.updateGoal(goalId, updates);
+          if (!goal) return `❌ Meta "${goalId}" não encontrada.`;
+          return `✅ Meta "${goal.title}" atualizada: ${field} = ${value}`;
+        } catch (err) {
+          return `❌ Erro: ${err.message}`;
+        }
+      }
+
+      if (goalParts[1] === 'progress') {
+        try {
+          const goal = await goalsModule.updateGoal(goalId, { progress: parseInt(goalParts[2]) || 0 });
+          if (!goal) return `❌ Meta "${goalId}" não encontrada.`;
+          return `✅ Progresso de "${goal.title}" atualizado para ${goalParts[2]}%`;
+        } catch (err) {
+          return `❌ Erro: ${err.message}`;
+        }
+      }
+
+      if (goalParts[1] === 'delete') {
+        try {
+          await goalsModule.deleteGoal(goalId);
+          return `🗑️ Meta "${goalId}" deletada.`;
+        } catch (err) {
+          return `❌ Erro: ${err.message}`;
+        }
+      }
+
+      try {
+        const goal = await goalsModule.getGoal(goalId);
+        if (!goal) return `❌ Meta "${goalId}" não encontrada.`;
+        return `🎯 ${goal.title}\n• Tipo: ${goal.goal_type}\n• Status: ${goal.status}\n• Prioridade: ${goal.priority}\n• Progresso: ${goal.progress}%${goal.target_metric ? '\n• Métrica: ' + goal.target_metric + ' = ' + (goal.current_value || '?') + '/' + (goal.target_value || '?') : ''}${goal.due_date ? '\n• Prazo: ' + goal.due_date : ''}${goal.description ? '\n• Descrição: ' + goal.description : ''}`;
+      } catch {
+        return `❌ Meta "${goalId}" não encontrada.`;
+      }
+    }
+
+    case '/stages':
+    case '/estagios': {
+      if (!args || args === 'list') {
+        const stages = await stagesModule.listConversationStages({});
+        const userStage = await stagesModule.getUserStage(uid, persona.id);
+        const stageList = stages.map(s => `${s.is_active ? '✅' : '❌'} ${s.stage_order}: ${s.name} - ${s.description || ''}`).join('\n');
+        const currentStage = userStage ? `\n\n📍 Seu estágio atual: ${userStage.current_stage}` : '\n\n📍 Seu estágio: Nenhum definido';
+        return `🔄 Estágios de conversa:\n${stageList || 'Nenhum estágio configurado.'}${currentStage}\n\nComandos:\n/stages init - Criar estágios padrão\n/stages <id> - Ver detalhes\n/stages advance - Avançar estágio`;
+      }
+
+      if (args === 'init') {
+        const stages = await stagesModule.ensureDefaultStages(persona.id);
+        return `✅ ${stages.length} estágios padrão criados!\n${stages.map(s => `• ${s.stage_order}: ${s.name}`).join('\n')}`;
+      }
+
+      if (args === 'advance') {
+        const result = await stagesModule.advanceUserStage(uid, persona.id, sid);
+        if (!result) return '⚠️ Não há próximo estágio disponível.';
+        const stage = await stagesModule.getConversationStage(result.current_stage);
+        return `✅ Estágio avançado para: ${stage ? stage.name : result.current_stage}`;
+      }
+
+      if (args.startsWith('set ')) {
+        const stageId = args.slice(4).trim();
+        const result = await stagesModule.setUserStage(uid, persona.id, stageId, sid);
+        return `✅ Estágio definido para: ${stageId}`;
+      }
+
+      const stageDetail = await stagesModule.getConversationStage(args.trim());
+      if (stageDetail) {
+        return `🔄 ${stageDetail.name} (Ordem: ${stageDetail.stage_order})\n• Descrição: ${stageDetail.description || 'N/A'}\n• Ativo: ${stageDetail.is_active ? '✅' : '❌'}\n• Triggers: ${stageDetail.triggers ? JSON.stringify(stageDetail.triggers) : 'N/A'}\n• Responses: ${stageDetail.responses ? JSON.stringify(stageDetail.responses) : 'N/A'}`;
+      }
+      return '🔄 Use: /stages [list|init|advance|set <id>]';
+    }
+
+    case '/orgmem':
+    case '/memoria': {
+      if (!args || args === 'list') {
+        const memories = await orgMemoryModule.listOrgMemory({ owner_id: uid, limit: 20 });
+        if (memories.length === 0) return '🧠 Nenhuma memória organizacional. Use: /orgmem create <título>|<categoria>|<conteúdo>';
+        const grouped = {};
+        for (const m of memories) {
+          if (!grouped[m.category]) grouped[m.category] = [];
+          grouped[m.category].push(m);
+        }
+        const lines = Object.entries(grouped).map(([cat, items]) => {
+          return `${cat.toUpperCase()}:\n${items.map(m => `  • ${m.title} [${m.priority}]`).join('\n')}`;
+        }).join('\n\n');
+        return `🧠 Memória Organizacional:\n${lines}`;
+      }
+
+      if (args.startsWith('create ') || args.startsWith('criar ')) {
+        const parts = args.replace(/^(create|criar)\s+/i, '').trim().split('|');
+        const title = parts[0]?.trim() || 'Nova memória';
+        const category = parts[1]?.trim() || 'custom';
+        const content = parts[2]?.trim() || '';
+        try {
+          const mem = await orgMemoryModule.createOrgMemory({ owner_id: uid, title, category, content });
+          return `🧠 Memória "${title}" criada! (${category}) ID: ${mem.id}`;
+        } catch (err) {
+          return `❌ Erro: ${err.message}`;
+        }
+      }
+
+      if (args.startsWith('search ') || args.startsWith('buscar ')) {
+        const query = args.replace(/^(search|buscar)\s+/i, '').trim();
+        const results = await orgMemoryModule.searchOrgMemory(query, uid, persona.id, 5);
+        if (results.length === 0) return `🧠 Nenhum resultado para "${query}".`;
+        return `🧠 Resultados para "${query}":\n${results.map(r => `• [${r.category}] ${r.title}: ${r.content.substring(0, 100)}...`).join('\n')}`;
+      }
+
+      if (args.startsWith('delete ')) {
+        const memId = args.slice(7).trim();
+        await orgMemoryModule.deleteOrgMemory(memId);
+        return `🗑️ Memória "${memId}" deletada.`;
+      }
+
+      return '🧠 Comandos:\n/orgmem list - Listar\n/orgmem create <título>|<categoria>|<conteúdo>\n/orgmem search <query>\n/orgmem delete <id>';
+    }
+
+    case '/xp':
+    case '/level':
+    case '/gamificacao': {
+      const subcmd = args ? args.split(' ')[0].toLowerCase() : '';
+      if (subcmd === 'add') {
+        const amount = parseInt(args.split(' ')[1]) || 10;
+        const result = await gamificationModule.addXp(uid, persona.id, amount, 'manual');
+        const badges = await gamificationModule.checkAndAwardBadges(uid, persona.id);
+        let msg = `✅ +${amount} XP! Total: ${result.xp} (Nível ${result.level})`;
+        if (result.leveledUp) msg += `\n🎉 Level up! Agora nível ${result.level}!`;
+        if (badges.length > 0) msg += `\n🏆 Nova conquista: ${badges.map(b => b.name).join(', ')}`;
+        return msg;
+      }
+      if (subcmd === 'leaderboard' || subcmd === 'ranking') {
+        const lb = await gamificationModule.getLeaderboard(persona.id, 10);
+        const lines = lb.map((entry, i) => `${i + 1}. ${entry.user_id} — ${entry.xp} XP (Nível ${entry.level}, ${entry.streak || 0} streak)`);
+        return `🏆 Ranking:\n${lines.join('\n') || 'Nenhum jogador ainda'}`;
+      }
+      if (subcmd === 'badges' || subcmd === 'conquistas') {
+        const xpData = await gamificationModule.getXp(uid, persona.id);
+        const badgeList = (xpData.badges || []).map(b => `🏆 ${b.name} (${b.earnedAt ? new Date(b.earnedAt).toLocaleDateString() : ''})`);
+        return badgeList.length > 0 ? `🏆 Suas Conquistas:\n${badgeList.join('\n')}` : '🏆 Nenhuma conquista ainda. Continue interagindo!';
+      }
+      const xpData = await gamificationModule.getXp(uid, persona.id);
+      const nextLevel = gamificationModule.getXpForNextLevel(xpData.xp);
+      const badges = (xpData.badges || []).map(b => b.name).join(', ') || 'Nenhuma';
+      return `🎮 Seu Progresso:\n• Nível: ${xpData.level}\n• XP: ${xpData.xp}${nextLevel.remaining > 0 ? ` (${nextLevel.remaining} para o próximo)` : ''}\n• Streak: ${xpData.streak || 0} dias (melhor: ${xpData.best_streak || 0})\n• Conquistas: ${badges}`;
+    }
+
+    case '/progress': {
+      const progressData = await progressModule.getProgressState(uid, persona.id);
+      const state = progressData.state || {};
+      if (args && args.includes('=')) {
+        const [key, ...valParts] = args.split('=');
+        const value = valParts.join('=').trim();
+        const keyClean = key.trim();
+        const numVal = Number(value);
+        if (!isNaN(numVal)) {
+          await progressModule.updateProgressState(uid, persona.id, { [keyClean]: numVal });
+        } else {
+          await progressModule.updateProgressState(uid, persona.id, { [keyClean]: value });
+        }
+        return `✅ Progresso atualizado: ${keyClean} = ${value}`;
+      }
+      if (args && args.startsWith('increment ')) {
+        const field = args.slice(10).trim();
+        await progressModule.incrementProgressField(uid, persona.id, field, 1);
+        return `✅ ${field} +1`;
+      }
+      const entries = Object.entries(state);
+      if (entries.length === 0) return '📊 Nenhum progresso registrado ainda. Converse mais comigo!';
+      const lines = entries.map(([key, val]) => {
+        if (Array.isArray(val)) return `• ${key}: ${val.join(', ')}`;
+        if (typeof val === 'object') return `• ${key}: ${JSON.stringify(val)}`;
+        return `• ${key}: ${val}`;
+      });
+      return `📊 Seu Progresso:\n${lines.join('\n')}`;
     }
 
     default:

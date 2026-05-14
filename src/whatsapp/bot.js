@@ -34,7 +34,7 @@ const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY;
 const CHAT_MODEL = process.env.CHAT_MODEL || 'glm-5.1';
 const EVO_API_URL = (process.env.EVO_API_URL || '').replace(/\/+$/, '');
 const EVO_API_KEY = process.env.EVO_API_KEY || '';
-const EVO_INSTANCE = process.env.EVO_INSTANCE || 'jesus-ai';
+const EVO_INSTANCE = process.env.EVO_INSTANCE || 'metapersona-ai';
 const WHATSAPP_AUDIO = process.env.WHATSAPP_AUDIO !== 'false';
 const WHATSAPP_BOT_JID = process.env.WHATSAPP_BOT_JID || '';
 const WHATSAPP_BOT_PHONE = process.env.WHATSAPP_BOT_PHONE || '';
@@ -504,7 +504,7 @@ async function handleCommand(remoteJid, text, pushName) {
         const result = await createGroup(groupName, [number]);
         if (result && result.jid) {
           await sendWhatsAppText(remoteJid, `🕊 Grupo criado: *${groupName}*\n\nCompartilhe o convite e juntos estudiaremos a Palavra!\n\n💡 No grupo, respondo apenas quando me mencionarem ou usarem comandos (/versiculo, /buscar, etc).`);
-          const description = '🕊 Jesus.AI — Estudo Bíblico\n\nConverse com Jesus baseado nas Escrituras.\nComandos: /versiculo, /buscar <tema>, /oracao, /ajuda\n\nToda glória a Jesus.';
+          const description = '🤖 MetaPersona.AI — Assistente Virtual\n\nConverse com nosso assistente inteligente.\nComandos: /versiculo, /buscar <tema>, /oracao, /ajuda';
           await setGroupDescription(result.jid, description).catch(() => {});
         } else {
           await sendWhatsAppText(remoteJid, '🕊 Não consegui criar o grupo. Tente novamente mais tarde.');

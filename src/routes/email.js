@@ -41,7 +41,7 @@ router.get('/confirm/:token', async (req, res) => {
 <span style="font-size:4rem;display:block;color:#c9a227;">✝</span>
 <h1 style="color:#c9a227;font-size:1.5rem;margin:15px 0;">Inscrição confirmada!</h1>
 <p style="color:#8888a0;font-size:0.95rem;line-height:1.6;">Você receberá o devocional diário baseado nas Escrituras.</p>
-<a href="${process.env.APP_URL || 'http://localhost:3000'}" style="display:inline-block;background:#c9a227;color:#0f0f1a;padding:12px 30px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:20px;">Voltar para Jesus.AI</a>
+<a href="${process.env.APP_URL || 'http://localhost:3000'}" style="display:inline-block;background:#c9a227;color:#0f0f1a;padding:12px 30px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:20px;">Voltar para MetaPersona.AI</a>
 </div>
 </body>
 </html>`);
@@ -77,8 +77,8 @@ router.get('/unsubscribe/:token', async (req, res) => {
 <div style="text-align:center;padding:40px;">
 <span style="font-size:4rem;display:block;color:#c9a227;">✝</span>
 <h1 style="color:#e8e8e8;font-size:1.3rem;margin:15px 0;">Inscrição cancelada</h1>
-<p style="color:#8888a0;font-size:0.9rem;line-height:1.6;">Você não receberá mais emails do Jesus.AI.<br>Que a paz de Deus esteja com você.</p>
-<a href="${process.env.APP_URL || 'http://localhost:3000'}" style="display:inline-block;background:#c9a227;color:#0f0f1a;padding:12px 30px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:20px;">Voltar para Jesus.AI</a>
+<p style="color:#8888a0;font-size:0.9rem;line-height:1.6;">Você não receberá mais emails do MetaPersona.AI.<br>Que a paz de Deus esteja com você.</p>
+<a href="${process.env.APP_URL || 'http://localhost:3000'}" style="display:inline-block;background:#c9a227;color:#0f0f1a;padding:12px 30px;border-radius:8px;text-decoration:none;font-weight:600;margin-top:20px;">Voltar para MetaPersona.AI</a>
 </div>
 </body>
 </html>`);

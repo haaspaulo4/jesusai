@@ -1,4 +1,4 @@
-# Jesus.AI — Documentação Técnica
+# MetaPersona.AI — Documentação Técnica
 
 ## Arquitetura
 

@@ -4,7 +4,18 @@ const admin = require('../admin');
 const surveyEngine = require('../survey');
 const metaRag = require('../persona/meta-rag');
 const personaManager = require('../persona/manager');
+const skillsModule = require('../skills');
+const agentModule = require('../agent');
 const botManager = require('../bot/manager');
+const goalsModule = require('../goals');
+const stagesModule = require('../stages');
+const orgMemoryModule = require('../orgmemory');
+const gamificationModule = require('../gamification');
+const progressModule = require('../progress');
+const cognitiveModule = require('../cognitive');
+const overrideModule = require('../override');
+const thoughtsModule = require('../thoughts');
+const optimizationModule = require('../optimization');
 
 const router = express.Router();
 
@@ -686,6 +697,618 @@ router.post('/bots/start-all', authMiddleware, adminMiddleware, async (req, res)
     res.json(results);
   } catch (err) {
     console.error('[Admin] Start all bots error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Skills =====
+router.get('/skills', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const filters = {};
+    if (req.query.persona_id) filters.persona_id = req.query.persona_id;
+    const skills = await skillsModule.listSkills(filters);
+    res.json({ skills, total: skills.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/skills', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const skill = await skillsModule.createSkill(req.body);
+    res.json(skill);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/skills/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const skill = await skillsModule.updateSkill(req.params.id, req.body);
+    if (!skill) return res.status(404).json({ error: 'Skill not found' });
+    res.json(skill);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/skills/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await skillsModule.deleteSkill(req.params.id);
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/skills/:id/invoke', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await skillsModule.invokeSkill(req.params.id, req.body.input || '', req.body.context || {});
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Tasks =====
+router.get('/tasks', authMiddleware, async (req, res) => {
+  try {
+    const filters = { owner_id: req.userId, ...req.query };
+    const tasks = await agentModule.listTasks(filters);
+    res.json({ tasks, total: tasks.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/tasks', authMiddleware, async (req, res) => {
+  try {
+    const task = await agentModule.createTask({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    res.json(task);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/tasks/:id', authMiddleware, async (req, res) => {
+  try {
+    const task = await agentModule.updateTask(req.params.id, req.body);
+    if (!task) return res.status(404).json({ error: 'Task not found' });
+    res.json(task);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/tasks/:id', authMiddleware, async (req, res) => {
+  try {
+    await agentModule.deleteTask(req.params.id);
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Calendar =====
+router.get('/calendar', authMiddleware, async (req, res) => {
+  try {
+    const filters = { owner_id: req.userId, ...req.query };
+    const events = await agentModule.listCalendarEvents(filters);
+    res.json({ events, total: events.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/calendar', authMiddleware, async (req, res) => {
+  try {
+    const event = await agentModule.createCalendarEvent({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/calendar/:id', authMiddleware, async (req, res) => {
+  try {
+    const event = await agentModule.updateCalendarEvent(req.params.id, req.body);
+    if (!event) return res.status(404).json({ error: 'Event not found' });
+    res.json(event);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/calendar/:id', authMiddleware, async (req, res) => {
+  try {
+    await agentModule.deleteCalendarEvent(req.params.id);
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Contacts (CRM) =====
+router.get('/contacts', authMiddleware, async (req, res) => {
+  try {
+    const filters = { owner_id: req.userId, ...req.query };
+    const contacts = await agentModule.listContacts(filters);
+    res.json({ contacts, total: contacts.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/contacts', authMiddleware, async (req, res) => {
+  try {
+    const contact = await agentModule.createContact({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    res.json(contact);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/contacts/:id', authMiddleware, async (req, res) => {
+  try {
+    const contact = await agentModule.updateContact(req.params.id, req.body);
+    if (!contact) return res.status(404).json({ error: 'Contact not found' });
+    res.json(contact);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/contacts/:id', authMiddleware, async (req, res) => {
+  try {
+    await agentModule.deleteContact(req.params.id);
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Automations =====
+router.get('/automations', authMiddleware, async (req, res) => {
+  try {
+    const filters = { owner_id: req.userId, ...req.query };
+    const automations = await agentModule.listAutomations(filters);
+    res.json({ automations, total: automations.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/automations', authMiddleware, async (req, res) => {
+  try {
+    const auto = await agentModule.createAutomation({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    res.json(auto);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/automations/:id', authMiddleware, async (req, res) => {
+  try {
+    const auto = await agentModule.updateAutomation(req.params.id, req.body);
+    if (!auto) return res.status(404).json({ error: 'Automation not found' });
+    res.json(auto);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/automations/:id', authMiddleware, async (req, res) => {
+  try {
+    await agentModule.deleteAutomation(req.params.id);
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Dashboard =====
+router.get('/dashboard', authMiddleware, async (req, res) => {
+  try {
+    const stats = await agentModule.getDashboardStats(req.userId || 'system');
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Goals =====
+router.get('/goals', authMiddleware, async (req, res) => {
+  try {
+    const filters = { owner_id: req.userId, ...req.query };
+    const goals = await goalsModule.listGoals(filters);
+    res.json({ goals, total: goals.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/goals', authMiddleware, async (req, res) => {
+  try {
+    const goal = await goalsModule.createGoal({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    res.json(goal);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/goals/:id', authMiddleware, async (req, res) => {
+  try {
+    const goal = await goalsModule.getGoal(req.params.id);
+    if (!goal) return res.status(404).json({ error: 'Goal not found' });
+    res.json(goal);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/goals/:id', authMiddleware, async (req, res) => {
+  try {
+    const goal = await goalsModule.updateGoal(req.params.id, req.body);
+    if (!goal) return res.status(404).json({ error: 'Goal not found' });
+    res.json(goal);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/goals/:id', authMiddleware, async (req, res) => {
+  try {
+    await goalsModule.deleteGoal(req.params.id);
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/goals/progress', authMiddleware, async (req, res) => {
+  try {
+    const progress = await goalsModule.getGoalProgress(req.userId);
+    res.json(progress);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/goals/hierarchy', authMiddleware, async (req, res) => {
+  try {
+    const hierarchy = await goalsModule.getGoalHierarchy(req.userId, req.query.persona_id);
+    res.json({ hierarchy, total: hierarchy.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Conversation Stages =====
+router.get('/stages', authMiddleware, async (req, res) => {
+  try {
+    const filters = {};
+    if (req.query.persona_id) filters.persona_id = req.query.persona_id;
+    const stages = await stagesModule.listConversationStages(filters);
+    res.json({ stages, total: stages.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/stages', authMiddleware, async (req, res) => {
+  try {
+    const stage = await stagesModule.createConversationStage(req.body);
+    res.json(stage);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/stages/:id', authMiddleware, async (req, res) => {
+  try {
+    const stage = await stagesModule.updateConversationStage(req.params.id, req.body);
+    if (!stage) return res.status(404).json({ error: 'Stage not found' });
+    res.json(stage);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/stages/:id', authMiddleware, async (req, res) => {
+  try {
+    await stagesModule.deleteConversationStage(req.params.id);
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/stages/init-defaults', authMiddleware, async (req, res) => {
+  try {
+    const stages = await stagesModule.ensureDefaultStages(req.body.persona_id || null);
+    res.json({ stages, total: stages.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/stages/user/:userId', authMiddleware, async (req, res) => {
+  try {
+    const userStage = await stagesModule.getUserStage(req.params.userId, req.query.persona_id || 'default');
+    res.json(userStage || { current_stage: null, stage_data: null });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/stages/user/:userId/advance', authMiddleware, async (req, res) => {
+  try {
+    const result = await stagesModule.advanceUserStage(req.params.userId, req.body.persona_id || 'default', req.body.session_id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Org Memory =====
+router.get('/org-memory', authMiddleware, async (req, res) => {
+  try {
+    const filters = { owner_id: req.userId };
+    if (req.query.persona_id) filters.persona_id = req.query.persona_id;
+    if (req.query.category) filters.category = req.query.category;
+    if (req.query.search) filters.search = req.query.search;
+    const memories = await orgMemoryModule.listOrgMemory(filters);
+    res.json({ memories, total: memories.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/org-memory', authMiddleware, async (req, res) => {
+  try {
+    const mem = await orgMemoryModule.createOrgMemory({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    res.json(mem);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/org-memory/search', authMiddleware, async (req, res) => {
+  try {
+    const results = await orgMemoryModule.searchOrgMemory(req.query.q || '', req.userId, req.query.persona_id, 10);
+    res.json({ results, total: results.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/org-memory/:id', authMiddleware, async (req, res) => {
+  try {
+    const mem = await orgMemoryModule.getOrgMemory(req.params.id);
+    if (!mem) return res.status(404).json({ error: 'Memory not found' });
+    res.json(mem);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/org-memory/:id', authMiddleware, async (req, res) => {
+  try {
+    const mem = await orgMemoryModule.updateOrgMemory(req.params.id, req.body);
+    if (!mem) return res.status(404).json({ error: 'Memory not found' });
+    res.json(mem);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/org-memory/:id', authMiddleware, async (req, res) => {
+  try {
+    await orgMemoryModule.deleteOrgMemory(req.params.id);
+    res.json({ deleted: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Gamification (XP) =====
+router.get('/xp/:userId', authMiddleware, async (req, res) => {
+  try {
+    const xp = await gamificationModule.getXp(req.params.userId, req.query.persona_id || 'default');
+    const nextLevel = gamificationModule.getXpForNextLevel(xp.xp);
+    res.json({ ...xp, nextLevel });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/xp/add', authMiddleware, async (req, res) => {
+  try {
+    const { user_id, persona_id, amount, reason } = req.body;
+    if (!user_id || !amount) return res.status(400).json({ error: 'user_id and amount required' });
+    const result = await gamificationModule.addXp(user_id, persona_id || 'default', amount, reason || 'admin');
+    const badges = await gamificationModule.checkAndAwardBadges(user_id, persona_id || 'default');
+    res.json({ ...result, newBadges: badges });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/xp/badge', authMiddleware, async (req, res) => {
+  try {
+    const { user_id, persona_id, badge_id, badge_name } = req.body;
+    if (!user_id || !badge_id) return res.status(400).json({ error: 'user_id and badge_id required' });
+    const result = await gamificationModule.addBadge(user_id, persona_id || 'default', badge_id, badge_name || badge_id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/xp/leaderboard', authMiddleware, async (req, res) => {
+  try {
+    const leaderboard = await gamificationModule.getLeaderboard(req.query.persona_id || null, parseInt(req.query.limit) || 20);
+    res.json({ leaderboard, total: leaderboard.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/xp/:userId/log', authMiddleware, async (req, res) => {
+  try {
+    const log = await gamificationModule.getXpLog(req.params.userId, req.query.persona_id, parseInt(req.query.limit) || 50);
+    res.json({ log, total: log.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Progress State =====
+router.get('/progress/:userId', authMiddleware, async (req, res) => {
+  try {
+    const progress = await progressModule.getProgressState(req.params.userId, req.query.persona_id || 'default');
+    res.json(progress);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/progress/:userId', authMiddleware, async (req, res) => {
+  try {
+    const { persona_id, state } = req.body;
+    const progress = await progressModule.setProgressState(req.params.userId, persona_id || 'default', state);
+    res.json(progress);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.patch('/progress/:userId', authMiddleware, async (req, res) => {
+  try {
+    const { persona_id, updates } = req.body;
+    const progress = await progressModule.updateProgressState(req.params.userId, persona_id || 'default', updates);
+    res.json(progress);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Cognitive State =====
+router.get('/cognitive/:userId', authMiddleware, async (req, res) => {
+  try {
+    const state = await cognitiveModule.getLatestCognitiveState(req.params.userId, req.query.persona_id || 'default');
+    res.json(state || { emotion: 'neutral', intent: 'general' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/cognitive/:userId/history', authMiddleware, async (req, res) => {
+  try {
+    const history = await cognitiveModule.getCognitiveHistory(req.params.userId, req.query.persona_id, parseInt(req.query.limit) || 20);
+    res.json({ history, total: history.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/cognitive/stats', authMiddleware, async (req, res) => {
+  try {
+    const stats = await cognitiveModule.getCognitiveStats(req.query.persona_id, parseInt(req.query.days) || 7);
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Human Override =====
+router.post('/override/activate', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { session_id, override_type, human_message, persona_id } = req.body;
+    if (!session_id) return res.status(400).json({ error: 'session_id required' });
+    const override = await overrideModule.setOverride(session_id, {
+      is_active: true, override_type: override_type || 'full', human_message, user_id: req.userId, persona_id,
+    });
+    res.json(override);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/override/deactivate', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { session_id } = req.body;
+    if (!session_id) return res.status(400).json({ error: 'session_id required' });
+    await overrideModule.clearOverride(session_id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/override/status/:sessionId', authMiddleware, async (req, res) => {
+  try {
+    const override = await overrideModule.getOverride(req.params.sessionId);
+    res.json(override || { active: false });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/override/list', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const overrides = await overrideModule.listOverrides({ is_active: true, limit: 20 });
+    res.json({ overrides, total: overrides.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Agent Thoughts =====
+router.get('/thoughts', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const thoughts = await thoughtsModule.getThoughts({ persona_id: req.query.persona_id, limit: parseInt(req.query.limit) || 50 });
+    res.json({ thoughts, total: thoughts.length });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/thoughts/stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const stats = await thoughtsModule.getThoughtStats(req.query.persona_id, parseInt(req.query.days) || 7);
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Self-Optimization Suggestions =====
+router.get('/suggestions', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const suggestions = await optimizationModule.generateSuggestions(req.query.persona_id, parseInt(req.query.days) || 7);
+    res.json(suggestions);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Conversation Simulation =====
+router.post('/simulate', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { message, persona_id, user_id, language } = req.body;
+    if (!message) return res.status(400).json({ error: 'message required' });
+    const { processMessage } = require('../chat/engine');
+    const result = await processMessage({
+      message,
+      sessionId: 'sim_' + Date.now().toString(36),
+      userId: user_id || req.userId,
+      language: language || 'pt-BR',
+      isGroup: false,
+      source: 'simulate',
+    });
+    res.json(result);
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

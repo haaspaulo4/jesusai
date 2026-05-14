@@ -1,6 +1,6 @@
 # Credits & Third-Party Services
 
-> Jesus.AI relies on incredible open-source projects and APIs. We're grateful to every one of them.
+> MetaPersona.AI relies on incredible open-source projects and APIs. We're grateful to every one of them.
 
 ## Core Services
 
@@ -91,4 +91,4 @@ The Old Testament is fetched from **bible-api.com** using the Almeida translatio
 
 > *"Give, and it will be given to you." — Luke 6:38*
 >
-> Every service listed here makes it possible for Jesus.AI to reach people with the Word. If you use or modify this project, please consider crediting these services as well.
+> Every service listed here makes it possible for MetaPersona.AI to reach people. If you use or modify this project, please consider crediting these services as well.

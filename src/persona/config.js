@@ -433,9 +433,9 @@ TU CARÁCTER:
         'es-ES': '🕊 Devocional no disponible en este momento. Pero recuerda: "El Señor es mi pastor; nada me faltará." — Salmos 23:1',
       },
       groupDefault: {
-        'pt-BR': 'Jesus.AI — Estudo Bíblico',
-        'en-US': 'Jesus.AI — Bible Study',
-        'es-ES': 'Jesus.AI — Estudio Bíblico',
+        'pt-BR': 'MetaPersona.AI — Grupo de Estudo',
+        'en-US': 'MetaPersona.AI — Study Group',
+        'es-ES': 'MetaPersona.AI — Grupo de Estudio',
       },
       groupCreated: {
         'pt-BR': '🕊 Grupo criado: *{name}*\n\nCompartilhe o convite e juntos estudiaremos a Palavra!\n\n💡 No grupo, respondo apenas quando me mencionarem ou usarem comandos (/versiculo, /buscar, etc).',
