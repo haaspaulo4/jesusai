@@ -1,5 +1,5 @@
 const express = require('express');
-const { generateToken, authMiddleware, getUser, updateUser, findOrCreateFromGoogle } = require('../auth');
+const { generateToken, authMiddleware, getUser, updateUser, getUserWithRole, findOrCreateFromGoogle } = require('../auth');
 const { register, login } = require('../auth/index');
 
 const router = express.Router();
@@ -33,7 +33,6 @@ router.post('/login', async (req, res) => {
     }
 
     const { id, email: userEmail, name } = await login(email, password);
-    const { getUserWithRole } = require('../auth');
     const fullUser = await getUserWithRole(id);
     const token = generateToken(fullUser);
 
@@ -58,7 +57,6 @@ router.post('/google', async (req, res) => {
       avatar: avatar || null,
     });
 
-    const { getUserWithRole } = require('../auth');
     const fullUser = await getUserWithRole(user.id);
     const token = generateToken(fullUser);
 
@@ -73,7 +71,6 @@ router.post('/google', async (req, res) => {
 });
 
 router.get('/me', authMiddleware, async (req, res) => {
-  const { getUserWithRole } = require('../auth');
   const user = await getUserWithRole(req.userId);
   if (!user) {
     return res.status(404).json({ error: 'Usuário não encontrado' });

@@ -478,22 +478,20 @@ function startTelegramBot() {
   try {
     const TelegramBot = require('node-telegram-bot-api');
     const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
+    const { makeTelegramHandler } = require('./handler');
+    const handler = makeTelegramHandler({ bot });
 
     bot.on('message', (msg) => {
-      if (msg.voice || msg.audio) {
-        handleTelegramVoice(bot, msg).catch(err => {
-          console.error('[Telegram] Voice error:', err.message);
-        });
-      } else {
-        handleTelegramMessage(bot, msg);
-      }
+      handler(msg).catch(err => {
+        console.error('[Telegram] Handler error:', err.message);
+      });
     });
 
     bot.on('polling_error', (err) => {
       console.error('Telegram polling error:', err.message);
     });
 
-    console.log('  Telegram bot started');
+    console.log('  Telegram bot started (using processMessage handler)');
     return bot;
   } catch (err) {
     console.error('Failed to start Telegram bot:', err.message);
