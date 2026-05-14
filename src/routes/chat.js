@@ -17,16 +17,29 @@ const {
   buildProfileContext,
   saveProfile,
 } = require('../memory/profile');
-const { authMiddleware, getUser } = require('../auth');
+const { authMiddleware, getUser, roleMiddleware } = require('../auth');
 const { pool } = require('../db');
+const { chatEngine, generateSessionId } = require('../chat/engine');
 const multer = require('multer');
+
+const optionalAuth = (req, res, next) => {
+  const auth = req.headers.authorization;
+  if (auth && auth.startsWith('Bearer ')) {
+    const token = auth.substring(7);
+    const decoded = require('../auth').verifyToken(token);
+    if (decoded) {
+      req.userId = decoded.id;
+      req.userRole = decoded.role || 'user';
+    }
+  }
+  next();
+};
 const { transcribeAudio } = require('../stt');
 const { t, getTranslations, getTTSLang, getSTTLang, SUPPORTED_LANGS, DEFAULT_LANG } = require('../i18n');
 const { generateAudioBuffer, getAudioContentType } = require('../tts');
 const surveyEngine = require('../survey');
 const personaManager = require('../persona/manager');
 const metaRag = require('../persona/meta-rag');
-const chatEngine = require('../chat/engine');
 const settings = require('../settings');
 
 const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } });
@@ -34,7 +47,6 @@ const router = express.Router();
 const PIX_KEY = process.env.PIX_KEY || '';
 const PIX_TYPE = process.env.PIX_TYPE || 'email';
 const STRIPE_URL = process.env.STRIPE_URL || '';
-const { generateSessionId } = require('../chat/engine');
 
 router.post('/stt', upload.single('audio'), async (req, res) => {
   try {
@@ -60,15 +72,15 @@ router.post('/stt', upload.single('audio'), async (req, res) => {
   }
 });
 
-router.post('/chat', async (req, res) => {
-  const { message, sessionId, userId, language, personaId } = req.body;
+router.post('/chat', optionalAuth, async (req, res) => {
+  const { message, sessionId, language, personaId } = req.body;
 
   if (typeof message !== 'string') {
     return res.status(400).json({ error: 'Message must be a string' });
   }
 
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
-  const uid = userId || 'user_default';
+  const uid = req.userId || req.body.userId || 'user_default';
   const sid = sessionId || generateSessionId();
 
   try {
@@ -159,8 +171,11 @@ router.post('/session', async (req, res) => {
   res.json({ id: session.id, createdAt: session.createdAt });
 });
 
-router.get('/profile/:userId', async (req, res) => {
+router.get('/profile/:userId', authMiddleware, async (req, res) => {
   try {
+    if (req.params.userId !== req.userId && req.userRole !== 'admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
     const profile = await getProfile(req.params.userId);
     res.json(profile);
   } catch (err) {
@@ -168,8 +183,11 @@ router.get('/profile/:userId', async (req, res) => {
   }
 });
 
-router.put('/profile/:userId', async (req, res) => {
+router.put('/profile/:userId', authMiddleware, async (req, res) => {
   try {
+    if (req.params.userId !== req.userId && req.userRole !== 'admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
     const profile = await getProfile(req.params.userId);
     const { name, spiritualJourney } = req.body;
 

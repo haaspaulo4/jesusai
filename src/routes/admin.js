@@ -22,16 +22,14 @@ const router = express.Router();
 
 function adminMiddleware(req, res, next) {
   if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (req.userRole !== 'admin') return res.status(403).json({ error: 'Admin access required' });
+  next();
+}
 
-  const { pool } = require('../db');
-  pool.execute('SELECT role FROM users WHERE id = ?', [req.userId])
-    .then(([rows]) => {
-      if (rows.length === 0 || rows[0].role !== 'admin') {
-        return res.status(403).json({ error: 'Admin access required' });
-      }
-      next();
-    })
-    .catch(() => res.status(500).json({ error: 'Server error' }));
+function premiumMiddleware(req, res, next) {
+  if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
+  if (!['admin', 'premium', 'user'].includes(req.userRole)) return res.status(403).json({ error: 'Access denied' });
+  next();
 }
 
 router.get('/stats', authMiddleware, adminMiddleware, async (req, res) => {
@@ -764,7 +762,7 @@ router.post('/skills/:id/invoke', authMiddleware, adminMiddleware, async (req, r
 });
 
 // ===== Tasks =====
-router.get('/tasks', authMiddleware, async (req, res) => {
+router.get('/tasks', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const filters = { owner_id: req.userId, ...req.query };
     const tasks = await agentModule.listTasks(filters);
@@ -774,7 +772,7 @@ router.get('/tasks', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/tasks', authMiddleware, async (req, res) => {
+router.post('/tasks', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const task = await agentModule.createTask({ ...req.body, owner_id: req.userId || req.body.owner_id });
     res.json(task);
@@ -783,7 +781,7 @@ router.post('/tasks', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/tasks/:id', authMiddleware, async (req, res) => {
+router.put('/tasks/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const task = await agentModule.updateTask(req.params.id, req.body);
     if (!task) return res.status(404).json({ error: 'Task not found' });
@@ -793,7 +791,7 @@ router.put('/tasks/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.delete('/tasks/:id', authMiddleware, async (req, res) => {
+router.delete('/tasks/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     await agentModule.deleteTask(req.params.id);
     res.json({ deleted: true });
@@ -803,7 +801,7 @@ router.delete('/tasks/:id', authMiddleware, async (req, res) => {
 });
 
 // ===== Calendar =====
-router.get('/calendar', authMiddleware, async (req, res) => {
+router.get('/calendar', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const filters = { owner_id: req.userId, ...req.query };
     const events = await agentModule.listCalendarEvents(filters);
@@ -813,7 +811,7 @@ router.get('/calendar', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/calendar', authMiddleware, async (req, res) => {
+router.post('/calendar', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const event = await agentModule.createCalendarEvent({ ...req.body, owner_id: req.userId || req.body.owner_id });
     res.json(event);
@@ -822,7 +820,7 @@ router.post('/calendar', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/calendar/:id', authMiddleware, async (req, res) => {
+router.put('/calendar/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const event = await agentModule.updateCalendarEvent(req.params.id, req.body);
     if (!event) return res.status(404).json({ error: 'Event not found' });
@@ -832,7 +830,7 @@ router.put('/calendar/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.delete('/calendar/:id', authMiddleware, async (req, res) => {
+router.delete('/calendar/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     await agentModule.deleteCalendarEvent(req.params.id);
     res.json({ deleted: true });
@@ -842,7 +840,7 @@ router.delete('/calendar/:id', authMiddleware, async (req, res) => {
 });
 
 // ===== Contacts (CRM) =====
-router.get('/contacts', authMiddleware, async (req, res) => {
+router.get('/contacts', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const filters = { owner_id: req.userId, ...req.query };
     const contacts = await agentModule.listContacts(filters);
@@ -852,7 +850,7 @@ router.get('/contacts', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/contacts', authMiddleware, async (req, res) => {
+router.post('/contacts', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const contact = await agentModule.createContact({ ...req.body, owner_id: req.userId || req.body.owner_id });
     res.json(contact);
@@ -861,7 +859,7 @@ router.post('/contacts', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/contacts/:id', authMiddleware, async (req, res) => {
+router.put('/contacts/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const contact = await agentModule.updateContact(req.params.id, req.body);
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
@@ -871,7 +869,7 @@ router.put('/contacts/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.delete('/contacts/:id', authMiddleware, async (req, res) => {
+router.delete('/contacts/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     await agentModule.deleteContact(req.params.id);
     res.json({ deleted: true });
@@ -881,7 +879,7 @@ router.delete('/contacts/:id', authMiddleware, async (req, res) => {
 });
 
 // ===== Automations =====
-router.get('/automations', authMiddleware, async (req, res) => {
+router.get('/automations', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const filters = { owner_id: req.userId, ...req.query };
     const automations = await agentModule.listAutomations(filters);
@@ -891,7 +889,7 @@ router.get('/automations', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/automations', authMiddleware, async (req, res) => {
+router.post('/automations', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const auto = await agentModule.createAutomation({ ...req.body, owner_id: req.userId || req.body.owner_id });
     res.json(auto);
@@ -900,7 +898,7 @@ router.post('/automations', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/automations/:id', authMiddleware, async (req, res) => {
+router.put('/automations/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const auto = await agentModule.updateAutomation(req.params.id, req.body);
     if (!auto) return res.status(404).json({ error: 'Automation not found' });
@@ -910,7 +908,7 @@ router.put('/automations/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.delete('/automations/:id', authMiddleware, async (req, res) => {
+router.delete('/automations/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     await agentModule.deleteAutomation(req.params.id);
     res.json({ deleted: true });
@@ -920,7 +918,7 @@ router.delete('/automations/:id', authMiddleware, async (req, res) => {
 });
 
 // ===== Dashboard =====
-router.get('/dashboard', authMiddleware, async (req, res) => {
+router.get('/dashboard', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const stats = await agentModule.getDashboardStats(req.userId || 'system');
     res.json(stats);
@@ -930,7 +928,7 @@ router.get('/dashboard', authMiddleware, async (req, res) => {
 });
 
 // ===== Goals =====
-router.get('/goals', authMiddleware, async (req, res) => {
+router.get('/goals', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const filters = { owner_id: req.userId, ...req.query };
     const goals = await goalsModule.listGoals(filters);
@@ -940,7 +938,7 @@ router.get('/goals', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/goals', authMiddleware, async (req, res) => {
+router.post('/goals', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const goal = await goalsModule.createGoal({ ...req.body, owner_id: req.userId || req.body.owner_id });
     res.json(goal);
@@ -949,7 +947,7 @@ router.post('/goals', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/goals/:id', authMiddleware, async (req, res) => {
+router.get('/goals/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const goal = await goalsModule.getGoal(req.params.id);
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
@@ -959,7 +957,7 @@ router.get('/goals/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/goals/:id', authMiddleware, async (req, res) => {
+router.put('/goals/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const goal = await goalsModule.updateGoal(req.params.id, req.body);
     if (!goal) return res.status(404).json({ error: 'Goal not found' });
@@ -969,7 +967,7 @@ router.put('/goals/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.delete('/goals/:id', authMiddleware, async (req, res) => {
+router.delete('/goals/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     await goalsModule.deleteGoal(req.params.id);
     res.json({ deleted: true });
@@ -978,7 +976,7 @@ router.delete('/goals/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/goals/progress', authMiddleware, async (req, res) => {
+router.get('/goals/progress', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const progress = await goalsModule.getGoalProgress(req.userId);
     res.json(progress);
@@ -987,7 +985,7 @@ router.get('/goals/progress', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/goals/hierarchy', authMiddleware, async (req, res) => {
+router.get('/goals/hierarchy', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const hierarchy = await goalsModule.getGoalHierarchy(req.userId, req.query.persona_id);
     res.json({ hierarchy, total: hierarchy.length });
@@ -997,7 +995,7 @@ router.get('/goals/hierarchy', authMiddleware, async (req, res) => {
 });
 
 // ===== Conversation Stages =====
-router.get('/stages', authMiddleware, async (req, res) => {
+router.get('/stages', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const filters = {};
     if (req.query.persona_id) filters.persona_id = req.query.persona_id;
@@ -1008,7 +1006,7 @@ router.get('/stages', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/stages', authMiddleware, async (req, res) => {
+router.post('/stages', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const stage = await stagesModule.createConversationStage(req.body);
     res.json(stage);
@@ -1017,7 +1015,7 @@ router.post('/stages', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/stages/:id', authMiddleware, async (req, res) => {
+router.put('/stages/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const stage = await stagesModule.updateConversationStage(req.params.id, req.body);
     if (!stage) return res.status(404).json({ error: 'Stage not found' });
@@ -1027,7 +1025,7 @@ router.put('/stages/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.delete('/stages/:id', authMiddleware, async (req, res) => {
+router.delete('/stages/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     await stagesModule.deleteConversationStage(req.params.id);
     res.json({ deleted: true });
@@ -1036,7 +1034,7 @@ router.delete('/stages/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/stages/init-defaults', authMiddleware, async (req, res) => {
+router.post('/stages/init-defaults', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const stages = await stagesModule.ensureDefaultStages(req.body.persona_id || null);
     res.json({ stages, total: stages.length });
@@ -1045,7 +1043,7 @@ router.post('/stages/init-defaults', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/stages/user/:userId', authMiddleware, async (req, res) => {
+router.get('/stages/user/:userId', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const userStage = await stagesModule.getUserStage(req.params.userId, req.query.persona_id || 'default');
     res.json(userStage || { current_stage: null, stage_data: null });
@@ -1054,7 +1052,7 @@ router.get('/stages/user/:userId', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/stages/user/:userId/advance', authMiddleware, async (req, res) => {
+router.post('/stages/user/:userId/advance', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const result = await stagesModule.advanceUserStage(req.params.userId, req.body.persona_id || 'default', req.body.session_id);
     res.json(result);
@@ -1064,7 +1062,7 @@ router.post('/stages/user/:userId/advance', authMiddleware, async (req, res) => 
 });
 
 // ===== Org Memory =====
-router.get('/org-memory', authMiddleware, async (req, res) => {
+router.get('/org-memory', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const filters = { owner_id: req.userId };
     if (req.query.persona_id) filters.persona_id = req.query.persona_id;
@@ -1077,7 +1075,7 @@ router.get('/org-memory', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/org-memory', authMiddleware, async (req, res) => {
+router.post('/org-memory', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const mem = await orgMemoryModule.createOrgMemory({ ...req.body, owner_id: req.userId || req.body.owner_id });
     res.json(mem);
@@ -1086,7 +1084,7 @@ router.post('/org-memory', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/org-memory/search', authMiddleware, async (req, res) => {
+router.get('/org-memory/search', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const results = await orgMemoryModule.searchOrgMemory(req.query.q || '', req.userId, req.query.persona_id, 10);
     res.json({ results, total: results.length });
@@ -1095,7 +1093,7 @@ router.get('/org-memory/search', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/org-memory/:id', authMiddleware, async (req, res) => {
+router.get('/org-memory/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const mem = await orgMemoryModule.getOrgMemory(req.params.id);
     if (!mem) return res.status(404).json({ error: 'Memory not found' });
@@ -1105,7 +1103,7 @@ router.get('/org-memory/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/org-memory/:id', authMiddleware, async (req, res) => {
+router.put('/org-memory/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const mem = await orgMemoryModule.updateOrgMemory(req.params.id, req.body);
     if (!mem) return res.status(404).json({ error: 'Memory not found' });
@@ -1115,7 +1113,7 @@ router.put('/org-memory/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.delete('/org-memory/:id', authMiddleware, async (req, res) => {
+router.delete('/org-memory/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     await orgMemoryModule.deleteOrgMemory(req.params.id);
     res.json({ deleted: true });
@@ -1125,7 +1123,7 @@ router.delete('/org-memory/:id', authMiddleware, async (req, res) => {
 });
 
 // ===== Gamification (XP) =====
-router.get('/xp/:userId', authMiddleware, async (req, res) => {
+router.get('/xp/:userId', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const xp = await gamificationModule.getXp(req.params.userId, req.query.persona_id || 'default');
     const nextLevel = gamificationModule.getXpForNextLevel(xp.xp);
@@ -1135,7 +1133,7 @@ router.get('/xp/:userId', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/xp/add', authMiddleware, async (req, res) => {
+router.post('/xp/add', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const { user_id, persona_id, amount, reason } = req.body;
     if (!user_id || !amount) return res.status(400).json({ error: 'user_id and amount required' });
@@ -1147,7 +1145,7 @@ router.post('/xp/add', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/xp/badge', authMiddleware, async (req, res) => {
+router.post('/xp/badge', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const { user_id, persona_id, badge_id, badge_name } = req.body;
     if (!user_id || !badge_id) return res.status(400).json({ error: 'user_id and badge_id required' });
@@ -1158,7 +1156,7 @@ router.post('/xp/badge', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/xp/leaderboard', authMiddleware, async (req, res) => {
+router.get('/xp/leaderboard', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const leaderboard = await gamificationModule.getLeaderboard(req.query.persona_id || null, parseInt(req.query.limit) || 20);
     res.json({ leaderboard, total: leaderboard.length });
@@ -1167,7 +1165,7 @@ router.get('/xp/leaderboard', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/xp/:userId/log', authMiddleware, async (req, res) => {
+router.get('/xp/:userId/log', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const log = await gamificationModule.getXpLog(req.params.userId, req.query.persona_id, parseInt(req.query.limit) || 50);
     res.json({ log, total: log.length });
@@ -1177,7 +1175,7 @@ router.get('/xp/:userId/log', authMiddleware, async (req, res) => {
 });
 
 // ===== Progress State =====
-router.get('/progress/:userId', authMiddleware, async (req, res) => {
+router.get('/progress/:userId', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const progress = await progressModule.getProgressState(req.params.userId, req.query.persona_id || 'default');
     res.json(progress);
@@ -1186,7 +1184,7 @@ router.get('/progress/:userId', authMiddleware, async (req, res) => {
   }
 });
 
-router.put('/progress/:userId', authMiddleware, async (req, res) => {
+router.put('/progress/:userId', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const { persona_id, state } = req.body;
     const progress = await progressModule.setProgressState(req.params.userId, persona_id || 'default', state);
@@ -1196,7 +1194,7 @@ router.put('/progress/:userId', authMiddleware, async (req, res) => {
   }
 });
 
-router.patch('/progress/:userId', authMiddleware, async (req, res) => {
+router.patch('/progress/:userId', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const { persona_id, updates } = req.body;
     const progress = await progressModule.updateProgressState(req.params.userId, persona_id || 'default', updates);
@@ -1207,7 +1205,7 @@ router.patch('/progress/:userId', authMiddleware, async (req, res) => {
 });
 
 // ===== Cognitive State =====
-router.get('/cognitive/:userId', authMiddleware, async (req, res) => {
+router.get('/cognitive/:userId', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const state = await cognitiveModule.getLatestCognitiveState(req.params.userId, req.query.persona_id || 'default');
     res.json(state || { emotion: 'neutral', intent: 'general' });
@@ -1216,7 +1214,7 @@ router.get('/cognitive/:userId', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/cognitive/:userId/history', authMiddleware, async (req, res) => {
+router.get('/cognitive/:userId/history', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const history = await cognitiveModule.getCognitiveHistory(req.params.userId, req.query.persona_id, parseInt(req.query.limit) || 20);
     res.json({ history, total: history.length });
@@ -1225,7 +1223,7 @@ router.get('/cognitive/:userId/history', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/cognitive/stats', authMiddleware, async (req, res) => {
+router.get('/cognitive/stats', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const stats = await cognitiveModule.getCognitiveStats(req.query.persona_id, parseInt(req.query.days) || 7);
     res.json(stats);
@@ -1259,7 +1257,7 @@ router.post('/override/deactivate', authMiddleware, adminMiddleware, async (req,
   }
 });
 
-router.get('/override/status/:sessionId', authMiddleware, async (req, res) => {
+router.get('/override/status/:sessionId', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const override = await overrideModule.getOverride(req.params.sessionId);
     res.json(override || { active: false });
