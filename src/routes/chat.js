@@ -343,6 +343,31 @@ router.get('/persona/current', async (req, res) => {
   }
 });
 
+router.get('/persona/:id/public', async (req, res) => {
+  try {
+    const persona = await personaManager.getPersona(req.params.id);
+    if (!persona || !persona.isActive) {
+      return res.status(404).json({ error: 'Persona not found' });
+    }
+    const identityRaw = persona.identity['pt-BR'] || persona.identity;
+    const identityStr = typeof identityRaw === 'string' ? identityRaw : (identityRaw.core || '');
+    res.json({
+      id: persona.id,
+      name: persona.name,
+      nameEn: persona.nameEn || persona.name,
+      nameEs: persona.nameEs || persona.name,
+      description: identityStr.split('.')[0],
+      welcomeTitle: persona.welcomeTitle,
+      welcomeBody: persona.welcomeBody,
+      disclaimer: persona.disclaimer,
+      ttsVoice: persona.ttsVoice,
+      ttsLang: persona.ttsLang,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get persona' });
+  }
+});
+
 // ========== RATINGS ==========
 
 router.post('/rating', async (req, res) => {
