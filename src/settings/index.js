@@ -56,6 +56,11 @@ const DEFAULTS = {
   planner_enabled: 'true',
   summary_every: '10',
   profile_summary_every: '15',
+  // Platform Identity
+  platform_avatar_style: 'realistic',
+  platform_emoji_style: 'native',
+  platform_animation_style: 'subtle',
+  platform_font_family: 'Inter',
 };
 
 async function loadSettings() {

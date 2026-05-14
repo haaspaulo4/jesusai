@@ -15,6 +15,7 @@ const {
   getProfile,
   updateProfileFromMessage,
   buildProfileContext,
+  saveProfile,
 } = require('../memory/profile');
 const { authMiddleware, getUser } = require('../auth');
 const { pool } = require('../db');
@@ -26,6 +27,7 @@ const surveyEngine = require('../survey');
 const personaManager = require('../persona/manager');
 const metaRag = require('../persona/meta-rag');
 const chatEngine = require('../chat/engine');
+const settings = require('../settings');
 
 const upload = multer({ limits: { fileSize: 10 * 1024 * 1024 } });
 const router = express.Router();
@@ -58,10 +60,10 @@ router.post('/stt', upload.single('audio'), async (req, res) => {
 });
 
 router.post('/chat', async (req, res) => {
-  const { message, sessionId, userId, language } = req.body;
+  const { message, sessionId, userId, language, personaId } = req.body;
 
-  if (!message || typeof message !== 'string') {
-    return res.status(400).json({ error: 'Message is required' });
+  if (typeof message !== 'string') {
+    return res.status(400).json({ error: 'Message must be a string' });
   }
 
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
@@ -70,12 +72,13 @@ router.post('/chat', async (req, res) => {
 
   try {
     const result = await chatEngine.processMessage({
-      message,
+      message: message || '',
       sessionId: sid,
       userId: uid,
       language: lang,
       isGroup: false,
       source: 'web',
+      personaId: personaId || undefined,
     });
 
     if (result.banned) {
@@ -85,7 +88,7 @@ router.post('/chat', async (req, res) => {
       return res.status(429).json({ error: result.response, rateLimited: true, limit: result.rateLimit?.limit, resetIn: result.rateLimit?.resetIn });
     }
 
-    res.json({
+    const response = {
       response: result.response,
       sessionId: result.sessionId,
       sources: result.sources,
@@ -94,7 +97,13 @@ router.post('/chat', async (req, res) => {
       personaName: result.personaName,
       ttsVoice: result.ttsVoice,
       ttsLang: result.ttsLang,
-    });
+    };
+
+    if (result.onboarding !== undefined) response.onboarding = result.onboarding;
+    if (result.onboardingDone !== undefined) response.onboardingDone = result.onboardingDone;
+    if (result.humanOverride !== undefined) response.humanOverride = result.humanOverride;
+
+    res.json(response);
   } catch (err) {
     console.error('Chat error:', err);
     res.status(500).json({ error: 'Failed to generate response' });
@@ -174,7 +183,7 @@ router.put('/profile/:userId', async (req, res) => {
 });
 
 router.get('/donate', (req, res) => {
-  const persona = getActivePersona();
+  const persona = personaManager.getActivePersona();
   const lang = SUPPORTED_LANGS.includes(req.query.lang) ? req.query.lang : DEFAULT_LANG;
   const donateVerse = persona.donateVerse?.[lang] || persona.donateVerse?.['pt-BR'] || '';
   res.json({
@@ -245,17 +254,133 @@ router.get('/translations/:lang', (req, res) => {
   res.json(getTranslations(lang));
 });
 
-router.get('/config', (req, res) => {
+router.get('/config', async (req, res) => {
   const telegramBotUsername = process.env.TELEGRAM_BOT_USERNAME || '';
   const whatsappNumber = process.env.WHATSAPP_NUMBER || '';
   const telegramGroupUrl = process.env.TELEGRAM_GROUP_URL || '';
   const whatsappGroupUrl = process.env.WHATSAPP_GROUP_URL || '';
+  const brandName = await settings.getSetting('brand_name', '');
+  const brandTagline = await settings.getSetting('brand_tagline', '');
+  const brandLogoUrl = await settings.getSetting('brand_logo_url', '');
+  const brandPrimaryColor = await settings.getSetting('brand_primary_color', '');
+  const brandSecondaryColor = await settings.getSetting('brand_secondary_color', '');
+  const onboardingEnabled = await settings.getSetting('onboarding_enabled', 'true');
   res.json({
     telegramUrl: telegramBotUsername ? `https://t.me/${telegramBotUsername}` : null,
     telegramGroupUrl: telegramGroupUrl || null,
     whatsappUrl: whatsappNumber ? `https://wa.me/${whatsappNumber}` : null,
     whatsappGroupUrl: whatsappGroupUrl || null,
+    brandName,
+    brandTagline,
+    brandLogoUrl,
+    brandPrimaryColor,
+    brandSecondaryColor,
+    onboardingEnabled: onboardingEnabled === 'true',
   });
+});
+
+router.get('/onboarding/steps', async (req, res) => {
+  try {
+    const { personaId, userId, lang } = req.query;
+    const l = lang || 'pt-BR';
+    const onboarding = require('../onboarding');
+    const steps = await onboarding.getOnboardingSteps(personaId || null);
+    const formattedSteps = steps.map(s => onboarding.formatOnboardingStepUI(s, l));
+
+    let status = null;
+    if (userId) {
+      status = await onboarding.getUserOnboardingStatus(userId, personaId || null);
+    }
+
+    res.json({
+      steps: formattedSteps,
+      status: status ? {
+        progress: status.progress,
+        done: status.done,
+        totalSteps: status.totalSteps,
+        completedSteps: status.completedSteps,
+        totalAllSteps: status.totalAllSteps,
+      } : null,
+    });
+  } catch (err) {
+    console.error('[Onboarding] Steps error:', err);
+    res.status(500).json({ error: 'Failed to get onboarding steps' });
+  }
+});
+
+router.post('/onboarding/answer', async (req, res) => {
+  try {
+    const { userId, stepKey, answer, personaId } = req.body;
+    if (!userId || !stepKey) return res.status(400).json({ error: 'userId and stepKey required' });
+
+    const onboarding = require('../onboarding');
+    const parsedAnswer = onboarding.parseOnboardingAnswer(
+      { choices: [], field_type: 'text' },
+      answer
+    );
+    const result = await onboarding.saveOnboardingAnswer(userId, stepKey, parsedAnswer, personaId || null);
+
+    res.json({
+      ok: result.ok,
+      done: result.done,
+      progress: result.progress,
+      totalSteps: result.totalSteps,
+      completedSteps: result.completedSteps,
+      nextStep: result.nextStep ? onboarding.formatOnboardingStepUI(result.nextStep, req.body.lang || 'pt-BR') : null,
+    });
+  } catch (err) {
+    console.error('[Onboarding] Answer error:', err);
+    res.status(500).json({ error: 'Failed to save answer' });
+  }
+});
+
+router.get('/welcome', async (req, res) => {
+  try {
+    const { userId, personaId, lang } = req.query;
+    const chatEngine = require('../chat/engine');
+    const welcome = await chatEngine.getContextualWelcome(userId || null, personaId || null, lang || 'pt-BR');
+    res.json({ welcome });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get welcome' });
+  }
+});
+
+router.get('/quick-actions', async (req, res) => {
+  try {
+    const { personaId, userId } = req.query;
+    const chatEngine = require('../chat/engine');
+    const actions = await chatEngine.getQuickActions(personaId || null, userId || null);
+    res.json({ actions });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to get quick actions' });
+  }
+});
+
+router.get('/whitelabel', async (req, res) => {
+  try {
+    const brandName = await settings.getSetting('brand_name', '');
+    const brandTagline = await settings.getSetting('brand_tagline', '');
+    const brandLogoUrl = await settings.getSetting('brand_logo_url', '');
+    const brandPrimaryColor = await settings.getSetting('brand_primary_color', '');
+    const brandSecondaryColor = await settings.getSetting('brand_secondary_color', '');
+    const onboardingEnabled = await settings.getSetting('onboarding_enabled', 'true');
+    const onboardingGreeting = await settings.getSetting('onboarding_greeting', '');
+    const onboardingGreetingEn = await settings.getSetting('onboarding_greeting_en', '');
+    const onboardingGreetingEs = await settings.getSetting('onboarding_greeting_es', '');
+    res.json({
+      brandName: brandName || 'MetaPersona.AI',
+      brandTagline,
+      brandLogoUrl,
+      brandPrimaryColor,
+      brandSecondaryColor,
+      onboardingEnabled: onboardingEnabled === 'true',
+      onboardingGreeting,
+      onboardingGreetingEn,
+      onboardingGreetingEs,
+    });
+  } catch (err) {
+    res.status(500).json({ error: 'Failed to load settings' });
+  }
 });
 
 router.post('/tts', async (req, res) => {
@@ -308,6 +433,15 @@ router.post('/persona/switch', async (req, res) => {
       ...result,
       welcomeTitle: persona.welcomeTitle,
       welcomeBody: persona.welcomeBody,
+      // Visual Identity
+      avatarUrl: persona.avatarUrl || `https://api.dicebear.com/9.x/adventurer/svg?seed=${personaId}`,
+      avatarStyle: persona.avatarStyle || 'adventurer',
+      palette: persona.palette || { primary: '#D4A843', secondary: '#1a1a2e' },
+      emojiStyle: persona.emojiStyle || 'native',
+      animationStyle: persona.animationStyle || 'subtle',
+      accentColor: persona.accentColor || '#D4A843',
+      fontFamily: persona.fontFamily || 'Inter',
+      backgroundStyle: persona.backgroundStyle || { type: 'gradient', colors: ['#667eea', '#764ba2'] },
     });
   } catch (err) {
     res.status(400).json({ error: err.message });
@@ -344,8 +478,18 @@ router.get('/persona/current', async (req, res) => {
       name: persona.name,
       nameEn: persona.nameEn || persona.name,
       nameEs: persona.nameEs || persona.name,
+      welcomeTitle: persona.welcomeTitle,
+      welcomeBody: persona.welcomeBody,
       ttsVoice: persona.ttsVoice,
       ttsLang: persona.ttsLang,
+      avatarUrl: persona.avatarUrl || `https://api.dicebear.com/9.x/adventurer/svg?seed=${persona.id}`,
+      accentColor: persona.accentColor || '#D4A843',
+      palette: persona.palette || { primary: '#D4A843', secondary: '#1a1a2e' },
+      fontFamily: persona.fontFamily || 'Inter',
+      avatarStyle: persona.avatarStyle || 'adventurer',
+      emojiStyle: persona.emojiStyle || 'native',
+      animationStyle: persona.animationStyle || 'subtle',
+      backgroundStyle: persona.backgroundStyle || { type: 'gradient', colors: ['#667eea', '#764ba2'] },
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to get current persona' });
@@ -371,6 +515,14 @@ router.get('/persona/:id/public', async (req, res) => {
       disclaimer: persona.disclaimer,
       ttsVoice: persona.ttsVoice,
       ttsLang: persona.ttsLang,
+      avatarUrl: persona.avatarUrl || `https://api.dicebear.com/9.x/adventurer/svg?seed=${persona.id}`,
+      accentColor: persona.accentColor || '#D4A843',
+      palette: persona.palette || { primary: '#D4A843', secondary: '#1a1a2e' },
+      fontFamily: persona.fontFamily || 'Inter',
+      avatarStyle: persona.avatarStyle || 'adventurer',
+      emojiStyle: persona.emojiStyle || 'native',
+      animationStyle: persona.animationStyle || 'subtle',
+      backgroundStyle: persona.backgroundStyle || { type: 'gradient', colors: ['#667eea', '#764ba2'] },
     });
   } catch (err) {
     res.status(500).json({ error: 'Failed to get persona' });

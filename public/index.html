@@ -3,877 +3,823 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>MetaPersona.AI — Crie Agentes IA que Aprendem, Trabalham e Evoluem</title>
-  <meta name="description" content="Plataforma de agentes cognitivos persistentes. Crie funcionários IA com memória, objetivos e autonomia. RAG multimodal, gamificação, follow-ups automáticos.">
+  <title id="pageTitle">MetaPersona.AI</title>
+  <meta name="description" content="Plataforma de agentes cognitivos persistentes com RAG multimodal, multi-persona e gamificação.">
+  <link rel="icon" id="pageFavicon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
   <link rel="stylesheet" href="css/style.css">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50:'#fdf8e8',100:'#fbe9b8',200:'#f7d978',300:'#f3c338',400:'#e5a820',500:'#d4a843',600:'#b8862e',700:'#8f6520',800:'#6d4e1a',900:'#4a3512' },
+            surface: { 50:'#f8f8ff',100:'#e8e8f0',200:'#c8c8d8',300:'#9898b0',400:'#686888',500:'#3a3a5c',600:'#2a2a4c',700:'#1a1a3c',800:'#12122e',900:'#0a0a1a' }
+          }
+        }
+      }
+    }
+  </script>
 </head>
-<body>
-  <!-- LANDING / AUTH SCREEN -->
-  <div class="landing" id="landingPage">
-    <div class="landing-bg">
-      <div class="bg-gradient"></div>
-      <div class="bg-grid"></div>
-      <div class="bg-orbs">
-        <div class="orb orb-1"></div>
-        <div class="orb orb-2"></div>
-        <div class="orb orb-3"></div>
-      </div>
-    </div>
+<body class="bg-surface-900 text-white font-sans min-h-screen">
 
-    <nav class="landing-nav">
-      <div class="landing-logo">
-        <span class="cross-icon persona-icon">🤖</span>
-        <span class="logo-text" id="brandLogoText">MetaPersona.AI</span>
+<div id="app">
+
+  <!-- ==================== LANDING ==================== -->
+  <div v-if="view==='landing'" class="min-h-screen">
+    <nav class="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-surface-900/80 border-b border-white/5">
+      <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
+        <div class="flex items-center gap-2">
+          <img v-if="brandLogoUrl" :src="brandLogoUrl" class="h-8 w-8 rounded" />
+          <span v-else class="text-xl">{{ brandIcon }}</span>
+          <span class="font-bold text-lg">{{ brandName }}</span>
+        </div>
+        <div class="flex items-center gap-4">
+          <a href="#how" class="hidden sm:inline text-sm text-gray-400 hover:text-white transition">{{ t('howItWorks') }}</a>
+          <a href="#features" class="hidden sm:inline text-sm text-gray-400 hover:text-white transition">{{ t('features') }}</a>
+          <a :href="telegramUrl" target="_blank" class="text-sm text-gray-400 hover:text-white transition">Telegram</a>
+          <a :href="whatsappUrl" target="_blank" class="text-sm text-gray-400 hover:text-white transition">WhatsApp</a>
+          <select v-model="currentLang" @change="saveLang" class="bg-surface-700 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-brand-500">
+            <option value="pt-BR">PT</option>
+            <option value="en-US">EN</option>
+            <option value="es-ES">ES</option>
+          </select>
+          <button @click="showAuth('login')" class="bg-brand-500 hover:bg-brand-600 text-white text-sm px-4 py-1.5 rounded-lg transition">{{ t('login') }}</button>
+        </div>
       </div>
-      <div class="landing-nav-links">
-        <a href="#how" class="nav-link">Como funciona</a>
-        <a href="#usecases" class="nav-link">Casos de uso</a>
-        <a href="#features" class="nav-link">Recursos</a>
-        <a href="#" class="nav-link nav-channel" id="navTelegramBtn" target="_blank">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12.056 0h-.112zm4.962 7.224c.1-.002.321.023.465.14.12.191.35.211.45.04.1.06.24.04.44-.08.91-.43 3.1-.61 4.12-.08.42-.23.82-.38.95-.15.13-.3.14-.4.12-.21-.03-.33-.05-.5-.12-.21-.07-.32-.13-.53-.2-.38-.16-.61-.24-.86-.4-.3-.18-.53-.4-.72-.64-.23-.28-.37-.52-.5-.85-.05-.1 0-.22.1-.3l.6-.5c.1-.08.19-.2.09-.4l-1.28-3.02c-.06-.14-.1-.2-.31-.2h-.8c-.1 0-.2.03-.3.13l-4.9 3.8c-.1.08-.14.2-.07.34l.6 1.4c.03.07.1.13.22.13l1.03-.1c.05 0 .12.01.17.05l-1.63.93c-.13.08-.1.2-.03.34l.46.93c.06.12.13.18.28.16l1.35-.2c.08-.01.15 0 .2.06l-1.83 1.04c-.12.07-.09.2-.02.34l.5.94c.07.13.14.18.29.15l7.25-1.52c.15-.03.24-.15.28-.3.28-1.26.9-3.96 1.06-4.66.01-.06.03-.2.01-.34z"/></svg>
-          Telegram
-        </a>
-        <a href="#" class="nav-link nav-channel" id="navWhatsappBtn" target="_blank">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
-          WhatsApp
-        </a>
-        <button class="nav-cta-btn" id="navLoginBtn">Criar Agente</button>
-      </div>
-      <button class="mobile-menu-btn" id="mobileMenuBtn" aria-label="Menu">
-        <span></span><span></span><span></span>
-      </button>
     </nav>
 
-    <!-- HERO -->
-    <section class="landing-hero" id="hero">
-      <div class="hero-content animate-in">
-        <div class="hero-badge">
-          <span class="badge-dot"></span>
-          Infraestrutura de Agentes IA
+    <section class="pt-24 pb-16 px-4">
+      <div class="max-w-4xl mx-auto text-center">
+        <div class="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/20 rounded-full px-4 py-1.5 mb-6">
+          <span class="w-2 h-2 bg-brand-500 rounded-full animate-pulse"></span>
+          <span class="text-sm text-brand-400">{{ currentLang === 'en-US' ? 'AI Agent Infrastructure' : currentLang === 'es-ES' ? 'Infraestructura de Agentes IA' : 'Infraestrutura de Agentes IA' }}</span>
         </div>
-        <h1 class="hero-title">
-          Crie agentes IA que <span class="gold">aprendem, trabalham e evoluem.</span>
+        <h1 class="text-4xl sm:text-5xl font-bold mb-6 leading-tight">
+          {{ currentLang === 'en-US' ? 'Create AI agents that' : currentLang === 'es-ES' ? 'Crea agentes IA que' : 'Crie agentes IA que' }} <span class="text-brand-400">{{ currentLang === 'en-US' ? 'learn, work and evolve.' : currentLang === 'es-ES' ? 'aprenden, trabajan y evolucionan.' : 'aprendem, trabalham e evoluem.' }}</span>
         </h1>
-        <p class="hero-subtitle">Transforme conhecimento em personas inteligentes com memória, objetivos, gamificação e autonomia. Não é chatbot — é força de trabalho cognitiva.</p>
-        <div class="hero-actions">
-          <button class="hero-btn primary" id="heroStartBtn">
-            <span>Começar grátis</span>
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+        <p class="text-lg text-gray-400 mb-8 max-w-2xl mx-auto">{{ currentLang === 'en-US' ? 'Transform knowledge into intelligent personas with memory, goals, gamification and autonomy. Not a chatbot — cognitive workforce.' : currentLang === 'es-ES' ? 'Transforma conocimiento en personas inteligentes con memoria, objetivos, gamificación y autonomía. No es chatbot — es fuerza de trabajo cognitiva.' : 'Transforme conhecimento em personas inteligentes com memória, objetivos, gamificação e autonomia. Não é chatbot — é força de trabalho cognitiva.' }}</p>
+        <div class="flex flex-col sm:flex-row gap-3 justify-center">
+          <button @click="showAuth('register')" class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
+            {{ t('startFree') }}
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </button>
-          <a href="#how" class="hero-btn secondary">
-            <span>Ver como funciona</span>
-          </a>
-        </div>
-      </div>
-      <div class="hero-visual">
-        <div class="chat-preview animate-in-delayed">
-          <div class="preview-header">
-            <span class="preview-dot"></span> <span id="previewBrandName">MetaPersona.AI</span>
-          </div>
-          <div class="preview-messages">
-            <div class="preview-msg bot">
-              <span class="preview-avatar">🎯</span>
-              <span>Criei o agente <strong>Tutor ENEM</strong>. Ele vai acompanhar seus alunos com revisão diária e gamificação.</span>
-            </div>
-            <div class="preview-msg user">
-              <span>Quero um agente para minha clínica odontológica.</span>
-            </div>
-            <div class="preview-msg bot">
-              <span class="preview-avatar">🦷</span>
-              <span>Pronto! A <strong>Dra. Sorriso</strong> agenda consultas, faz follow-ups e responde pacientes 24/7.</span>
-            </div>
-          </div>
+          <a href="#how" class="border border-white/20 hover:border-white/40 text-white px-8 py-3 rounded-xl font-medium transition">{{ t('seeHow') }}</a>
         </div>
       </div>
     </section>
 
-    <!-- COMO FUNCIONA -->
-    <section class="landing-features" id="how">
-      <div class="section-label">Como funciona</div>
-      <h2 class="section-title">De uma frase a um agente operacional em segundos.</h2>
-      <p class="section-subtitle">Descreva o que você precisa. A meta-persona cria, configura e conecta tudo automaticamente.</p>
-
-      <div class="how-flow animate-in">
-        <div class="flow-step">
-          <div class="flow-number">1</div>
-          <div class="flow-icon">💬</div>
-          <h3>Descreva</h3>
-          <p>"Quero uma IA de vendas para imobiliária"</p>
+    <section id="how" class="py-16 px-4 bg-surface-800/50">
+      <div class="max-w-5xl mx-auto">
+        <div class="text-center mb-12">
+          <span class="text-brand-400 text-sm font-medium">{{ t('howItWorks') }}</span>
+          <h2 class="text-3xl font-bold mt-2">{{ currentLang === 'en-US' ? 'From a phrase to an operational agent in seconds.' : currentLang === 'es-ES' ? 'De una frase a un agente operacional en segundos.' : 'De uma frase a um agente operacional em segundos.' }}</h2>
         </div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">
-          <div class="flow-number">2</div>
-          <div class="flow-icon">🧠</div>
-          <h3>Meta-persona cria</h3>
-          <p>Persona completa: identidade, voz, skills, conhecimento, objetivos</p>
-        </div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">
-          <div class="flow-number">3</div>
-          <div class="flow-icon">📚</div>
-          <h3>Alimente</h3>
-          <p>Upload de PDFs, documentos, preço, FAQ — vira conhecimento RAG</p>
-        </div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">
-          <div class="flow-number">4</div>
-          <div class="flow-icon">⚡</div>
-          <h3>Opera</h3>
-          <p>Agenda, acompanha, faz follow-up, adapta tom — 24/7</p>
-        </div>
-        <div class="flow-arrow">→</div>
-        <div class="flow-step">
-          <div class="flow-number">5</div>
-          <div class="flow-icon">📈</div>
-          <h3>Evolui</h3>
-          <p>XP, streaks, detecção de churn, auto-otimização contínua</p>
+        <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 items-center">
+          <div class="bg-surface-800 rounded-xl p-4 text-center"><div class="text-2xl mb-2">💬</div><div class="text-sm font-medium">{{ currentLang === 'en-US' ? 'Describe' : currentLang === 'es-ES' ? 'Describe' : 'Descreva' }}</div><div class="text-xs text-gray-500">{{ currentLang === 'en-US' ? '"I want a sales AI"' : currentLang === 'es-ES' ? '"Quiero una IA de ventas"' : '"Quero uma IA de vendas"' }}</div></div>
+          <div class="text-brand-400 text-center hidden sm:block">→</div>
+          <div class="bg-surface-800 rounded-xl p-4 text-center"><div class="text-2xl mb-2">🧠</div><div class="text-sm font-medium">{{ currentLang === 'en-US' ? 'Meta-persona creates' : currentLang === 'es-ES' ? 'Meta-persona crea' : 'Meta-persona cria' }}</div><div class="text-xs text-gray-500">{{ currentLang === 'en-US' ? 'Complete persona' : currentLang === 'es-ES' ? 'Persona completa' : 'Persona completa' }}</div></div>
+          <div class="text-brand-400 text-center hidden sm:block">→</div>
+          <div class="bg-surface-800 rounded-xl p-4 text-center"><div class="text-2xl mb-2">⚡</div><div class="text-sm font-medium">{{ currentLang === 'en-US' ? 'Operates' : currentLang === 'es-ES' ? 'Opera' : 'Opera' }}</div><div class="text-xs text-gray-500">{{ currentLang === 'en-US' ? 'Schedules, tracks, acts' : currentLang === 'es-ES' ? 'Agenda, acompaña, actúa' : 'Agenda, acompanha, age' }}</div></div>
         </div>
       </div>
     </section>
 
-    <!-- CASOS DE USO -->
-    <section class="landing-features" id="usecases">
-      <div class="section-label">Casos de uso</div>
-      <h2 class="section-title">Qualquer nicho. Qualquer persona. Um sistema.</h2>
-      <div class="features-grid">
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">🎓</div></div>
-          <h3>Educação</h3>
-          <p>Tutor IA com revisão espaçada, gamificação, correção de redação, acompanhamento de progresso e streaks.</p>
+    <section id="features" class="py-16 px-4">
+      <div class="max-w-5xl mx-auto">
+        <div class="text-center mb-12">
+          <span class="text-brand-400 text-sm font-medium">{{ currentLang === 'en-US' ? 'What your AI can do' : currentLang === 'es-ES' ? 'Lo que tu IA puede hacer' : 'O que sua IA consegue fazer' }}</span>
+          <h2 class="text-3xl font-bold mt-2">{{ currentLang === 'en-US' ? 'Agent, not assistant.' : currentLang === 'es-ES' ? 'Agente, no asistente.' : 'Agente, não assistente.' }}</h2>
         </div>
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">🦷</div></div>
-          <h3>Saúde</h3>
-          <p>Agenda consultas, lembretes de medicação, acompanhamento de adesão, follow-ups automáticos e empatia.</p>
-        </div>
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">💰</div></div>
-          <h3>Vendas / SDR</h3>
-          <p>Qualifica leads, detecta intenção de compra, envia follow-ups, CRM integrado, funil inteligente.</p>
-        </div>
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">🏋️</div></div>
-          <h3>Fitness</h3>
-          <p>Plano de treino adaptativo, streaks, acompanhamento de progresso, lembretes e motivação personalizada.</p>
-        </div>
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">⛪</div></div>
-          <h3>Religião</h3>
-          <p>Devocionais diários, versículos por tema, streaks de leitura, acompanhamento espiritual e oração.</p>
-        </div>
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">🏢</div></div>
-          <h3>Suporte SaaS</h3>
-          <p>Atendimento 24/7, detecção de churn, escalação humana, base de conhecimento e resolução automática.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- O QUE A IA FAZ -->
-    <section class="landing-features" id="features">
-      <div class="section-label">O que sua IA consegue fazer</div>
-      <h2 class="section-title">Agente, não assistente.</h2>
-      <div class="capability-grid animate-in">
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Conversar naturalmente em português, inglês e espanhol</span>
-        </div>
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Aprender documentos (PDF, DOCX, imagens, áudio) via RAG</span>
-        </div>
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Agendar consultas e compromissos automaticamente</span>
-        </div>
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Fazer follow-ups automáticos por intervalo ou gatilho</span>
-        </div>
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Detectar emoção, intenção e risco de churn em tempo real</span>
-        </div>
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Adaptar tom e comportamento conforme sentimento do usuário</span>
-        </div>
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Gerenciar CRM, tarefas, metas e calendário</span>
-        </div>
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Gamificação: XP, níveis, streaks, conquistas e ranking</span>
-        </div>
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Memória persistente — lembra nome, preferências e histórico</span>
-        </div>
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Multi-canal: WhatsApp, Telegram, Web, voz</span>
-        </div>
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Automações: keyword, intervalo, agendado, evento</span>
-        </div>
-        <div class="capability-item">
-          <span class="capability-check">✓</span>
-          <span>Intervenção humana: assumir conversa quando necessário</span>
-        </div>
-      </div>
-    </section>
-
-    <!-- ARQUITETURA COGNITIVA -->
-    <section class="landing-features" id="architecture">
-      <div class="section-label">Arquitetura Cognitiva</div>
-      <h2 class="section-title">6 cérebros. Um agente inteligente.</h2>
-      <p class="section-subtitle">Cada mensagem passa por camadas de inteligência que nenhum chatbot comum tem.</p>
-      <div class="features-grid">
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">🎭</div></div>
-          <h3>Persona / Identity</h3>
-          <p>Define quem a IA é, como fala, o que sabe — multi-persona via Meta-RAG. Crie qualquer agente com uma frase.</p>
-        </div>
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">📚</div></div>
-          <h3>Knowledge / RAG</h3>
-          <p>Busca em PDFs, documentos, imagens, áudio, APIs — por persona. Contexto relevante injetado em cada resposta.</p>
-        </div>
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">🧠</div></div>
-          <h3>Memory</h3>
-          <p>Perfil, sessão, emoções, histórico — cross-session. A IA lembra quem você é e o que conversaram.</p>
-        </div>
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">🔮</div></div>
-          <h3>Cognitive</h3>
-          <p>Detecção de emoção, intenção, risco de churn, probabilidade de conversão. A IA adapta comportamento em tempo real.</p>
-        </div>
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">⚡</div></div>
-          <h3>Agentic</h3>
-          <p>Tarefas, calendário, CRM, automações, metas hierárquicas, skills — tudo via conversa ou API.</p>
-        </div>
-        <div class="feature-card animate-in">
-          <div class="feature-icon-wrap"><div class="feature-icon">🏆</div></div>
-          <h3>Gamification</h3>
-          <p>XP, níveis, streaks, conquistas, progresso personalizado. Engajamento que nenhum chatbot tem.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- SOBRE -->
-    <section class="landing-about" id="about">
-      <div class="about-content animate-in">
-        <div class="section-label">Sobre</div>
-        <h2 class="section-title">Não é chatbot. É infraestrutura cognitiva.</h2>
-        <div class="about-text">
-          <p>MetaPersona.AI é uma plataforma whitelabel de agentes virtuais cognitivos. Serve qualquer nicho — educação, saúde, negócios, coaching, religioso, vendas.</p>
-          <p>A meta-persona é <strong>admin god</strong> — orquestra personas, cria skills, gerencia tarefas, agenda, CRM, automações, metas, estágios, e conhecimento organizacional. Tudo via conversa ou API.</p>
-          <p class="about-disclaimer"><strong>Importante:</strong> Este é um assistente virtual com inteligência artificial. As respostas são geradas com base no conhecimento indexado e podem conter imperfeições.</p>
-        </div>
-        <div class="about-stats">
-          <div class="stat"><span class="stat-num">26</span><span class="stat-label">LLM Tools</span></div>
-          <div class="stat"><span class="stat-num">39</span><span class="stat-label">Tabelas DB</span></div>
-          <div class="stat"><span class="stat-num">80+</span><span class="stat-label">API Endpoints</span></div>
-          <div class="stat"><span class="stat-num">30+</span><span class="stat-label">Chat Commands</span></div>
-        </div>
-      </div>
-    </section>
-
-    <!-- CANAIS -->
-    <section class="landing-features">
-      <div class="hero-channels animate-in">
-        <a href="#" id="landingTelegramBtn" class="channel-btn telegram" target="_blank">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M11.944 0A12 12 0 0 0 0 12a12 12 0 0 0 12 12 12 12 0 0 0 12-12A12 12 0 0 0 12.056 0h-.112zm4.962 7.224c.1-.002.321.023.465.14.149.12.191.35.211.45.04.1.06.24.04.44-.08.91-.43 3.1-.61 4.12-.08.42-.23.82-.38.95-.15.13-.3.14-.4.12-.21-.03-.33-.05-.5-.12-.21-.07-.32-.13-.53-.2-.38-.16-.61-.24-.86-.4-.3-.18-.53-.4-.72-.64-.23-.28-.37-.52-.5-.85-.05-.1 0-.22.1-.3l.6-.5c.1-.08.19-.2.09-.4l-1.28-3.02c-.06-.14-.1-.2-.31-.2h-.8c-.1 0-.2.03-.3.13l-4.9 3.8c-.1.08-.14.2-.07.34l.6 1.4c.03.07.1.13.22.13l1.03-.1c.05 0 .12.01.17.05l-1.63.93c-.13.08-.1.2-.03.34l.46.93c.06.12.13.18.28.16l1.35-.2c.08-.01.15 0 .2.06l-1.83 1.04c-.12.07-.09.2-.02.34l.5.94c.07.13.14.18.29.15l7.25-1.52c.15-.03.24-.15.28-.3.28-1.26.9-3.96 1.06-4.66.01-.06.03-.2.01-.34z"/></svg>
-          Telegram
-        </a>
-        <a href="#" id="landingWhatsappBtn" class="channel-btn whatsapp" target="_blank">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 0 1-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 0 1-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 0 1 2.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0 0 12.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 0 0 5.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 0 0-3.48-8.413z"/></svg>
-          WhatsApp
-        </a>
-      </div>
-    </section>
-
-    <!-- APOIE -->
-    <section class="landing-support" id="support">
-      <div class="support-content animate-in">
-        <div class="section-label">Apoie</div>
-        <h2 class="section-title">Apoie este projeto</h2>
-        <p class="support-text">MetaPersona.AI é <strong>gratuito e open source</strong>. Ninguém fica impedido de usar por falta de recursos. Mas se quiser contribuir, sua doação mantém os servidores e alcança mais pessoas.</p>
-        <div class="support-actions">
-          <button class="hero-btn primary" id="landingDonateBtn">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-            Contribuir via PIX
-          </button>
-          <span class="support-pix-hint">Chave PIX: haaspaulo88@gmail.com</span>
-        </div>
-        <div class="support-principles">
-          <div class="principle-item">
-            <span class="principle-icon">💚</span>
-            <div><strong>100% voluntário</strong><br>Ninguém é cobrado. Nunca.</div>
-          </div>
-          <div class="principle-item">
-            <span class="principle-icon">🔓</span>
-            <div><strong>Código aberto</strong><br>Modifique, adapte, auto-hospede.</div>
-          </div>
-          <div class="principle-item">
-            <span class="principle-icon">🤝</span>
-            <div><strong>Conhecimento acessível</strong><br>Tecnologia a serviço do humano.</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div v-for="f in features" :key="f.title" class="bg-surface-800/50 border border-white/5 rounded-xl p-5 hover:border-brand-500/30 transition">
+            <div class="text-2xl mb-3">{{ f.icon }}</div>
+            <h3 class="font-medium mb-1">{{ f.title }}</h3>
+            <p class="text-sm text-gray-400">{{ f.desc }}</p>
           </div>
         </div>
       </div>
     </section>
 
-    <!-- NEWSLETTER -->
-    <section class="landing-newsletter" id="newsletter">
-      <div class="newsletter-inner animate-in">
-        <div class="section-label">Newsletter</div>
-        <h2 class="section-title">Receba conteúdo todo dia</h2>
-        <p class="newsletter-desc">Conteúdo relevante no seu email, toda manhã. Gratuito, sem spam.</p>
-        <form class="newsletter-form" id="newsletterForm">
-          <div class="newsletter-input-row">
-            <input type="text" id="newsletterName" placeholder="Seu nome (opcional)" class="newsletter-input" />
-            <input type="email" id="newsletterEmail" placeholder="Seu melhor email" class="newsletter-input" required />
-            <button type="submit" class="hero-btn primary newsletter-btn" id="newsletterSubmitBtn">Quero receber</button>
-          </div>
-          <p class="newsletter-privacy">Confirmação por email. Cancele quando quiser.</p>
-        </form>
-        <div id="newsletterSuccess" class="newsletter-success" style="display:none;">
-          <span class="newsletter-success-icon">🤖</span>
-          <p>Inscrição recebida! Verifique seu email para confirmar.</p>
-        </div>
+    <section class="py-16 px-4 bg-surface-800/50">
+      <div class="max-w-3xl mx-auto text-center">
+        <h2 class="text-2xl font-bold mb-4">{{ t('supportProject') }}</h2>
+        <p class="text-gray-400 mb-6">{{ t('contributeDesc') }}</p>
+        <button @click="showDonate=true" class="bg-brand-500 hover:bg-brand-600 text-white px-6 py-2.5 rounded-xl font-medium transition">{{ t('contributeBtn') }}</button>
       </div>
     </section>
 
-    <!-- CONTATO -->
-    <section class="landing-contact" id="contact">
-      <div class="contact-inner animate-in">
-        <div class="section-label">Contato</div>
-        <h2 class="section-title">Fale conosco</h2>
-        <p class="contact-desc">Dúvidas, sugestões ou feedback — estamos aqui.</p>
-        <form class="contact-form" id="contactForm">
-          <div class="contact-row">
-            <input type="text" id="contactName" placeholder="Seu nome" class="contact-input" />
-            <input type="email" id="contactEmail" placeholder="Seu email" class="contact-input" required />
-          </div>
-          <input type="text" id="contactSubject" placeholder="Assunto" class="contact-input" />
-          <textarea id="contactMessage" placeholder="Sua mensagem..." class="contact-textarea" rows="4" required></textarea>
-          <button type="submit" class="hero-btn primary contact-btn" id="contactSubmitBtn">Enviar mensagem</button>
-        </form>
-        <div id="contactSuccess" class="contact-success" style="display:none;">
-          <span class="contact-success-icon">🤖</span>
-          <p>Mensagem enviada! Obrigado pelo contato.</p>
-        </div>
-      </div>
-    </section>
-
-    <!-- FOOTER -->
-    <footer class="landing-footer">
-      <div class="footer-inner">
-        <div class="footer-logo">
-           <span class="cross-icon persona-icon">🤖</span> <span class="brand-name">MetaPersona.AI</span>
-        </div>
-        <p class="footer-tagline">Crie agentes IA que aprendem, trabalham e evoluem.</p>
-        <div class="footer-links">
-          <a href="#how">Como funciona</a>
-          <a href="#usecases">Casos de uso</a>
-          <a href="#features">Recursos</a>
-          <a href="#" id="footerTelegramBtn" target="_blank">Telegram</a>
-          <a href="#" id="footerWhatsappBtn" target="_blank">WhatsApp</a>
-          <a href="#support">Apoie</a>
-        </div>
-        <p class="footer-oss">Plataforma whitelabel de agentes cognitivos persistentes com RAG multimodal.</p>
+    <footer class="py-8 px-4 border-t border-white/5">
+      <div class="max-w-5xl mx-auto text-center text-sm text-gray-500">
+        {{ brandName }} — {{ currentLang === 'en-US' ? 'Cognitive agent platform with multimodal RAG and multi-persona.' : currentLang === 'es-ES' ? 'Plataforma de agentes cognitivos con RAG multimodal y multi-persona.' : 'Plataforma de agentes cognitivos com RAG multimodal e multi-persona.' }}
       </div>
     </footer>
+  </div>
 
-    <!-- AUTH MODAL -->
-    <div class="auth-overlay" id="authOverlay" style="display:none;">
-      <div class="auth-card animate-in" id="authCard">
-        <button class="auth-close" id="authCloseBtn">&times;</button>
-        <div class="auth-logo">
-          <span class="cross-icon persona-icon">🤖</span>
-           <h2 class="brand-name">MetaPersona.AI</h2>
-          <p id="authSubtitle">Entre para criar seus agentes</p>
-        </div>
-        <div id="authError" class="auth-error"></div>
-
-        <div class="google-btn-wrapper" id="googleBtnWrapper" style="display:none;">
-          <button class="google-btn" id="googleSignInBtn">
-            <svg viewBox="0 0 24 24" width="20" height="20"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg>
-            Continuar com Google
-          </button>
-        </div>
-
-        <div class="auth-divider" id="googleDivider"><span>ou</span></div>
-
-        <div id="loginForm">
-          <div class="form-group">
-            <label>Email</label>
-            <input type="email" id="loginEmail" class="form-input" placeholder="seu@email.com" autocomplete="email" />
-          </div>
-          <div class="form-group">
-            <label>Senha</label>
-            <input type="password" id="loginPassword" class="form-input" placeholder="Mínimo 6 caracteres" autocomplete="current-password" />
-          </div>
-          <button class="auth-btn" id="loginBtn">Entrar</button>
-          <div class="auth-switch">
-            Não tem conta? <a id="showRegister">Criar conta</a>
-          </div>
-        </div>
-        <div id="registerForm" style="display:none;">
-          <div class="form-group">
-            <label>Nome (opcional)</label>
-            <input type="text" id="registerName" class="form-input" placeholder="Seu nome" />
-          </div>
-          <div class="form-group">
-            <label>Email</label>
-            <input type="email" id="registerEmail" class="form-input" placeholder="seu@email.com" autocomplete="email" />
-          </div>
-          <div class="form-group">
-            <label>Senha</label>
-            <input type="password" id="registerPassword" class="form-input" placeholder="Mínimo 6 caracteres" autocomplete="new-password" />
-          </div>
-          <button class="auth-btn" id="registerBtn">Criar conta</button>
-          <div class="auth-switch">
-            Já tem conta? <a id="showLogin">Entrar</a>
-          </div>
-        </div>
-
-        <div class="auth-divider"><span>ou</span></div>
-        <button class="auth-skip-btn" id="skipAuthBtn">Continuar sem login</button>
+  <!-- ==================== AUTH MODAL ==================== -->
+  <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" @click.self="showAuthModal=false">
+    <div class="bg-surface-800 border border-white/10 rounded-2xl p-6 w-full max-w-sm mx-4">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold">{{ authMode==='login' ? t('login') : t('register') }}</h2>
+        <button @click="showAuthModal=false" class="text-gray-400 hover:text-white text-xl">&times;</button>
       </div>
+      <div v-if="authError" class="bg-red-500/10 border border-red-500/30 text-red-400 text-sm p-3 rounded-lg mb-3">{{ authError }}</div>
+      <div v-if="authMode==='register'" class="mb-3">
+        <input v-model="authName" type="text" :placeholder="t('name')" class="w-full bg-surface-700 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-500">
+      </div>
+      <input v-model="authEmail" type="email" :placeholder="t('email')" class="w-full bg-surface-700 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-500 mb-3">
+      <input v-model="authPassword" type="password" :placeholder="t('password')" class="w-full bg-surface-700 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-500 mb-3" @keydown.enter="doAuth()">
+      <button @click="doAuth()" :disabled="authLoading" class="w-full bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white py-2.5 rounded-lg font-medium transition">
+        {{ authLoading ? '...' : (authMode==='login' ? t('login') : t('register')) }}
+      </button>
+      <div class="text-center mt-3 text-sm text-gray-400">
+        {{ authMode==='login' ? t('noAccount') : t('hasAccount') }}
+        <button @click="authMode=authMode==='login'?'register':'login'; authError=''" class="text-brand-400 hover:underline">{{ authMode==='login' ? t('register') : t('login') }}</button>
+      </div>
+      <div class="relative my-4"><div class="absolute inset-0 flex items-center"><div class="w-full border-t border-white/10"></div></div><div class="relative flex justify-center text-xs"><span class="px-2 bg-surface-800 text-gray-500">{{ t('or') }}</span></div></div>
+      <button @click="skipAuth" class="w-full border border-white/10 hover:border-white/20 text-gray-300 py-2.5 rounded-lg text-sm transition">{{ t('continueWithoutLogin') }}</button>
     </div>
   </div>
 
-  <div class="app" id="appContainer" style="display:none;">
-    <aside class="sidebar" id="sidebar">
-      <div class="sidebar-header">
-        <div class="sidebar-logo">
-           <span class="cross">🤖</span>
-           <span class="sidebar-title brand-name">MetaPersona.AI</span>
+  <!-- ==================== MAIN APP ==================== -->
+  <div v-if="view==='chat'" class="flex h-screen overflow-hidden">
+
+    <!-- SIDEBAR -->
+    <aside :class="[sidebarOpen ? 'translate-x-0' : '-translate-x-full', 'fixed sm:relative z-40 w-72 h-full bg-surface-800 border-r border-white/5 flex flex-col transition-transform sm:translate-x-0']">
+      <div class="p-3 flex items-center justify-between border-b border-white/5">
+        <div class="flex items-center gap-2">
+          <img v-if="brandLogoUrl" :src="brandLogoUrl" class="h-6 w-6 rounded" />
+          <span v-else class="text-lg">{{ brandIcon }}</span>
+          <span class="font-bold text-sm">{{ brandName }}</span>
         </div>
-        <button class="sidebar-close" id="sidebarClose" title="Fechar menu">&times;</button>
+        <button @click="sidebarOpen=false" class="sm:hidden text-gray-400 hover:text-white">&times;</button>
       </div>
 
-      <button class="new-chat-btn-sidebar" id="newChatBtnSidebar">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-        Nova conversa
+      <!-- Persona Switcher -->
+      <div class="px-3 py-2 persona-switcher-area">
+        <button @click="showPersonaDropdown=!showPersonaDropdown" class="w-full flex items-center gap-2 bg-surface-700 hover:bg-surface-600 border border-white/5 rounded-lg px-3 py-2 text-sm transition">
+          <img v-if="currentPersonaAvatar" :src="currentPersonaAvatar" class="w-6 h-6 rounded-full" />
+          <span v-else class="w-6 h-6 flex items-center justify-center rounded-full bg-brand-500/20 text-sm">{{ currentPersonaIcon }}</span>
+          <span class="flex-1 text-left truncate">{{ currentPersonaName }}</span>
+          <svg class="w-4 h-4 text-gray-400 transition-transform" :class="{'rotate-180':showPersonaDropdown}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div v-if="showPersonaDropdown" class="mt-1 bg-surface-700 border border-white/10 rounded-lg overflow-hidden shadow-xl">
+          <div v-for="p in personas" :key="p.id" @click="switchPersona(p.id)" :class="['flex items-center gap-2 px-3 py-2 text-sm cursor-pointer hover:bg-brand-500/10 transition', p.id===currentPersonaId ? 'bg-brand-500/10 text-brand-400' : '']">
+            <img v-if="p.avatarUrl" :src="p.avatarUrl" class="w-6 h-6 rounded-full" />
+            <span v-else class="w-6 h-6 flex items-center justify-center rounded-full bg-brand-500/20 text-xs">{{ getPersonaEmoji(p.id) }}</span>
+            <div class="flex-1 min-w-0">
+              <div class="font-medium truncate">{{ getPersonaName(p) }}</div>
+              <div v-if="p.nameEn && p.name !== p.nameEn" class="text-xs text-gray-500 truncate">{{ p.nameEn }}</div>
+            </div>
+            <div v-if="p.accentColor" class="w-2 h-2 rounded-full shrink-0" :style="{background: p.accentColor}"></div>
+          </div>
+        </div>
+      </div>
+
+      <button @click="newChat" class="mx-3 mb-2 flex items-center gap-2 bg-brand-500/10 border border-brand-500/20 text-brand-400 hover:bg-brand-500/20 rounded-lg px-3 py-2 text-sm transition">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        {{ t('newConversation') }}
       </button>
 
-      <div class="sidebar-nav">
-        <a href="#" data-page="chat" class="active">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-          Chat
-        </a>
-        <a href="#" data-page="blog">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
-           Conteúdo
-        </a>
-        <a href="#" data-page="search">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          Buscar
-        </a>
+      <!-- Nav tabs -->
+      <div class="flex border-b border-white/5 mx-3">
+        <button @click="sidebarTab='chat'" :class="['flex-1 py-2 text-xs font-medium transition flex flex-col items-center gap-0.5', sidebarTab==='chat' ? 'text-brand-400 border-b-2 border-brand-400' : 'text-gray-500 hover:text-gray-300']" :title="t('chat')">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span class="text-[10px]">{{ t('chat') }}</span>
+        </button>
+        <button @click="sidebarTab='content';loadBlog()" :class="['flex-1 py-2 text-xs font-medium transition flex flex-col items-center gap-0.5', sidebarTab==='content' ? 'text-brand-400 border-b-2 border-brand-400' : 'text-gray-500 hover:text-gray-300']" :title="contentTabLabel">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 17.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+          <span class="text-[10px]">{{ contentTabLabel }}</span>
+        </button>
+        <button @click="sidebarTab='quiz';loadQuizzes()" :class="['flex-1 py-2 text-xs font-medium transition flex flex-col items-center gap-0.5', sidebarTab==='quiz' ? 'text-brand-400 border-b-2 border-brand-400' : 'text-gray-500 hover:text-gray-300']" :title="'Quiz'">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          <span class="text-[10px]">Quiz</span>
+        </button>
+        <button @click="sidebarTab='media';loadMediaGallery()" :class="['flex-1 py-2 text-xs font-medium transition flex flex-col items-center gap-0.5', sidebarTab==='media' ? 'text-brand-400 border-b-2 border-brand-400' : 'text-gray-500 hover:text-gray-300']" :title="currentLang === 'en-US' ? 'Media' : currentLang === 'es-ES' ? 'Medios' : 'Mídia'">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+          <span class="text-[10px]">{{ currentLang === 'en-US' ? 'Media' : currentLang === 'es-ES' ? 'Medios' : 'Mídia' }}</span>
+        </button>
+        <button @click="sidebarTab='search'" :class="['flex-1 py-2 text-xs font-medium transition flex flex-col items-center gap-0.5', sidebarTab==='search' ? 'text-brand-400 border-b-2 border-brand-400' : 'text-gray-500 hover:text-gray-300']" :title="t('search')">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <span class="text-[10px]">{{ t('search') }}</span>
+        </button>
       </div>
 
-      <div class="sidebar-section">
-        <h4 class="sidebar-section-title">Conversas</h4>
-        <div class="conversations-list" id="conversationsList"></div>
-      </div>
-
-      <div class="sidebar-section">
-        <h4 class="sidebar-section-title">Seu perfil</h4>
-        <div class="profile-card" id="profileCard">
-          <div class="profile-name-row">
-            <input type="text" id="profileName" placeholder="Seu nome..." class="profile-input" />
-            <button class="profile-save-btn" id="profileSaveBtn" title="Salvar nome">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
-            </button>
+      <!-- Conversations (chat tab) -->
+      <div v-show="sidebarTab==='chat'" class="flex-1 overflow-y-auto px-3 py-2">
+        <div v-if="conversations.length===0" class="text-xs text-gray-500 text-center py-4">{{ t('noConversations') }}</div>
+        <div v-for="conv in conversations" :key="conv.id" @click="loadSession(conv.id)" :class="['group flex items-start gap-2 p-2 rounded-lg cursor-pointer transition mb-1', conv.id===sessionId ? 'bg-brand-500/10 border border-brand-500/30' : 'hover:bg-surface-600']">
+          <span class="text-lg mt-0.5">{{ getPersonaEmoji(conv.personaId) }}</span>
+          <div class="flex-1 min-w-0">
+            <div class="text-sm truncate">{{ conv.userName || (currentLang === 'en-US' ? 'Conversation' : currentLang === 'es-ES' ? 'Conversa' : 'Conversa') }}</div>
+            <div class="text-xs text-gray-500 truncate">{{ conv.summary || conv.messageCount + ' msgs' }}</div>
           </div>
-           <textarea id="profileJourney" placeholder="Conte sobre sua experiência..." class="profile-textarea" rows="2"></textarea>
-          <div class="profile-meta" id="profileMeta"></div>
-          <div id="authInfo" class="auth-info"></div>
-          <button class="logout-btn" id="logoutBtn" style="display:none;">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
-            Sair
-          </button>
+          <button @click.stop="deleteSession(conv.id)" class="opacity-0 group-hover:opacity-100 text-gray-500 hover:text-red-400 transition text-xs">&times;</button>
         </div>
       </div>
 
-      <div class="sidebar-footer">
-        <button class="donate-btn" id="donateBtn">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          Contribuir
-        </button>
-        <div class="sidebar-disclaimer">
-           <p class="disclaimer-main">Agente cognitivo com IA. Respostas geradas com conhecimento indexado e podem conter imperfeições.</p>
-           <p class="disclaimer-sub">Plataforma de agentes IA com RAG multimodal e multi-persona.</p>
+      <!-- Blog (content tab) -->
+      <div v-show="sidebarTab==='content'" class="flex-1 overflow-y-auto px-3 py-2">
+        <div v-if="blogPosts.length===0" class="text-xs text-gray-500 text-center py-4">{{ t('loading') }}</div>
+        <div v-for="post in blogPosts" :key="post.slug" @click="viewPost(post.slug)" class="p-2 rounded-lg hover:bg-surface-600 cursor-pointer mb-1 transition">
+          <div class="text-xs text-gray-500">{{ formatDate(post.publishedAt) }}</div>
+          <div class="text-sm font-medium truncate">{{ post.title }}</div>
+          <div class="text-xs text-gray-500 truncate">{{ post.excerpt }}</div>
+        </div>
+      </div>
+
+      <!-- Search (search tab) -->
+      <div v-show="sidebarTab==='search'" class="flex-1 overflow-y-auto px-3 py-2">
+        <!-- Source content view -->
+        <template v-if="sourceContentView">
+          <div class="flex items-center gap-2 mb-3">
+            <button @click="sourceContentView=null" class="text-brand-400 hover:text-brand-300 text-sm">&larr; Voltar</button>
+            <span class="text-sm font-medium text-white truncate">{{ sourceContentView.name }}</span>
+            <span class="text-xs text-gray-500">{{ sourceContentView.documentCount }} p&aacute;ginas</span>
+          </div>
+          <div class="space-y-3">
+            <div v-for="(doc, i) in sourceContentView.documents" :key="i" class="bg-surface-700/50 border border-white/5 rounded-lg p-3">
+              <div class="text-xs text-brand-400 mb-1">{{ doc.reference }}</div>
+              <div class="text-xs text-gray-300 whitespace-pre-wrap leading-relaxed max-h-40 overflow-y-auto">{{ doc.text }}</div>
+            </div>
+          </div>
+        </template>
+        <!-- Loading -->
+        <template v-else-if="sourceContentLoading">
+          <div class="text-xs text-gray-500 text-center py-4">{{ t('loading') }}</div>
+        </template>
+        <!-- Normal search view -->
+        <template v-else>
+          <div class="mb-3">
+            <input v-model="searchQuery" @keydown.enter="doSearch()" type="text" :placeholder="t('searchKnowledge')" class="w-full bg-surface-700 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-500">
+          </div>
+          <div v-if="searchResults.length>0">
+            <div v-for="r in searchResults" :key="r.reference" class="p-2 rounded-lg hover:bg-surface-600 mb-1 cursor-pointer transition">
+              <div class="text-sm text-brand-400">{{ r.reference }}</div>
+              <div class="text-xs text-gray-400 line-clamp-2">{{ r.text }}</div>
+            </div>
+          </div>
+          <div v-else-if="searchDone" class="text-xs text-gray-500 text-center py-4">{{ t('noResults') }}</div>
+          <div v-if="searchResults.length===0 && !searchDone">
+            <div class="text-xs text-gray-400 mb-2">{{ knowledgeSourceList.length > 0 ? currentPersonaName : t('bibleIndex') }}</div>
+            <template v-if="knowledgeSourceList.length > 0">
+              <div v-for="src in knowledgeSourceList" :key="src" class="mb-1">
+                <button @click="searchSource(src)" class="text-xs px-3 py-1.5 bg-brand-500/10 text-brand-300 rounded-lg hover:bg-brand-500/20 transition w-full text-left">{{ src.replace(/[-_]/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) }}</button>
+              </div>
+            </template>
+            <template v-else>
+              <div v-for="(books,section) in bibleBooks" :key="section" class="mb-2">
+                <div class="text-xs font-medium text-gray-300 mb-1">{{ section }}</div>
+                <div class="flex flex-wrap gap-1">
+                  <button v-for="book in books" :key="book.name" @click="searchQuery=book.name;doSearch()" class="text-xs px-2 py-0.5 bg-surface-700 rounded hover:bg-brand-500/20 transition">{{ book.name }}</button>
+                </div>
+             </div>
+           </template>
+         </div>
+       </template>
+      </div>
+
+      <!-- Quiz tab -->
+      <div v-show="sidebarTab==='quiz'" class="flex-1 overflow-y-auto px-3 py-2">
+        <!-- Quiz list -->
+        <template v-if="!activeQuiz && !quizResults">
+          <div v-if="quizLoading" class="flex flex-col items-center justify-center py-8">
+            <div class="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+            <span class="text-xs text-gray-500">{{ t('loading') }}</span>
+          </div>
+          <div v-else-if="quizzes.length===0" class="flex flex-col items-center justify-center py-8 text-center">
+            <div class="text-3xl mb-3">📝</div>
+            <div class="text-sm text-gray-400 mb-1">{{ currentLang === 'en-US' ? 'No quizzes yet' : currentLang === 'es-ES' ? 'Sin quizzes aún' : 'Nenhum quiz ainda' }}</div>
+            <div class="text-xs text-gray-500">{{ currentLang === 'en-US' ? 'Quizzes will appear here' : currentLang === 'es-ES' ? 'Los quizzes aparecerán aquí' : 'Os quizzes aparecerão aqui' }}</div>
+          </div>
+          <div v-for="quiz in quizzes" :key="quiz.id" @click="startQuiz(quiz.id)" class="bg-surface-700/50 border border-white/5 rounded-lg p-3 mb-2 cursor-pointer hover:border-brand-500/30 hover:bg-surface-600/50 transition group">
+            <div class="flex items-center justify-between">
+              <div class="flex-1 min-w-0">
+                <div class="text-sm font-medium truncate group-hover:text-brand-400 transition">{{ quiz.title }}</div>
+                <div class="flex items-center gap-2 mt-1">
+                  <span class="text-xs text-gray-500">{{ quiz.questionCount || 0 }} {{ currentLang === 'en-US' ? 'questions' : currentLang === 'es-ES' ? 'preguntas' : 'perguntas' }}</span>
+                  <span class="text-xs text-green-400">+{{ quiz.xp_reward }} XP</span>
+                </div>
+              </div>
+              <div v-if="quiz.time_limit_seconds" class="text-xs text-gray-400 ml-2 flex items-center gap-0.5">
+                <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                {{ Math.floor(quiz.time_limit_seconds / 60) }}min
+              </div>
+            </div>
+            <div v-if="quiz.description" class="text-xs text-gray-400 mt-1 line-clamp-2">{{ quiz.description }}</div>
+            <div class="flex items-center gap-1.5 mt-1.5">
+              <span class="text-[10px] px-1.5 py-0.5 bg-brand-500/10 text-brand-400 rounded-full">{{ quiz.quiz_type === 'multiple_choice' ? 'A/B/C' : quiz.quiz_type === 'true_false' ? 'V/F' : quiz.quiz_type === 'survey' ? '📊' : quiz.quiz_type }}</span>
+              <span v-if="quiz.settings?.showExplanation" class="text-[10px] text-gray-500">{{ currentLang === 'en-US' ? 'w/ explanations' : currentLang === 'es-ES' ? 'con explicaciones' : 'c/ explicações' }}</span>
+            </div>
+          </div>
+        </template>
+
+        <!-- Active quiz -->
+        <template v-else-if="activeQuiz && !quizResults">
+          <div class="flex items-center justify-between mb-3">
+            <button @click="closeQuiz" class="text-gray-400 hover:text-white text-sm">&larr; {{ t('back') }}</button>
+            <div class="text-sm font-medium text-white">{{ quizCurrentQuestion + 1 }}/{{ activeQuiz.questions.length }}</div>
+          </div>
+          <div class="w-full bg-surface-600 rounded-full h-1.5 mb-3">
+            <div class="bg-brand-500 h-1.5 rounded-full transition-all" :style="{width: ((quizCurrentQuestion + 1) / activeQuiz.questions.length * 100) + '%'}"></div>
+          </div>
+           <div v-if="quizTimeLeft !== null" class="text-xs text-center mb-2 font-mono" :class="quizTimeLeft < 30 ? 'text-red-400 font-bold animate-pulse' : quizTimeLeft < 60 ? 'text-yellow-400' : 'text-gray-400'">
+             <svg class="w-3.5 h-3.5 inline mr-1" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+             {{ Math.floor(quizTimeLeft / 60) }}:{{ String(quizTimeLeft % 60).padStart(2, '0') }}
+           </div>
+
+          <div v-if="activeQuiz.questions[quizCurrentQuestion]" class="bg-surface-700/50 border border-white/5 rounded-lg p-4">
+            <div class="text-sm font-medium mb-3">{{ activeQuiz.questions[quizCurrentQuestion].text }}</div>
+
+            <!-- Multiple choice -->
+            <template v-if="activeQuiz.questions[quizCurrentQuestion].type === 'multiple_choice' || activeQuiz.questions[quizCurrentQuestion].type === 'true_false'">
+              <div class="space-y-2">
+                <button v-for="(opt, oi) in activeQuiz.questions[quizCurrentQuestion].options" :key="oi" @click="selectQuizAnswer(activeQuiz.questions[quizCurrentQuestion].id, opt)" :class="['w-full text-left p-3 rounded-lg border transition text-sm', quizAnswers[activeQuiz.questions[quizCurrentQuestion].id] === opt ? 'bg-brand-500/20 border-brand-500 text-brand-400' : 'bg-surface-600 border-white/5 hover:border-white/20 text-gray-300']">{{ opt }}</button>
+              </div>
+            </template>
+
+            <!-- Fill blank -->
+            <template v-else-if="activeQuiz.questions[quizCurrentQuestion].type === 'fill_blank'">
+              <input v-model="quizAnswers[activeQuiz.questions[quizCurrentQuestion].id]" type="text" :placeholder="currentLang === 'en-US' ? 'Your answer...' : currentLang === 'es-ES' ? 'Tu respuesta...' : 'Sua resposta...'" class="w-full bg-surface-600 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500">
+            </template>
+
+            <!-- Ordered -->
+            <template v-else-if="activeQuiz.questions[quizCurrentQuestion].type === 'ordered'">
+              <div class="space-y-2">
+                <button v-for="(opt, oi) in activeQuiz.questions[quizCurrentQuestion].options" :key="oi" @click="toggleQuizAnswer(activeQuiz.questions[quizCurrentQuestion].id, opt)" :class="['w-full text-left p-3 rounded-lg border transition text-sm', (quizAnswers[activeQuiz.questions[quizCurrentQuestion].id] || []).includes(opt) ? 'bg-brand-500/20 border-brand-500 text-brand-400' : 'bg-surface-600 border-white/5 hover:border-white/20 text-gray-300']">
+                  <span v-if="(quizAnswers[activeQuiz.questions[quizCurrentQuestion].id] || []).includes(opt)" class="text-xs text-brand-300 mr-2">#{{ (quizAnswers[activeQuiz.questions[quizCurrentQuestion].id] || []).indexOf(opt) + 1 }}</span>{{ opt }}
+                </button>
+              </div>
+            </template>
+
+            <!-- Open ended / survey -->
+            <template v-else>
+              <textarea v-model="quizAnswers[activeQuiz.questions[quizCurrentQuestion].id]" :placeholder="currentLang === 'en-US' ? 'Type your answer...' : currentLang === 'es-ES' ? 'Escribe tu respuesta...' : 'Digite sua resposta...'" rows="3" class="w-full bg-surface-600 border border-white/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:border-brand-500 resize-none"></textarea>
+            </template>
+          </div>
+
+          <div class="flex items-center justify-between mt-3">
+            <button v-if="quizCurrentQuestion > 0" @click="prevQuizQuestion" class="text-gray-400 hover:text-white text-sm px-3 py-1.5 rounded-lg border border-white/10 transition">{{ currentLang === 'en-US' ? 'Previous' : currentLang === 'es-ES' ? 'Anterior' : 'Anterior' }}</button>
+            <div v-else></div>
+            <button v-if="quizCurrentQuestion < activeQuiz.questions.length - 1" @click="nextQuizQuestion" class="bg-brand-500 hover:bg-brand-600 text-white text-sm px-4 py-1.5 rounded-lg transition">{{ currentLang === 'en-US' ? 'Next' : currentLang === 'es-ES' ? 'Siguiente' : 'Próxima' }}</button>
+            <button v-else @click="submitQuiz" :disabled="quizSubmitting" class="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white text-sm px-4 py-1.5 rounded-lg transition">{{ quizSubmitting ? '...' : (currentLang === 'en-US' ? 'Submit' : currentLang === 'es-ES' ? 'Enviar' : 'Enviar') }}</button>
+          </div>
+        </template>
+
+        <!-- Quiz results -->
+        <template v-else-if="quizResults">
+          <div class="text-center py-4">
+            <div class="text-4xl mb-2">{{ quizResults.passed ? '🎉' : '📚' }}</div>
+            <h3 class="text-lg font-bold mb-1">{{ quizResults.passed ? (currentLang === 'en-US' ? 'Passed!' : currentLang === 'es-ES' ? '¡Aprobado!' : 'Passou!') : (currentLang === 'en-US' ? 'Keep studying!' : currentLang === 'es-ES' ? '¡Sigue estudiando!' : 'Continue estudando!') }}</h3>
+            <div class="text-3xl font-bold text-brand-400 mb-2">{{ quizResults.percentage }}%</div>
+            <div class="text-sm text-gray-400 mb-4">{{ quizResults.correctQuestions || 0 }}/{{ quizResults.totalQuestions || 0 }} {{ currentLang === 'en-US' ? 'correct' : currentLang === 'es-ES' ? 'correctas' : 'corretas' }}</div>
+            <div v-if="quizResults.xpEarned" class="text-sm text-green-400 mb-2">+{{ quizResults.xpEarned }} XP</div>
+            <div v-if="quizResults.badgeEarned" class="text-sm text-yellow-400 mb-2">🏅 {{ currentLang === 'en-US' ? 'Badge earned!' : currentLang === 'es-ES' ? '¡Insignia ganada!' : 'Conquista ganha!' }}</div>
+          </div>
+
+          <div v-if="quizResults.results" class="space-y-2">
+            <div v-for="(result, ri) in quizResults.results" :key="ri" :class="['rounded-lg p-3 border', result.correct ? 'bg-green-500/5 border-green-500/20' : 'bg-red-500/5 border-red-500/20']">
+              <div class="flex items-center gap-2">
+                <span class="text-sm">{{ result.correct ? '✅' : '❌' }}</span>
+                <span class="text-xs text-gray-400">{{ result.points || 0 }}/{{ result.maxPoints || 1 }}</span>
+              </div>
+              <div v-if="result.explanation" class="text-xs text-gray-400 mt-1">{{ result.explanation }}</div>
+            </div>
+          </div>
+
+          <button @click="closeQuiz" class="w-full mt-4 bg-brand-500 hover:bg-brand-600 text-white py-2.5 rounded-lg text-sm font-medium transition flex items-center justify-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="19" y1="12" x2="5" y2="12"/><polyline points="12 19 5 12 12 5"/></svg>
+            {{ currentLang === 'en-US' ? 'Back to Quizzes' : currentLang === 'es-ES' ? 'Volver a Quizzes' : 'Voltar aos Quizzes' }}
+          </button>
+        </template>
+      </div>
+
+      <!-- Media tab -->
+      <div v-show="sidebarTab==='media'" class="flex-1 overflow-y-auto px-3 py-2">
+        <div class="flex items-center gap-2 mb-3">
+          <select v-model="mediaFilter" @change="loadMediaGallery()" class="flex-1 bg-surface-700 border border-white/10 rounded-lg px-2 py-1.5 text-xs focus:outline-none focus:border-brand-500">
+            <option value="all">{{ currentLang === 'en-US' ? 'All' : currentLang === 'es-ES' ? 'Todo' : 'Todos' }}</option>
+            <option value="image">{{ currentLang === 'en-US' ? 'Images' : currentLang === 'es-ES' ? 'Imágenes' : 'Imagens' }}</option>
+            <option value="video">{{ currentLang === 'en-US' ? 'Videos' : 'Vídeos' }}</option>
+            <option value="audio">{{ currentLang === 'en-US' ? 'Audio' : 'Áudio' }}</option>
+            <option value="document">{{ currentLang === 'en-US' ? 'Documents' : currentLang === 'es-ES' ? 'Documentos' : 'Documentos' }}</option>
+            <option value="presentation">{{ currentLang === 'en-US' ? 'Presentations' : currentLang === 'es-ES' ? 'Presentaciones' : 'Apresentações' }}</option>
+          </select>
+          <button @click="showMediaUpload=true" class="bg-brand-500/10 border border-brand-500/20 text-brand-400 hover:bg-brand-500/20 rounded-lg px-2 py-1.5 text-xs transition flex items-center gap-1" :title="currentLang === 'en-US' ? 'Upload' : 'Upload'">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+            <span>{{ currentLang === 'en-US' ? 'Upload' : currentLang === 'es-ES' ? 'Subir' : 'Enviar' }}</span>
+          </button>
+        </div>
+
+        <div v-if="mediaLoading" class="flex flex-col items-center justify-center py-8">
+          <div class="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mb-3"></div>
+          <span class="text-xs text-gray-500">{{ t('loading') }}</span>
+        </div>
+        <div v-else-if="mediaGallery.length===0" class="flex flex-col items-center justify-center py-8 text-center">
+          <div class="text-3xl mb-3">🖼️</div>
+          <div class="text-sm text-gray-400 mb-1">{{ currentLang === 'en-US' ? 'No media files' : currentLang === 'es-ES' ? 'Sin archivos multimedia' : 'Nenhum arquivo de mídia' }}</div>
+          <div class="text-xs text-gray-500">{{ currentLang === 'en-US' ? 'Images, videos, and documents will appear here' : currentLang === 'es-ES' ? 'Imágenes, videos y documentos aparecerán aquí' : 'Imagens, vídeos e documentos aparecerão aqui' }}</div>
+        </div>
+        <div v-else class="grid grid-cols-2 gap-2">
+          <div v-for="item in mediaGallery" :key="item.id" @click="openMediaViewer(item)" class="bg-surface-700/50 border border-white/5 rounded-lg overflow-hidden cursor-pointer hover:border-brand-500/30 transition group">
+            <!-- Image thumbnail -->
+            <template v-if="item.type === 'image'">
+              <div class="aspect-square bg-surface-600 overflow-hidden">
+                <img :src="item.url || item.thumbnail" :alt="item.alt_text || item.title" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" loading="lazy" onerror="this.style.display='none'">
+              </div>
+            </template>
+            <!-- Video thumbnail -->
+            <template v-else-if="item.type === 'video'">
+              <div class="aspect-square bg-surface-600 flex items-center justify-center relative">
+                <span class="text-3xl">🎬</span>
+                <div class="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1 rounded flex items-center gap-0.5">
+                  <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><polygon points="5,3 19,10 5,17"/></svg>
+                </div>
+              </div>
+            </template>
+            <!-- Audio thumbnail -->
+            <template v-else-if="item.type === 'audio'">
+              <div class="aspect-square bg-surface-600 flex items-center justify-center">
+                <span class="text-3xl">🎵</span>
+              </div>
+            </template>
+            <!-- Document/other thumbnail -->
+            <template v-else>
+              <div class="aspect-square bg-surface-600 flex items-center justify-center">
+                <span class="text-3xl">{{ getMediaIcon(item.type) }}</span>
+              </div>
+            </template>
+            <div class="p-2">
+              <div class="text-xs font-medium truncate">{{ item.title }}</div>
+              <div v-if="item.caption" class="text-[10px] text-gray-500 truncate">{{ item.caption }}</div>
+              <div class="flex items-center gap-1 mt-0.5">
+                <span class="text-[9px] text-gray-600">{{ getMediaIcon(item.type) }}</span>
+                <span v-if="item.size" class="text-[9px] text-gray-600">{{ formatFileSize(item.size) }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Profile -->
+      <div class="border-t border-white/5 p-3">
+        <div class="flex items-center gap-2 mb-2">
+          <input v-model="profileName" @blur="saveProfile" type="text" :placeholder="t('yourName')" class="flex-1 bg-transparent border-b border-white/10 focus:border-brand-500 text-sm outline-none py-1">
+          <button @click="saveProfile" class="text-brand-400 hover:text-brand-300" :title="t('save')">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg>
+          </button>
+        </div>
+        <div class="flex items-center gap-2 mb-2">
+          <select v-model="currentLang" @change="saveLang" class="flex-1 bg-surface-700 border border-white/10 rounded px-2 py-1 text-xs focus:outline-none focus:border-brand-500">
+            <option value="pt-BR">Português</option>
+            <option value="en-US">English</option>
+            <option value="es-ES">Español</option>
+          </select>
+        </div>
+        <div v-if="profileTags.length" class="flex flex-wrap gap-1 mb-2">
+          <span v-for="tag in profileTags.slice(0,8)" :key="tag" class="text-xs px-2 py-0.5 bg-brand-500/10 text-brand-400 rounded-full">{{ tag }}</span>
+        </div>
+        <div class="flex items-center justify-between">
+          <button @click="showDonate=true" class="text-xs text-gray-400 hover:text-brand-400 flex items-center gap-1 transition">
+            <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            {{ t('contribute') }}
+          </button>
+          <button v-if="authToken" @click="logout" class="text-xs text-gray-400 hover:text-red-400 flex items-center gap-1 transition">{{ t('logout') }}</button>
         </div>
       </div>
     </aside>
 
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-    <main class="chat-main">
-      <header class="header">
-        <button class="menu-btn" id="menuBtn" title="Menu">
-          <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+    <!-- MAIN CHAT AREA -->
+    <main class="flex-1 flex flex-col h-screen overflow-hidden">
+      <header class="h-12 flex items-center px-3 border-b border-white/5 shrink-0">
+        <button @click="sidebarOpen=true" class="sm:hidden mr-2 text-gray-400 hover:text-white">
+          <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
         </button>
-        <div class="header-center">
-           <span class="cross">🤖</span>
-          <h1 class="brand-name">MetaPersona.AI</h1>
-        </div>
-        <div class="header-actions">
-          <button class="donate-btn-header" id="donateBtnHeader" title="Contribuir">
-            <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-          </button>
-        </div>
+        <img v-if="currentPersonaAvatar" :src="currentPersonaAvatar" class="w-6 h-6 rounded-full mr-2" />
+        <span v-else class="text-lg mr-2">{{ currentPersonaIcon }}</span>
+        <h1 class="text-sm font-bold truncate flex-1">{{ currentPersonaName || brandName }}</h1>
+        <button @click="showDonate=true" class="text-gray-400 hover:text-brand-400 transition ml-2" :title="t('contribute')">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        </button>
       </header>
 
-      <div class="chat-container" id="chatContainer">
-        <div class="messages" id="messages">
-          <div class="message bot welcome-message">
-             <div class="message-avatar">🤖</div>
-             <div class="message-content">
-               <p>Olá! Sou um agente cognitivo.</p>
-               <p>Posso aprender, lembrar, acompanhar e agir por você. Criar tarefas, agendar, fazer follow-ups, detectar emoções — tudo personalizado.</p>
-               <p class="welcome-hint">Me diga seu nome e o que você precisa. Vou adaptar tudo para você.</p>
-             </div>
-             <button class="tts-btn" title="Ouvir" onclick="speakText('Olá! Sou um agente cognitivo. Posso aprender, lembrar, acompanhar e agir por você.', this)"><svg viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg></button>
+      <!-- Messages -->
+      <div ref="messagesContainer" class="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div v-if="messages.length===0" class="flex flex-col items-center justify-center h-full text-center">
+          <img v-if="currentPersonaAvatar" :src="currentPersonaAvatar" class="w-16 h-16 rounded-full mb-4" />
+          <span v-else class="text-4xl mb-4">{{ currentPersonaIcon }}</span>
+          <h2 class="text-xl font-bold mb-2">{{ welcomeTitle }}</h2>
+          <p class="text-gray-400 text-sm max-w-md">{{ welcomeBody }}</p>
+          <div class="flex flex-wrap gap-2 mt-4 justify-center">
+            <button v-for="q in quickQuestions" :key="q" @click="sendMessage(q)" class="text-xs px-3 py-1.5 bg-surface-700 hover:bg-brand-500/20 border border-white/5 hover:border-brand-500/30 rounded-full transition">{{ q }}</button>
           </div>
         </div>
-
-        <div class="sources-panel" id="sourcesPanel" style="display: none;">
-          <div class="sources-header">
-             <h4>Fontes utilizadas</h4>
-            <button class="sources-toggle" id="sourcesToggle">ocultar</button>
+        <div v-for="(msg,i) in messages" :key="i" :class="['flex gap-2', msg.role==='user' ? 'justify-end' : '']">
+          <template v-if="msg.role==='bot'">
+            <img v-if="currentPersonaAvatar" :src="currentPersonaAvatar" class="w-8 h-8 rounded-full shrink-0 mt-1" />
+            <span v-else class="w-8 h-8 flex items-center justify-center rounded-full bg-brand-500/20 text-sm shrink-0 mt-1">{{ currentPersonaIcon }}</span>
+            <div class="max-w-xl bg-surface-700/50 border border-white/5 rounded-2xl rounded-tl-sm px-4 py-3">
+              <div v-html="formatMarkdown(msg.content)"></div>
+              <div v-if="msg.sources && msg.sources.length" class="mt-2 pt-2 border-t border-white/5">
+                <div v-for="s in msg.sources" :key="s.reference" class="text-xs text-gray-500">
+                  <span class="text-brand-400">{{ s.reference }}</span> — {{ s.text?.substring(0,100) }}{{ s.text?.length>100?'...':'' }}
+                </div>
+              </div>
+              <button @click="speakText(msg.content,i)" :class="['mt-1 text-xs text-gray-500 hover:text-brand-400 transition', msg.speaking?'text-brand-400':'']">
+                <svg class="w-4 h-4 inline" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path v-if="!msg.speaking" d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path v-if="!msg.speaking" d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                {{ msg.speaking ? (currentLang === 'en-US' ? ' Stopping...' : currentLang === 'es-ES' ? ' Deteniendo...' : ' Parando...') : (currentLang === 'en-US' ? ' Listen' : currentLang === 'es-ES' ? ' Escuchar' : ' Ouvir') }}
+              </button>
+            </div>
+          </template>
+          <template v-else>
+            <div class="max-w-xl bg-brand-500/20 border border-brand-500/20 rounded-2xl rounded-tr-sm px-4 py-3 text-sm">
+              {{ msg.content }}
+            </div>
+            <span class="w-8 h-8 flex items-center justify-center rounded-full bg-surface-600 text-sm shrink-0 mt-1">👤</span>
+          </template>
+        </div>
+        <div v-if="streaming" class="flex gap-2">
+          <img v-if="currentPersonaAvatar" :src="currentPersonaAvatar" class="w-8 h-8 rounded-full shrink-0" />
+          <span v-else class="w-8 h-8 flex items-center justify-center rounded-full bg-brand-500/20 text-sm shrink-0">{{ currentPersonaIcon }}</span>
+          <div class="bg-surface-700/50 border border-white/5 rounded-2xl px-4 py-3">
+            <div class="flex gap-1"><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></span><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.1s"></span><span class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay:0.2s"></span></div>
           </div>
-          <div id="sourcesList"></div>
         </div>
       </div>
 
-      <footer class="input-area">
-        <form id="chatForm" class="input-form">
-          <div class="input-wrapper">
-            <button type="button" id="micBtn" class="mic-btn" title="Enviar áudio">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-            </button>
-            <textarea id="messageInput" placeholder="Pergunte ou descreva o que precisa..." rows="1" autocomplete="off"></textarea>
-            <button type="submit" id="sendBtn" class="send-btn" disabled>
-              <svg viewBox="0 0 24 24" width="24" height="24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
-            </button>
+      <!-- Input -->
+      <div class="border-t border-white/5 p-3 shrink-0">
+        <div v-if="sourcesPanel.length" class="mb-2 p-2 bg-surface-700/30 rounded-lg text-xs">
+          <div class="flex justify-between items-center mb-1 cursor-pointer" @click="sourcesCollapsed=!sourcesCollapsed">
+            <span class="text-brand-400 font-medium">{{ t('sources') }} ({{ sourcesPanel.length }})</span>
+            <span class="text-gray-500">{{ sourcesCollapsed ? t('show') : t('hide') }}</span>
           </div>
-        </form>
-      </footer>
-    </main>
-
-    <div id="blogPage" class="blog-page" style="display: none;">
-      <div class="page-header-bar">
-        <button class="back-to-chat-btn" id="backToChatFromBlog">&larr; Chat</button>
-        <h1 class="page-title">Conteúdo do Dia</h1>
-      </div>
-      <p class="page-subtitle">Conteúdo gerado diariamente com base no conhecimento</p>
-      <div id="blogList"></div>
-      <div id="postDetail" style="display: none;"></div>
-    </div>
-
-    <div id="searchPage" class="search-page" style="display: none;">
-      <div class="page-header-bar">
-        <button class="back-to-chat-btn" id="backToChatFromSearch">&larr; Chat</button>
-        <h1 class="page-title">Buscar no Conhecimento</h1>
-      </div>
-      <p class="page-subtitle">Encontre informações por tema, palavra ou referência</p>
-      <div class="search-bar">
-        <input type="text" id="searchInput" class="search-input" placeholder="Ex: vendas, liderança, estratégia..." />
-        <button id="searchBtn" class="search-btn">Buscar</button>
-      </div>
-      <div id="searchResults" class="search-results"></div>
-      <div id="booksIndex" class="books-index">
-        <div class="books-index-loading" style="color: var(--text-muted); text-align: center; padding: 1rem;">Carregando índice...</div>
-      </div>
-    </div>
-  </div>
-
-  <!-- DONATE MODAL -->
-  <div class="modal-overlay" id="donateModal">
-    <div class="modal">
-      <button class="modal-close" id="donateModalClose">&times;</button>
-      <div class="modal-header">
-        <span class="modal-icon">🤖</span>
-        <h2>Apoie este projeto</h2>
-      </div>
-      <div class="donate-section">
-        <h3>PIX</h3>
-        <p class="donate-label">Chave PIX (email):</p>
-        <div class="pix-box" id="pixBox">
-          <span id="pixKey">haaspaulo88@gmail.com</span>
-          <button class="copy-btn" id="copyPixBtn" title="Copiar chave PIX">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <div v-if="!sourcesCollapsed" class="space-y-1 max-h-32 overflow-y-auto">
+            <div v-for="s in sourcesPanel" :key="s.reference" class="text-gray-400"><span class="text-brand-400">{{ s.reference }}</span> — {{ s.text?.substring(0,120) }}</div>
+          </div>
+        </div>
+        <form @submit.prevent="sendMessage(inputMsg)" class="flex gap-2">
+          <textarea v-model="inputMsg" @keydown.enter.exact.prevent="sendMessage(inputMsg)" @input="autoResize" ref="inputEl" rows="1" :placeholder="inputPlaceholder" class="flex-1 bg-surface-700 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-brand-500 resize-none max-h-32"></textarea>
+          <button type="submit" :disabled="!inputMsg.trim()||streaming" class="bg-brand-500 hover:bg-brand-600 disabled:opacity-30 text-white p-2.5 rounded-xl transition">
+            <svg class="w-5 h-5" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>
+        </form>
+      </div>
+    </main>
+  </div>
+
+  <!-- ==================== ONBOARDING WIZARD ==================== -->
+  <div v-if="showOnboarding" class="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-md">
+    <div class="bg-surface-800 border border-white/10 rounded-2xl p-6 w-full max-w-lg mx-4 shadow-2xl">
+      <!-- Celebration overlay -->
+      <div v-if="onboardingShowCelebration" class="text-center py-8">
+        <div class="text-6xl mb-4">🎉</div>
+        <h2 class="text-2xl font-bold text-brand-400 mb-2">{{ t('onboardingComplete') }}</h2>
+        <p class="text-gray-300">{{ t('onboardingCompleteDesc') }}</p>
+      </div>
+      <!-- Wizard -->
+      <template v-else>
+        <!-- Progress bar -->
+        <div class="flex items-center gap-2 mb-4">
+          <img v-if="currentPersonaAvatar" :src="currentPersonaAvatar" class="w-10 h-10 rounded-full border-2 border-brand-500" />
+          <span v-else class="text-3xl">{{ currentPersonaIcon }}</span>
+          <div class="flex-1">
+            <h2 class="text-base font-bold">{{ currentPersonaName || brandName }}</h2>
+            <div class="flex items-center gap-2 mt-1">
+              <div class="flex-1 h-1.5 bg-surface-700 rounded-full overflow-hidden">
+                <div class="h-full bg-brand-500 rounded-full transition-all duration-500" :style="{ width: (onboardingProgress * 100 || (onboardingTotalSteps ? (onboardingCompletedSteps / onboardingTotalSteps) * 100 : 0)) + '%' }"></div>
+              </div>
+              <span class="text-xs text-gray-400">{{ onboardingCompletedSteps || 0 }}/{{ onboardingTotalSteps || 0 }}</span>
+            </div>
+          </div>
         </div>
-        <p class="donate-hint">Abra o app do seu banco, escolha PIX e cole a chave acima.</p>
-      </div>
-      <div class="donate-section donate-alternatives">
-        <p class="donate-hint">O código é open source. Quem quiser pode rodar por conta própria.</p>
-      </div>
-      <div class="donate-principles">
-        <p>A contribuição é <strong>voluntária</strong>. Ninguém fica impedido de usar por falta de recursos.</p>
-      </div>
-      <div class="settings-section">
-        <h3>Sua API Key (opcional)</h3>
-        <p>Se a resposta falhar, você pode usar sua própria chave da Ollama Cloud.</p>
-        <input type="password" id="apiKeyInput" class="api-key-input" placeholder="sk-... (cole aqui)" />
-        <div id="apiKeyStatus" class="api-key-status"></div>
-        <button class="save-btn" id="saveApiKeyBtn">Salvar chave</button>
-        <button class="danger-btn" id="removeApiKeyBtn">Remover</button>
-      </div>
-      <div class="feedback-section">
-        <h3>Feedback</h3>
-        <div class="feedback-types">
-          <button class="feedback-type active" data-type="suggestion">Sugestão</button>
-          <button class="feedback-type" data-type="bug">Bug</button>
-          <button class="feedback-type" data-type="praise">Elogio</button>
-          <button class="feedback-type" data-type="other">Outro</button>
+
+        <!-- Question -->
+        <p class="text-white text-lg mb-5 whitespace-pre-wrap">{{ onboardingQuestion }}</p>
+
+        <!-- Choice chips -->
+        <template v-if="onboardingSteps.length > 0 && (onboardingSteps[onboardingStepIndex]?.fieldType === 'choice' || onboardingSteps[onboardingStepIndex]?.fieldType === 'multichoice')">
+          <div class="flex flex-wrap gap-2 mb-4">
+            <button v-for="(choice, idx) in (onboardingSteps[onboardingStepIndex]?.choices || [])" :key="idx"
+              @click="onboardingAnswer = onboardingSteps[onboardingStepIndex]?.fieldType === 'multichoice'
+                ? (onboardingAnswer ? (onboardingAnswer.split(', ').includes(choice) ? onboardingAnswer.split(', ').filter(c => c !== choice).join(', ') : onboardingAnswer + ', ' + choice) : choice)
+                : choice; 
+                onboardingSteps[onboardingStepIndex]?.fieldType !== 'multichoice' ? submitOnboardingAnswer(onboardingAnswer || choice) : null"
+              class="px-4 py-2 rounded-lg text-sm font-medium transition border"
+              :class="onboardingAnswer && onboardingAnswer.split(', ').includes(choice) ? 'bg-brand-500 border-brand-500 text-white' : 'bg-surface-700 border-white/10 text-gray-300 hover:border-brand-500'">
+              {{ choice }}
+            </button>
+          </div>
+          <div v-if="onboardingSteps[onboardingStepIndex]?.fieldType === 'multichoice'" class="flex gap-2 mt-2">
+            <button @click="submitOnboardingAnswer(onboardingAnswer)" :disabled="!onboardingAnswer" class="bg-brand-500 hover:bg-brand-600 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded-lg text-sm font-medium transition">{{ t('submit') }}</button>
+            <p class="text-xs text-gray-500 mt-1">{{ onboardingSteps[onboardingStepIndex]?.maxChoices ? t('selectUpTo') + ' ' + onboardingSteps[onboardingStepIndex]?.maxChoices : '' }}</p>
+          </div>
+        </template>
+
+        <!-- Text input -->
+        <template v-else-if="onboardingSteps.length > 0 && onboardingSteps[onboardingStepIndex]?.fieldType !== 'message'">
+          <form @submit.prevent="submitOnboardingAnswer(onboardingAnswer)" class="flex gap-2">
+            <input v-model="onboardingAnswer" :type="onboardingSteps[onboardingStepIndex]?.fieldType === 'email' ? 'email' : onboardingSteps[onboardingStepIndex]?.fieldType === 'number' ? 'number' : 'text'"
+              :placeholder="onboardingSteps[onboardingStepIndex]?.placeholder || t('onboardingAnswer')"
+              class="flex-1 bg-surface-700 border border-white/10 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-brand-500"
+              @keydown.enter.prevent="submitOnboardingAnswer(onboardingAnswer)">
+            <button type="submit" :disabled="!onboardingAnswer.trim()" class="bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white px-5 py-3 rounded-lg text-sm font-medium transition">{{ t('submit') }}</button>
+          </form>
+        </template>
+
+        <!-- Message-only step (welcome) -->
+        <template v-else-if="onboardingSteps.length > 0 && onboardingSteps[onboardingStepIndex]?.fieldType === 'message'">
+          <button @click="onboardingStepIndex++; onboardingAnswer = ''" class="w-full bg-brand-500 hover:bg-brand-600 text-white px-5 py-3 rounded-lg text-sm font-medium transition mt-2">{{ t('letsGo') }}</button>
+        </template>
+
+        <!-- Skip button -->
+          <div v-if="onboardingSteps.length > 0 && (onboardingSteps[onboardingStepIndex]?.required === false || onboardingSteps[onboardingStepIndex]?.skipLabel)" class="mt-3 text-center">
+          <button @click="onboardingAnswer = ''; submitOnboardingAnswer('skip_step_' + onboardingSteps[onboardingStepIndex]?.stepKey); onboardingStepIndex++" class="text-gray-500 hover:text-gray-300 text-xs transition">{{ onboardingSteps[onboardingStepIndex]?.skipLabel || t('skip') }}</button>
         </div>
-        <div class="feedback-form">
-          <textarea id="feedbackText" placeholder="Compartilhe algo conosco..." rows="3"></textarea>
-          <button class="feedback-submit" id="feedbackSubmit">Enviar</button>
+      </template>
+    </div>
+  </div>
+
+  <!-- ==================== FOLLOW-UP MODAL ==================== -->
+  <div v-if="showFollowUp && followUpData" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+    <div class="bg-surface-800 border border-white/10 rounded-2xl p-6 w-full max-w-md mx-4">
+      <div class="flex items-center gap-2 mb-4">
+        <img v-if="currentPersonaAvatar" :src="currentPersonaAvatar" class="w-8 h-8 rounded-full" />
+        <span v-else class="text-2xl">{{ currentPersonaIcon }}</span>
+        <h2 class="text-lg font-bold">{{ currentPersonaName || brandName }}</h2>
+      </div>
+      <p class="text-gray-300 mb-6">{{ followUpData.question }}</p>
+      <div class="flex gap-2">
+        <input v-model="followUpAnswer" type="text" :placeholder="t('onboardingAnswer')" class="flex-1 bg-surface-700 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-500" @keydown.enter="answerFollowUp(followUpAnswer)">
+        <button @click="answerFollowUp(followUpAnswer)" class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">{{ t('submit') }}</button>
+        <button @click="showFollowUp=false;followUpData=null" class="border border-white/10 text-gray-400 hover:text-white px-3 py-2 rounded-lg text-sm transition">&times;</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== DONATE MODAL ==================== -->
+  <div v-if="showDonate" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" @click.self="showDonate=false">
+    <div class="bg-surface-800 border border-white/10 rounded-2xl p-6 w-full max-w-md mx-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold">{{ t('contributeProject') }}</h2>
+        <button @click="showDonate=false" class="text-gray-400 hover:text-white text-xl">&times;</button>
+      </div>
+      <div v-if="donateData.pix && donateData.pix.key" class="mb-4">
+        <h3 class="font-medium mb-2">PIX</h3>
+        <p class="text-sm text-gray-400 mb-2">{{ t('pixKey') }}</p>
+        <div class="flex items-center gap-2 bg-surface-700 rounded-lg p-3">
+          <code class="flex-1 text-sm truncate">{{ donateData.pix.key }}</code>
+          <button @click="copyPix" class="text-brand-400 hover:text-brand-300 text-sm">{{ pixCopied ? t('copied') : t('copy') }}</button>
+        </div>
+        <div v-if="donateData.message" class="mt-2 p-2 bg-brand-500/10 border border-brand-500/20 rounded-lg text-xs text-brand-300">{{ donateData.message }}</div>
+      </div>
+      <div v-else class="mb-4">
+        <h3 class="font-medium mb-2">PIX</h3>
+        <p class="text-sm text-gray-400 mb-2">{{ t('pixKey') }}</p>
+        <div class="flex items-center gap-2 bg-surface-700 rounded-lg p-3">
+          <code class="flex-1 text-sm truncate">haaspaulo88@gmail.com</code>
+          <button @click="copyPix" class="text-brand-400 hover:text-brand-300 text-sm">{{ pixCopied ? t('copied') : t('copy') }}</button>
+        </div>
+      </div>
+      <div v-if="donateData.stripe" class="mb-4">
+        <a :href="donateData.stripe" target="_blank" class="block text-center bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm transition">Stripe</a>
+      </div>
+      <div v-if="authToken" class="mb-4 mt-4 pt-4 border-t border-white/5">
+        <h3 class="font-medium mb-2">{{ t('apiKeyTitle') }}</h3>
+        <p class="text-xs text-gray-500 mb-2">{{ t('apiKeyDesc') }}</p>
+        <input v-model="apiKeyInput" type="password" placeholder="sk-..." class="w-full bg-surface-700 border border-white/10 rounded-lg px-3 py-2 text-sm mb-2">
+        <div class="flex gap-2">
+          <button @click="saveApiKey" class="bg-brand-500 hover:bg-brand-600 text-white text-sm px-4 py-1.5 rounded-lg transition">{{ t('save') }}</button>
+          <button @click="removeApiKey" class="border border-white/10 hover:border-red-500/30 text-gray-400 hover:text-red-400 text-sm px-4 py-1.5 rounded-lg transition">{{ t('remove') }}</button>
+        </div>
+        <div v-if="apiKeyStatus" class="text-sm mt-2" :class="apiKeyStatus.includes('erro') || apiKeyStatus.includes('Error') || apiKeyStatus.includes('Falha') ? 'text-red-400' : 'text-green-400'">{{ apiKeyStatus }}</div>
+      </div>
+      <div class="text-center mt-4 pt-4 border-t border-white/5">
+        <p class="text-xs text-gray-500">{{ t('contributeDesc') }}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== POST DETAIL MODAL ==================== -->
+  <div v-if="currentPost" class="fixed inset-0 z-50 flex items-start justify-center bg-black/70 backdrop-blur-sm overflow-y-auto py-8" @click.self="currentPost=null">
+    <div class="bg-surface-800 border border-white/10 rounded-2xl p-6 w-full max-w-2xl mx-4">
+      <button @click="currentPost=null" class="text-gray-400 hover:text-white mb-4 text-sm">{{ t('back') }}</button>
+      <h1 class="text-2xl font-bold mb-2">{{ currentPost.title }}</h1>
+      <div class="text-sm text-gray-400 mb-4">{{ formatDate(currentPost.publishedAt) }}</div>
+      <div class="text-gray-300 leading-relaxed whitespace-pre-wrap">{{ currentPost.content }}</div>
+      <div v-if="currentPost.verse" class="mt-4 p-3 bg-brand-500/10 border border-brand-500/20 rounded-lg text-sm text-brand-300">{{ currentPost.verse }}</div>
+    </div>
+  </div>
+
+  <!-- ==================== MEDIA VIEWER MODAL ==================== -->
+  <div v-if="mediaViewerItem" class="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm" @click.self="closeMediaViewer">
+    <div class="relative w-full max-w-4xl mx-4 max-h-[95vh] overflow-y-auto">
+      <button @click="closeMediaViewer" class="absolute top-2 right-2 z-10 bg-surface-800/80 text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-700 transition">&times;</button>
+      <div class="bg-surface-800 border border-white/10 rounded-2xl overflow-hidden">
+        <!-- Image viewer -->
+        <template v-if="mediaViewerItem.type === 'image'">
+          <div class="flex items-center justify-center bg-black/50 p-2">
+            <img :src="mediaViewerItem.url" :alt="mediaViewerItem.alt_text || mediaViewerItem.title" class="max-h-[70vh] object-contain rounded">
+          </div>
+        </template>
+        <!-- Video player -->
+        <template v-else-if="mediaViewerItem.type === 'video'">
+          <div class="bg-black">
+            <video controls class="w-full max-h-[70vh]" :src="`/api/media/${mediaViewerItem.id}/stream`">
+              {{ currentLang === 'en-US' ? 'Your browser does not support video.' : 'Seu navegador não suporta vídeo.' }}
+            </video>
+          </div>
+        </template>
+        <!-- Audio player -->
+        <template v-else-if="mediaViewerItem.type === 'audio'">
+          <div class="p-8 flex flex-col items-center justify-center">
+            <span class="text-6xl mb-4">🎵</span>
+            <h3 class="text-lg font-bold mb-4 text-center">{{ mediaViewerItem.title }}</h3>
+            <audio controls class="w-full max-w-md" :src="`/api/media/${mediaViewerItem.id}/stream`">
+              {{ currentLang === 'en-US' ? 'Your browser does not support audio.' : 'Seu navegador não suporta áudio.' }}
+            </audio>
+          </div>
+        </template>
+        <!-- Document / other -->
+        <template v-else>
+          <div class="p-8 flex flex-col items-center justify-center min-h-[200px]">
+            <span class="text-6xl mb-4">{{ getMediaIcon(mediaViewerItem.type) }}</span>
+            <h3 class="text-lg font-bold mb-2 text-center">{{ mediaViewerItem.title }}</h3>
+            <p v-if="mediaViewerItem.description" class="text-sm text-gray-400 text-center mb-4">{{ mediaViewerItem.description }}</p>
+            <p class="text-xs text-gray-500 mb-4">{{ formatFileSize(mediaViewerItem.size) }}</p>
+            <a :href="`/api/media/${mediaViewerItem.id}/stream`" target="_blank" class="bg-brand-500 hover:bg-brand-600 text-white px-6 py-2 rounded-lg text-sm font-medium transition">
+              {{ currentLang === 'en-US' ? 'Download' : currentLang === 'es-ES' ? 'Descargar' : 'Baixar' }}
+            </a>
+          </div>
+        </template>
+
+        <!-- Info bar -->
+        <div class="p-4 border-t border-white/5">
+          <div class="flex items-center justify-between">
+            <div class="min-w-0 flex-1">
+              <h3 class="font-medium truncate">{{ mediaViewerItem.title }}</h3>
+              <div class="flex items-center gap-2 mt-1">
+                <span class="text-xs px-2 py-0.5 bg-brand-500/10 text-brand-400 rounded-full">{{ mediaViewerItem.type }}</span>
+                <span class="text-xs text-gray-500">{{ formatFileSize(mediaViewerItem.size) }}</span>
+              </div>
+              <p v-if="mediaViewerItem.caption" class="text-sm text-gray-400 mt-1">{{ mediaViewerItem.caption }}</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- ONBOARDING -->
-  <div class="onboarding-overlay" id="onboardingOverlay">
-    <div class="onboarding">
-      <div class="onboarding-step active">
-        <span class="onboarding-icon">🤖</span>
-        <h2>Bem-vindo ao MetaPersona.AI</h2>
-        <p>Crie agentes IA com memória, objetivos e autonomia. Cada agente aprende, acompanha e age por você — 24 horas por dia.</p>
-        <button class="onboarding-btn" onclick="nextOnboarding()">Avançar</button>
+  <!-- ==================== MEDIA UPLOAD MODAL ==================== -->
+  <div v-if="showMediaUpload" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" @click.self="showMediaUpload=false">
+    <div class="bg-surface-800 border border-white/10 rounded-2xl p-6 w-full max-w-md mx-4">
+      <div class="flex justify-between items-center mb-4">
+        <h2 class="text-lg font-bold">{{ currentLang === 'en-US' ? 'Upload Media' : currentLang === 'es-ES' ? 'Subir Archivos' : 'Enviar Mídia' }}</h2>
+        <button @click="showMediaUpload=false" class="text-gray-400 hover:text-white text-xl">&times;</button>
       </div>
-      <div class="onboarding-step">
-        <span class="onboarding-icon">🧠</span>
-        <h2>Memória e Cognição</h2>
-        <p>Seus agentes lembram de cada conversa, detectam emoções e adaptam o tom automaticamente. Inteligência que evolui.</p>
-        <button class="onboarding-btn" onclick="nextOnboarding()">Avançar</button>
+
+      <!-- Drop zone -->
+      <div v-if="mediaUploadFiles.length === 0" class="border-2 border-dashed border-white/20 hover:border-brand-500/50 rounded-xl p-8 text-center cursor-pointer transition" @click="$refs.mediaFileInput.click()" @dragover.prevent @drop.prevent="handleMediaUpload($event.dataTransfer.files)">
+        <svg class="w-12 h-12 mx-auto mb-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="1.5" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <p class="text-sm text-gray-400 mb-1">{{ currentLang === 'en-US' ? 'Drag & drop files here' : currentLang === 'es-ES' ? 'Arrastra archivos aquí' : 'Arraste arquivos aqui' }}</p>
+        <p class="text-xs text-gray-500">{{ currentLang === 'en-US' ? 'or click to browse' : currentLang === 'es-ES' ? 'o haz clic para seleccionar' : 'ou clique para selecionar' }}</p>
+        <p class="text-xs text-gray-600 mt-2">Images, Video, Audio, PDF, DOCX</p>
+        <input ref="mediaFileInput" type="file" multiple accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx" class="hidden" @change="handleMediaUpload($event.target.files)">
       </div>
-      <div class="onboarding-step">
-        <span class="onboarding-icon">⚡</span>
-        <h2>Como quer ser chamado?</h2>
-        <p>Diga seu nome e interés — vamos personalizar tudo para você.</p>
-        <input type="text" id="onboardingName" class="onboarding-input" placeholder="Seu nome (opcional)" />
-        <button class="onboarding-btn" onclick="finishOnboarding()">Começar</button>
-        <button class="onboarding-btn secondary" onclick="skipOnboarding()">Pular</button>
+
+      <!-- File list -->
+      <div v-else class="space-y-2 max-h-60 overflow-y-auto mb-4">
+        <div v-for="(f, fi) in mediaUploadFiles" :key="fi" class="flex items-center gap-3 bg-surface-700 rounded-lg p-2">
+          <img v-if="f.preview" :src="f.preview" class="w-10 h-10 rounded object-cover shrink-0">
+          <div v-else class="w-10 h-10 rounded bg-surface-600 flex items-center justify-center shrink-0 text-lg">{{ getMediaIcon(f.type) }}</div>
+          <div class="flex-1 min-w-0">
+            <input v-model="f.title" class="w-full bg-transparent text-sm focus:outline-none focus:border-b focus:border-brand-500 border-b border-transparent" :placeholder="currentLang === 'en-US' ? 'Title...' : 'Título...'">
+            <div class="text-xs text-gray-500">{{ formatFileSize(f.size) }}</div>
+          </div>
+          <button @click="removeUploadFile(fi)" class="text-gray-500 hover:text-red-400 transition">&times;</button>
+        </div>
       </div>
-      <div class="onboarding-dots">
-        <span class="onboarding-dot active"></span>
-        <span class="onboarding-dot"></span>
-        <span class="onboarding-dot"></span>
+
+      <!-- Upload progress -->
+      <div v-if="mediaUploading" class="mb-3">
+        <div class="w-full bg-surface-700 rounded-full h-2">
+          <div class="bg-brand-500 h-2 rounded-full transition-all" :style="{width: mediaUploadProgress + '%'}"></div>
+        </div>
+        <div class="text-xs text-gray-400 text-center mt-1">{{ mediaUploadProgress }}%</div>
+      </div>
+
+      <!-- Actions -->
+      <div v-if="mediaUploadFiles.length > 0" class="flex gap-2">
+        <button @click="mediaUploadFiles=[];$refs.mediaFileInput.value=''" class="flex-1 border border-white/10 text-gray-300 hover:text-white py-2 rounded-lg text-sm transition">{{ currentLang === 'en-US' ? 'Clear' : currentLang === 'es-ES' ? 'Limpiar' : 'Limpar' }}</button>
+        <button @click="uploadMedia" :disabled="mediaUploading" class="flex-1 bg-brand-500 hover:bg-brand-600 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium transition">{{ mediaUploading ? (currentLang === 'en-US' ? 'Uploading...' : currentLang === 'es-ES' ? 'Subiendo...' : 'Enviando...') : (currentLang === 'en-US' ? 'Upload' : currentLang === 'es-ES' ? 'Subir' : 'Enviar') }}</button>
       </div>
     </div>
   </div>
 
-  <script src="js/app.js"></script>
-  <script>
-    const GOOGLE_CLIENT_ID = '';
+</div>
 
-    if (GOOGLE_CLIENT_ID) {
-      const wrapper = document.getElementById('googleBtnWrapper');
-      const divider = document.getElementById('googleDivider');
-      if (wrapper) wrapper.style.display = 'block';
-      if (divider) divider.style.display = 'block';
-      const script = document.createElement('script');
-      script.src = 'https://accounts.google.com/gsi/client';
-      script.async = true;
-      script.defer = true;
-      document.head.appendChild(script);
-    } else {
-      const wrapper = document.getElementById('googleBtnWrapper');
-      const divider = document.getElementById('googleDivider');
-      if (wrapper) wrapper.style.display = 'none';
-      if (divider) divider.style.display = 'none';
-    }
-
-    async function handleGoogleSignIn(response) {
-      const credential = response.credential;
-      try {
-        const payload = JSON.parse(atob(credential.split('.')[1]));
-        const res = await fetch('/api/auth/google', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: payload.email, name: payload.name, googleId: payload.sub, avatar: payload.picture || null }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Erro no login com Google');
-        authToken = data.token;
-        currentUserId = data.user.id;
-        localStorage.setItem('mp_token', authToken);
-        localStorage.setItem('mp_user_id', currentUserId);
-        if (profileName && data.user.name) profileName.value = data.user.name;
-        enterApp();
-      } catch (err) {
-        showAuthError(err.message);
-      }
-    }
-
-    const googleSignInBtn = document.getElementById('googleSignInBtn');
-    if (googleSignInBtn) {
-      googleSignInBtn.addEventListener('click', () => {
-        if (GOOGLE_CLIENT_ID && google.accounts) {
-          google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: handleGoogleSignIn });
-          google.accounts.id.prompt((notification) => {
-            if (notification.isNotDisplayed() || notification.isSkipped()) {
-              google.accounts.id.renderButton(googleSignInBtn, { theme: 'outline', size: 'large', width: '100%' });
-            }
-          });
-        } else {
-          showAuthError('Login com Google não configurado. Use email e senha.');
-        }
-      });
-    }
-
-    const landingPage = document.getElementById('landingPage');
-    const authOverlay = document.getElementById('authOverlay');
-    const appContainer = document.getElementById('appContainer');
-    const loginForm = document.getElementById('loginForm');
-    const registerForm = document.getElementById('registerForm');
-    const authError = document.getElementById('authError');
-    const authSubtitle = document.getElementById('authSubtitle');
-    const loginBtn = document.getElementById('loginBtn');
-    const registerBtn = document.getElementById('registerBtn');
-    const showRegisterLink = document.getElementById('showRegister');
-    const showLoginLink = document.getElementById('showLogin');
-    const skipAuthBtn = document.getElementById('skipAuthBtn');
-    const logoutBtn = document.getElementById('logoutBtn');
-    const authInfo = document.getElementById('authInfo');
-    const heroStartBtn = document.getElementById('heroStartBtn');
-    const navLoginBtn = document.getElementById('navLoginBtn');
-    const authCloseBtn = document.getElementById('authCloseBtn');
-
-    function showAuthError(msg) { authError.textContent = msg; authError.classList.add('show'); }
-    function hideAuthError() { authError.classList.remove('show'); }
-    function openAuthModal() { authOverlay.style.display = 'flex'; hideAuthError(); }
-    function closeAuthModal() { authOverlay.style.display = 'none'; hideAuthError(); }
-
-    function enterApp() {
-      landingPage.style.display = 'none';
-      appContainer.style.display = 'flex';
-      closeAuthModal();
-      updateAuthUI();
-      initApp();
-    }
-
-    function checkAuth() {
-      const savedToken = localStorage.getItem('mp_token');
-      const savedUserId = localStorage.getItem('mp_user_id');
-      if (savedToken && savedUserId) { authToken = savedToken; currentUserId = savedUserId; enterApp(); }
-    }
-
-    function updateAuthUI() { logoutBtn.style.display = authToken ? 'flex' : 'none'; }
-
-    heroStartBtn.addEventListener('click', openAuthModal);
-    navLoginBtn.addEventListener('click', openAuthModal);
-    authCloseBtn.addEventListener('click', closeAuthModal);
-
-    showRegisterLink.addEventListener('click', (e) => { e.preventDefault(); loginForm.style.display = 'none'; registerForm.style.display = 'block'; authSubtitle.textContent = 'Crie sua conta'; hideAuthError(); });
-    showLoginLink.addEventListener('click', (e) => { e.preventDefault(); registerForm.style.display = 'none'; loginForm.style.display = 'block'; authSubtitle.textContent = 'Entre para salvar suas conversas'; hideAuthError(); });
-
-    skipAuthBtn.addEventListener('click', () => { localStorage.removeItem('mp_token'); enterApp(); });
-
-    loginBtn.addEventListener('click', async () => {
-      hideAuthError();
-      const email = document.getElementById('loginEmail').value.trim();
-      const password = document.getElementById('loginPassword').value;
-      if (!email || !password) { showAuthError('Preencha email e senha.'); return; }
-      loginBtn.disabled = true; loginBtn.textContent = 'Entrando...';
-      try { await login(email, password); enterApp(); } catch (err) { showAuthError(err.message); } finally { loginBtn.disabled = false; loginBtn.textContent = 'Entrar'; }
-    });
-
-    registerBtn.addEventListener('click', async () => {
-      hideAuthError();
-      const name = document.getElementById('registerName').value.trim();
-      const email = document.getElementById('registerEmail').value.trim();
-      const password = document.getElementById('registerPassword').value;
-      if (!email || !password) { showAuthError('Preencha email e senha.'); return; }
-      registerBtn.disabled = true; registerBtn.textContent = 'Criando...';
-      try { await register(email, password, name); if (profileName && name) profileName.value = name; enterApp(); } catch (err) { showAuthError(err.message); } finally { registerBtn.disabled = false; registerBtn.textContent = 'Criar conta'; }
-    });
-
-    logoutBtn.addEventListener('click', () => {
-      localStorage.removeItem('mp_token'); localStorage.removeItem('mp_user_id'); localStorage.removeItem('mp_session_id');
-      authToken = null; sessionId = '';
-      currentUserId = 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
-      location.reload();
-    });
-
-    // ========== API KEY ==========
-    const apiKeyInput = document.getElementById('apiKeyInput');
-    const apiKeyStatus = document.getElementById('apiKeyStatus');
-    const saveApiKeyBtn = document.getElementById('saveApiKeyBtn');
-    const removeApiKeyBtn = document.getElementById('removeApiKeyBtn');
-
-    if (saveApiKeyBtn) {
-      saveApiKeyBtn.addEventListener('click', async () => {
-        const key = apiKeyInput?.value?.trim();
-        if (!authToken) { apiKeyStatus.textContent = 'Faça login para salvar sua API key.'; apiKeyStatus.style.color = '#e74c3c'; return; }
-        try {
-          const res = await fetch('/api/settings/apikey', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ ollamaApiKey: key }) });
-          const data = await res.json();
-          apiKeyStatus.textContent = data.message; apiKeyStatus.style.color = '#27ae60'; apiKeyInput.value = '';
-        } catch { apiKeyStatus.textContent = 'Erro ao salvar.'; apiKeyStatus.style.color = '#e74c3c'; }
-      });
-    }
-
-    if (removeApiKeyBtn) {
-      removeApiKeyBtn.addEventListener('click', async () => {
-        if (!authToken) return;
-        try {
-          await fetch('/api/settings/apikey', { method: 'PUT', headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken}` }, body: JSON.stringify({ ollamaApiKey: '' }) });
-          apiKeyStatus.textContent = 'Removida.'; apiKeyStatus.style.color = '#27ae60';
-        } catch {}
-      });
-    }
-
-    // ========== FEEDBACK ==========
-    const feedbackSubmit = document.getElementById('feedbackSubmit');
-    const feedbackText = document.getElementById('feedbackText');
-
-    if (feedbackSubmit) {
-      feedbackSubmit.addEventListener('click', async () => {
-        const msg = feedbackText?.value?.trim();
-        if (!msg) return;
-        await fetch('/api/feedback', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ type: selectedFeedbackType || 'suggestion', message: msg, userId: currentUserId, sessionId }) });
-        feedbackText.value = '';
-        feedbackSubmit.textContent = 'Enviado!';
-        setTimeout(() => { feedbackSubmit.textContent = 'Enviar'; }, 2000);
-      });
-    }
-
-    // ========== ANIMATIONS ==========
-    const observer = new IntersectionObserver((entries) => {
-      entries.forEach(entry => { if (entry.isIntersecting) { entry.target.classList.add('visible'); observer.unobserve(entry.target); } });
-    }, { threshold: 0.1, rootMargin: '0px 0px -50px 0px' });
-
-    document.querySelectorAll('.animate-in').forEach(el => observer.observe(el));
-
-    // ========== MOBILE MENU ==========
-    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
-    if (mobileMenuBtn) { mobileMenuBtn.addEventListener('click', () => { mobileMenuBtn.classList.toggle('active'); }); }
-
-    // ========== SMOOTH SCROLL ==========
-    document.querySelectorAll('a[href^="#"]').forEach(a => {
-      a.addEventListener('click', (e) => { const id = a.getAttribute('href').slice(1); const el = document.getElementById(id); if (el) { e.preventDefault(); el.scrollIntoView({ behavior: 'smooth' }); } });
-    });
-
-    // ========== NAV SCROLL ==========
-    const landingNav = document.querySelector('.landing-nav');
-    if (landingNav) { window.addEventListener('scroll', () => { landingNav.classList.toggle('scrolled', window.scrollY > 50); }); }
-
-    checkAuth();
-  </script>
+<script src="js/app.js?v=6"></script>
 </body>
 </html>

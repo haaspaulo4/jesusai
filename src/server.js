@@ -7,6 +7,8 @@ const blogRoute = require('./routes/blog');
 const whatsappRoute = require('./routes/whatsapp');
 const emailRoute = require('./routes/email');
 const adminRoute = require('./routes/admin');
+const quizRoute = require('./routes/quiz');
+const mediaRoute = require('./routes/media');
 const { startTelegramBot } = require('./telegram/bot');
 const { startWhatsAppBot } = require('./whatsapp/bot');
 const { startInstagramFromDB } = require('./instagram/bot');
@@ -20,11 +22,16 @@ const { stopInstagramBot } = require('./instagram/bot');
 const { escapeHtml, buildPersonaPage, buildSitePage, buildCreatePersonaPage } = require('./server/templates');
 const integrations = require('./llm/integrationManager');
 const { loadSettings, getSetting } = require('./settings');
+const { loadTools: loadExternalTools } = require('./tools');
 
 
 const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`;
+
+const httpServer = require('http').createServer(app);
+const { initializeSocketIO, setIO } = require('./realtime');
+let io = null;
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('[UNHANDLED REJECTION]', reason);
@@ -34,22 +41,33 @@ process.on('uncaughtException', (err) => {
   console.error('[UNCAUGHT EXCEPTION]', err.message, err.stack);
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('[SIGTERM] Graceful shutdown...');
   stopKokoroServer();
   stopInstagramBot();
+  if (io) io.close();
+  try {
+    const jobQueue = require('./queue');
+    if (jobQueue.isAvailable()) await jobQueue.shutdown();
+  } catch {}
   process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('[SIGINT] Graceful shutdown...');
   stopKokoroServer();
   stopInstagramBot();
+  if (io) io.close();
+  try {
+    const jobQueue = require('./queue');
+    if (jobQueue.isAvailable()) await jobQueue.shutdown();
+  } catch {}
   process.exit(0);
 });
 
 app.use(express.json());
 app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use('/uploads/media', express.static(path.join(__dirname, '..', 'public', 'uploads', 'media')));
 
 app.use('/api', chatRoute);
 app.use('/api/auth', authRoute);
@@ -57,6 +75,8 @@ app.use('/api/blog', blogRoute);
 app.use('/api/whatsapp', whatsappRoute);
 app.use('/api/email', emailRoute);
 app.use('/api/admin', adminRoute);
+app.use('/api/quiz', quizRoute);
+app.use('/api/media', mediaRoute);
 
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
@@ -328,11 +348,19 @@ async function seedDefaultBlueprints(bm) {
   }
 
   try {
+    await loadExternalTools();
+    console.log('  External tools loaded');
+  } catch (err) {
+    console.error('Warning: External tools load failed:', err.message);
+  }
+
+  try {
     await loadPersonas();
 
     const { getMetaPersona } = require('./persona/meta-rag');
     const metaPersona = getMetaPersona();
-    if (!personaManager.cache.has('meta-persona')) {
+    const existing = await personaManager.getPersona('meta-persona');
+    if (!existing) {
       await personaManager.createPersona({
         id: 'meta-persona',
         name: metaPersona.name,
@@ -382,7 +410,48 @@ async function seedDefaultBlueprints(bm) {
     console.error('Warning: Integrations load failed:', err.message);
   }
 
-  app.listen(PORT, async () => {
+  try {
+    const { vectorStore } = require('./embeddings/vectorStore');
+    if (vectorStore.enabled) {
+      await vectorStore.initialize();
+      console.log('  Vector store initialized (hybrid search: TF-IDF + embeddings)');
+    } else {
+      console.log('  Vector search disabled (TF-IDF only)');
+    }
+  } catch (err) {
+    console.error('Warning: Vector store init failed:', err.message);
+  }
+
+  try {
+    const jobQueue = require('./queue');
+    const available = await jobQueue.initialize();
+    if (available) {
+      const { startProactiveWorkers } = require('./queue/processors/proactive');
+      const { startIngestionWorkers } = require('./queue/processors/ingestion');
+      const { startBlogWorkers } = require('./queue/processors/blog');
+      startProactiveWorkers();
+      startIngestionWorkers();
+      startBlogWorkers();
+      console.log('  Job queue initialized (BullMQ + Redis)');
+    } else {
+      console.log('  Job queue unavailable (Redis not connected), using interval fallback');
+    }
+  } catch (err) {
+    console.log('  Job queue unavailable:', err.message);
+    console.log('  Using interval-based fallback for background jobs');
+  }
+
+  try {
+    const { fulltextSearch } = require('./search');
+    await fulltextSearch.initialize();
+  } catch (err) {
+    console.error('Warning: FlexSearch init failed:', err.message);
+  }
+
+  io = initializeSocketIO(httpServer);
+  setIO(io);
+
+  httpServer.listen(PORT, async () => {
     const brandName = (await getSetting('brand_name')) || 'MetaPersona.AI';
     console.log(`
   ╔══════════════════════════════════════════╗
@@ -393,6 +462,7 @@ async function seedDefaultBlueprints(bm) {
   ║  /admin          — Painel administrativo
   ║  
   ║  Channels: Telegram, WhatsApp, Instagram
+  ║  Realtime: Socket.IO enabled
   ║  Meta-persona: /persona meta-persona
   ║  Skills, Tasks, Calendar, CRM, Goals, Events
   ╚══════════════════════════════════════════╝
@@ -407,9 +477,23 @@ async function seedDefaultBlueprints(bm) {
     startInstagramFromDB().catch(err => console.error('[Instagram] Bot startup error:', err.message));
 
     generateDailyPost().then(() => {
+      generateDailyPostForPersonas().catch(err => console.error('[Blog] Persona posts error:', err.message));
       scheduleDailyPost();
     });
   });
+}
+
+async function generateDailyPostForPersonas() {
+  try {
+    const list = await personaManager.listPersonas();
+    const activeIds = list.filter(p => p.id !== 'jesus' && p.isActive !== false).map(p => p.id);
+    if (activeIds.length > 0) {
+      await generateDailyPost(activeIds);
+      console.log(`[Blog] Generated daily posts for personas: ${activeIds.join(', ')}`);
+    }
+  } catch (e) {
+    console.error('[Blog] Persona post generation failed:', e.message);
+  }
 }
 
 start();

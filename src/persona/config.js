@@ -454,7 +454,7 @@ function getActivePersona() {
   return getPersona(process.env.PERSONA || 'jesus');
 }
 
-function buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, userName, isGroup, knowledgeSources) {
+function buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, userName, isGroup, knowledgeSources, businessStr) {
   const identityRaw = persona.identity[lang] || persona.identity['pt-BR'] || persona.identity;
   const identityIsString = typeof identityRaw === 'string';
   const identityCore = identityIsString ? identityRaw : (identityRaw.core || '');
@@ -501,6 +501,10 @@ function buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, use
   if (userName) {
     const convWith = persona.conversationWith[lang] || persona.conversationWith['pt-BR'];
     prompt += '\n\n' + convWith.replace('{name}', userName);
+  }
+
+  if (businessStr) {
+    prompt += '\n\n' + businessStr;
   }
 
   if (isGroup) {

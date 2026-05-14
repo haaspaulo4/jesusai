@@ -3,8 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Admin — MetaPersona.AI</title>
+<title id="adminTitle">Admin — MetaPersona.AI</title>
 <link rel="stylesheet" href="/css/admin.css">
+<script>
+(async function() {
+  try {
+    const res = await fetch('/api/settings');
+    const s = await res.json();
+    const root = document.documentElement;
+    const primary = s.brand_primary_color || '#D4A843';
+    root.style.setProperty('--primary', primary);
+    root.style.setProperty('--primary-dim', primary + '22');
+    if (s.brand_name) {
+      document.title = 'Admin — ' + s.brand_name;
+      document.getElementById('brandName').textContent = s.brand_name;
+    }
+    if (s.brand_logo_url) {
+      document.querySelector('link[rel="icon"]')?.setAttribute('href', s.brand_logo_url);
+    }
+  } catch(e) {}
+})();
+</script>
 </head>
 <body>
 <div id="adminApp">
@@ -18,11 +37,20 @@
       <a href="#" data-page="users" class="nav-link">Usuarios</a>
       <a href="#" data-page="personas" class="nav-link">Personas</a>
       <a href="#" data-page="knowledge" class="nav-link">Conhecimento</a>
+      <a href="#" data-page="vectors" class="nav-link">Vector DB</a>
+      <a href="#" data-page="creatives" class="nav-link">Criativos</a>
+      <a href="#" data-page="search" class="nav-link">Busca Global</a>
       <a href="#" data-page="surveys" class="nav-link">Pesquisas</a>
       <a href="#" data-page="ratings" class="nav-link">Avaliacoes</a>
       <a href="#" data-page="followups" class="nav-link">Follow-ups</a>
+      <a href="#" data-page="events" class="nav-link">Eventos</a>
+      <a href="#" data-page="thoughts" class="nav-link">Pensamentos IA</a>
+      <a href="#" data-page="workspace" class="nav-link">Workspace</a>
+      <a href="#" data-page="billing" class="nav-link">Planos</a>
       <a href="#" data-page="bots" class="nav-link">Bots</a>
       <a href="#" data-page="integrations" class="nav-link">Integracoes</a>
+      <a href="#" data-page="commands" class="nav-link">Comandos</a>
+      <a href="#" data-page="queue" class="nav-link">Filas</a>
       <a href="#" data-page="settings" class="nav-link">Configuracoes</a>
     </nav>
     <div class="sidebar-footer">
@@ -243,6 +271,285 @@
         </div>
         <button id="saveWhitelabelBtn" class="btn btn-primary">Salvar Whitelabel</button>
       </div>
+      <div class="card" style="margin-top:2rem">
+        <h3>Estilo Visual da Plataforma</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Estilo de Avatar</label>
+            <select id="setting-platform_avatar_style" class="input">
+              <option value="realistic">Realista</option>
+              <option value="adventurer">Aventureiro</option>
+              <option value="avataaars">Avatar</option>
+              <option value="big-smile">Sorriso</option>
+              <option value="bottts">Robo</option>
+              <option value="pixel-art">Pixel Art</option>
+              <option value="open-peeps">People</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Estilo de Emoji</label>
+            <select id="setting-platform_emoji_style" class="input">
+              <option value="native">Nativo</option>
+              <option value="animated">Animado</option>
+              <option value="minimal">Minimalista</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Fonte</label>
+            <select id="setting-platform_font_family" class="input">
+              <option value="Inter">Inter</option>
+              <option value="Poppins">Poppins</option>
+              <option value="Roboto">Roboto</option>
+              <option value="Open Sans">Open Sans</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Animacao</label>
+            <select id="setting-platform_animation_style" class="input">
+              <option value="subtle">Subtil</option>
+              <option value="dynamic">Dinamica</option>
+              <option value="calm">Calma</option>
+            </select>
+          </div>
+        </div>
+        <button id="savePlatformStyleBtn" class="btn btn-primary">Salvar Estilo</button>
+      </div>
+    </section>
+
+    <!-- Commands -->
+    <section id="page-commands" class="page">
+      <h1>Chat Commands</h1>
+      <div class="toolbar">
+        <button id="refreshCommands" class="btn">Atualizar</button>
+        <button id="addCommandBtn" class="btn btn-primary">+ Novo Comando</button>
+      </div>
+      <div id="createCommandForm" class="card" style="display:none;margin-bottom:2rem;">
+        <h3>Criar Comando</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Comando (ex: /ajuda)</label>
+            <input type="text" id="cmdCommand" class="input" placeholder="/comando">
+          </div>
+          <div class="form-group">
+            <label>Categoria</label>
+            <select id="cmdCategory" class="input">
+              <option value="general">Geral</option>
+              <option value="persona">Persona</option>
+              <option value="admin">Admin</option>
+              <option value="tools">Ferramentas</option>
+              <option value="gamification">Gamificacao</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Descricao</label>
+          <input type="text" id="cmdDescription" class="input" placeholder="O que este comando faz">
+        </div>
+        <div class="form-group">
+          <label>Resposta (template)</label>
+          <textarea id="cmdResponseTemplate" class="input" rows="4" placeholder="Resposta do comando. Use {user}, {date}, {time} para dynamic"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Tipo de Resposta</label>
+            <select id="cmdResponseType" class="input">
+              <option value="text">Texto</option>
+              <option value="image">Imagem</option>
+              <option value="audio">Audio</option>
+              <option value="video">Video</option>
+              <option value="rich">Rich Content</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tipo de Acao</label>
+            <select id="cmdActionType" class="input">
+              <option value="respond">Responder</option>
+              <option value="redirect">Redirecionar</option>
+              <option value="trigger">Disparar Acao</option>
+              <option value="tool">Executar Ferramenta</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Role Requerido</label>
+            <select id="cmdRequiredRole" class="input">
+              <option value="user">Usuario</option>
+              <option value="premium">Premium</option>
+              <option value="admin">Admin</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Persona ID (opcional)</label>
+            <input type="text" id="cmdPersonaId" class="input" placeholder="jesus">
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Aliases (separados por virgula)</label>
+          <input type="text" id="cmdAliases" class="input" placeholder="ajuda,help,h">
+        </div>
+        <div class="form-row">
+          <button id="submitCommandBtn" class="btn btn-primary">Criar</button>
+          <button id="cancelCommandBtn" class="btn">Cancelar</button>
+        </div>
+      </div>
+      <div id="commandsList" class="cards-grid"></div>
+    </section>
+
+    <!-- Vector DB -->
+    <section id="page-vectors" class="page">
+      <h1>Vector DB <span id="vectorStatusBadge" class="badge">Carregando...</span></h1>
+      <div id="vectorStats" class="stats-grid"></div>
+      <div class="card" style="margin-top:1rem">
+        <h3>Reindexar Embeddings</h3>
+        <p style="color:var(--muted);margin-bottom:1rem">Gera vetores para todas as fontes de conhecimento. Necessario apos adicionar novas fontes.</p>
+        <div class="form-row">
+          <button id="vectorReindexAllBtn" class="btn btn-primary">Reindexar Tudo</button>
+          <button id="vectorReindexBibleBtn" class="btn">Apenas Biblia</button>
+          <input type="text" id="vectorSourceInput" class="input" placeholder="sourceId especifico" style="width:200px">
+          <button id="vectorReindexSourceBtn" class="btn">Reindexar Source</button>
+        </div>
+        <div id="vectorResult" style="margin-top:1rem;color:var(--muted)"></div>
+      </div>
+    </section>
+
+    <!-- Creatives -->
+    <section id="page-creatives" class="page">
+      <h1>Criativos</h1>
+      <div class="card" style="margin-bottom:1rem">
+        <h3>Gerar Criativo</h3>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Template</label>
+            <select id="creativeTemplate" class="input">
+              <option value="quote_post">Quote Post</option>
+              <option value="announcement_post">Announcement</option>
+              <option value="carousel_slide">Carousel Slide</option>
+              <option value="minimal_blog">Blog Cover</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tamanho</label>
+            <select id="creativeSize" class="input">
+              <option value="instagram_post">Instagram Post (1080x1080)</option>
+              <option value="instagram_story">Instagram Story (1080x1920)</option>
+              <option value="instagram_carousel">Carousel (1080x1350)</option>
+              <option value="facebook_post">Facebook (1200x630)</option>
+              <option value="twitter_post">Twitter (1200x675)</option>
+              <option value="youtube_thumbnail">YouTube (1280x720)</option>
+              <option value="blog_banner">Blog Banner (1920x600)</option>
+              <option value="ebook_cover">Ebook Cover (1600x2400)</option>
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Texto</label>
+            <textarea id="creativeText" class="input" rows="2" placeholder="Texto principal..."></textarea>
+          </div>
+          <div class="form-group">
+            <label>Autor</label>
+            <input type="text" id="creativeAuthor" class="input" placeholder="Nome do autor">
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Cor Primaria</label>
+            <input type="color" id="creativePrimaryColor" value="#1a1a2e" class="input" style="height:40px">
+          </div>
+          <div class="form-group">
+            <label>Cor Secundaria</label>
+            <input type="color" id="creativeSecondaryColor" value="#16213e" class="input" style="height:40px">
+          </div>
+          <div class="form-group">
+            <label>Cor Destaque</label>
+            <input type="color" id="creativeAccentColor" value="#e94560" class="input" style="height:40px">
+          </div>
+        </div>
+        <button id="generateCreativeBtn" class="btn btn-primary" style="margin-top:0.5rem">Gerar Criativo</button>
+      </div>
+      <div id="creativePreview" class="card" style="display:none;margin-top:1rem">
+        <h3>Preview</h3>
+        <iframe id="creativePreviewFrame" style="width:100%;height:600px;border:none;border-radius:8px;background:#fff"></iframe>
+      </div>
+      <div id="creativesList" class="cards-grid" style="margin-top:1rem"></div>
+    </section>
+
+    <!-- Global Search -->
+    <section id="page-search" class="page">
+      <h1>Busca Global</h1>
+      <div class="card" style="margin-bottom:1rem">
+        <div class="form-row">
+          <input type="text" id="globalSearchInput" class="input" placeholder="Buscar em personas, contatos, metas, memoria org..." style="flex:1">
+          <button id="globalSearchBtn" class="btn btn-primary">Buscar</button>
+        </div>
+      </div>
+      <div id="globalSearchResults" class="card"></div>
+      <div id="searchIndexStats" class="card" style="margin-top:1rem"></div>
+    </section>
+
+    <!-- Events -->
+    <section id="page-events" class="page">
+      <h1>Eventos</h1>
+      <div class="toolbar">
+        <select id="eventFilter" class="input" style="width:200px">
+          <option value="">Todos os tipos</option>
+          <option value="on_goal_completed">Goal Completed</option>
+          <option value="on_badge_earned">Badge Earned</option>
+          <option value="on_level_up">Level Up</option>
+          <option value="on_churn_risk_high">Churn Risk</option>
+          <option value="on_stage_advance">Stage Advance</option>
+          <option value="on_message_sent">Message Sent</option>
+        </select>
+        <button id="refreshEvents" class="btn">Atualizar</button>
+      </div>
+      <div id="eventsTable" class="table-wrap"></div>
+    </section>
+
+    <!-- Thoughts -->
+    <section id="page-thoughts" class="page">
+      <h1>Pensamentos da IA</h1>
+      <p style="color:var(--muted)">Historico de raciocinio, ferramentas usadas e decisoes da IA.</p>
+      <div class="toolbar">
+        <input type="text" id="thoughtSearchInput" class="input" placeholder="Buscar por session, user ou persona..." style="flex:1">
+        <button id="refreshThoughts" class="btn">Atualizar</button>
+      </div>
+      <div id="thoughtsStats" class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
+      <div id="thoughtsTable" class="table-wrap" style="margin-top:1rem"></div>
+    </section>
+
+    <!-- Workspace -->
+    <section id="page-workspace" class="page">
+      <h1>Workspace</h1>
+      <div id="workspaceStats" class="stats-grid"></div>
+      <div class="card" style="margin-top:1rem">
+        <h3>Membros</h3>
+        <div id="workspaceMembers" class="table-wrap"></div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <h3>Regras de Negocio</h3>
+        <p style="color:var(--muted)">Automacoes baseadas em condicoes (emotion, intent, role, etc.)</p>
+        <button id="addRuleBtn" class="btn btn-primary" style="margin-top:0.5rem">Adicionar Regra</button>
+        <div id="businessRulesList" style="margin-top:1rem"></div>
+      </div>
+    </section>
+
+    <!-- Billing -->
+    <section id="page-billing" class="page">
+      <h1>Planos & Uso</h1>
+      <div id="billingPlans" class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr))"></div>
+      <div id="usageReport" class="card" style="margin-top:1rem"></div>
+    </section>
+
+    <!-- Queue -->
+    <section id="page-queue" class="page">
+      <h1>Filas <span id="queueStatusBadge" class="badge">Verificando...</span></h1>
+      <div id="queueStats" class="stats-grid"></div>
+      <div class="card" style="margin-top:1rem">
+        <p style="color:var(--muted)">Filas BullMQ (requer Redis). Se Redis nao estiver disponivel, o sistema usa processamento por intervalo como fallback.</p>
+      </div>
     </section>
   </main>
 </div>
@@ -252,6 +559,7 @@
   <div class="spinner"></div>
 </div>
 
+<script src="/socket.io/socket.io.js"></script>
 <script src="/js/admin.js"></script>
 </body>
 </html>

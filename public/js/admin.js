@@ -1,11 +1,12 @@
 const API = '/api/admin';
-let token = localStorage.getItem('jesus_ai_token');
+let token = localStorage.getItem('mp_token') || localStorage.getItem('jesus_ai_token');
 let currentPage = 'dashboard';
+let socket = null;
 
-const pages = ['dashboard','users','personas','knowledge','surveys','ratings','followups','bots','integrations','settings'];
+const pages = ['dashboard','users','personas','knowledge','vectors','creatives','search','surveys','ratings','followups','events','thoughts','workspace','billing','bots','integrations','commands','queue','settings'];
 
 document.addEventListener('DOMContentLoaded', () => {
-  if (!token) { window.location.href = '/'; return; }
+  if (!token) { showAdminLogin(); return; }
   checkAdmin();
   document.querySelectorAll('.nav-link').forEach(l => {
     l.addEventListener('click', e => { e.preventDefault(); switchPage(l.dataset.page); });
@@ -39,6 +40,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('userSearch')?.addEventListener('input', debounce(loadUsers, 300));
   document.getElementById('followupStatus')?.addEventListener('change', loadFollowups);
   document.getElementById('ratingCategory')?.addEventListener('change', loadRatings);
+  // Commands
+  document.getElementById('refreshCommands')?.addEventListener('click', loadCommands);
+  document.getElementById('addCommandBtn')?.addEventListener('click', () => toggleEl('createCommandForm'));
+  document.getElementById('cancelCommandBtn')?.addEventListener('click', () => toggleEl('createCommandForm', false));
+  document.getElementById('submitCommandBtn')?.addEventListener('click', createCommand);
   loadDashboard();
 });
 
@@ -54,24 +60,131 @@ async function api(path, opts = {}) {
 async function checkAdmin() {
   try {
     const res = await fetch('/api/auth/me', { headers: { Authorization: `Bearer ${token}` } });
-    if (!res.ok) { window.location.href = '/'; return; }
+    if (!res.ok) { showAdminLogin(); return; }
     const me = await res.json();
-    if (me.role !== 'admin') { window.location.href = '/'; }
+    if (me.role !== 'admin' && me.role !== 'premium') { showAdminLogin(); return; }
     const brandName = document.getElementById('brandName');
     if (brandName && me.name) brandName.textContent = me.name;
-  } catch { window.location.href = '/'; }
+    initAdmin();
+  } catch { showAdminLogin(); }
+}
+
+function showAdminLogin() {
+  const app = document.getElementById('adminApp');
+  if (app) app.style.display = 'none';
+  let overlay = document.getElementById('adminLoginOverlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.id = 'adminLoginOverlay';
+    overlay.cssText = 'position:fixed;inset:0;z-index:9999;background:rgba(5,5,16,0.95);display:flex;align-items:center;justify-content:center';
+    overlay.innerHTML = `
+      <div style="background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:2.5rem;width:400px;max-width:95vw;backdrop-filter:blur(20px)">
+        <h2 style="color:var(--primary);margin-bottom:1.5rem;text-align:center">Admin Login</h2>
+        <div id="adminLoginError" style="display:none;color:var(--danger);margin-bottom:1rem;font-size:0.9rem"></div>
+        <div style="margin-bottom:1rem">
+          <label style="display:block;font-size:0.85rem;color:var(--text-dim);margin-bottom:0.3rem">Email</label>
+          <input type="email" id="adminLoginEmail" class="input" style="width:100%" placeholder="admin@example.com" autocomplete="email">
+        </div>
+        <div style="margin-bottom:1.5rem">
+          <label style="display:block;font-size:0.85rem;color:var(--text-dim);margin-bottom:0.3rem">Senha</label>
+          <input type="password" id="adminLoginPassword" class="input" style="width:100%" placeholder="Sua senha" autocomplete="current-password">
+        </div>
+        <button id="adminLoginBtn" class="btn btn-primary" style="width:100%;padding:0.8rem">Entrar</button>
+        <p style="text-align:center;margin-top:1rem;color:var(--text-dim);font-size:0.8rem">Acesso restrito a administradores</p>
+      </div>`;
+    document.body.appendChild(overlay);
+    document.getElementById('adminLoginBtn').addEventListener('click', doAdminLogin);
+    document.getElementById('adminLoginPassword').addEventListener('keypress', e => { if (e.key === 'Enter') doAdminLogin(); });
+  }
+  overlay.style.display = 'flex';
+}
+
+async function doAdminLogin() {
+  const email = document.getElementById('adminLoginEmail').value.trim();
+  const password = document.getElementById('adminLoginPassword').value;
+  const errEl = document.getElementById('adminLoginError');
+  if (!email || !password) { errEl.textContent = 'Preencha email e senha'; errEl.style.display = 'block'; return; }
+  try {
+    const res = await fetch('/api/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }) });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Erro no login'; errEl.style.display = 'block'; return; }
+    token = data.token;
+    localStorage.setItem('mp_token', token);
+    localStorage.setItem('jesus_ai_token', token);
+    errEl.style.display = 'none';
+    const overlay = document.getElementById('adminLoginOverlay');
+    if (overlay) overlay.style.display = 'none';
+    const app = document.getElementById('adminApp');
+    if (app) app.style.display = 'flex';
+    checkAdmin();
+  } catch (e) { const errEl = document.getElementById('adminLoginError'); errEl.textContent = e.message; errEl.style.display = 'block'; }
+}
+
+function initAdmin() {
+  document.querySelectorAll('.nav-link').forEach(l => {
+    l.addEventListener('click', e => { e.preventDefault(); switchPage(l.dataset.page); });
+  });
+  document.getElementById('logoutBtn').addEventListener('click', logout);
+  document.getElementById('refreshUsers')?.addEventListener('click', loadUsers);
+  document.getElementById('refreshPersonas')?.addEventListener('click', loadPersonas);
+  document.getElementById('refreshKnowledge')?.addEventListener('click', loadKnowledge);
+  document.getElementById('refreshRatings')?.addEventListener('click', loadRatings);
+  document.getElementById('refreshFollowups')?.addEventListener('click', loadFollowups);
+  document.getElementById('refreshBots')?.addEventListener('click', loadBots);
+  document.getElementById('refreshIntegrations')?.addEventListener('click', loadIntegrations);
+  document.getElementById('refreshSettings')?.addEventListener('click', loadSettings);
+  document.getElementById('reindexBtn')?.addEventListener('click', reindexKnowledge);
+  document.getElementById('createPersonaBtn')?.addEventListener('click', () => toggleEl('createPersonaForm'));
+  document.getElementById('cancelPersonaBtn')?.addEventListener('click', () => toggleEl('createPersonaForm', false));
+  document.getElementById('generatePersonaBtn')?.addEventListener('click', createPersona);
+  document.getElementById('createSurveyBtn')?.addEventListener('click', () => toggleEl('createSurveyForm'));
+  document.getElementById('cancelSurveyBtn')?.addEventListener('click', () => toggleEl('createSurveyForm', false));
+  document.getElementById('submitSurveyBtn')?.addEventListener('click', createSurvey);
+  document.getElementById('addBotBtn')?.addEventListener('click', () => toggleEl('addBotForm'));
+  document.getElementById('cancelBotBtn')?.addEventListener('click', () => toggleEl('addBotForm', false));
+  document.getElementById('submitBotBtn')?.addEventListener('click', createBot);
+  document.getElementById('startAllBots')?.addEventListener('click', startAllBots);
+  document.getElementById('addKeyBtn')?.addEventListener('click', () => toggleEl('addKeyForm'));
+  document.getElementById('cancelKeyBtn')?.addEventListener('click', () => toggleEl('addKeyForm', false));
+  document.getElementById('submitKeyBtn')?.addEventListener('click', addIntegration);
+  document.getElementById('saveWhitelabelBtn')?.addEventListener('click', saveWhitelabel);
+  document.getElementById('uploadForm')?.addEventListener('submit', uploadFile);
+  document.getElementById('userRoleFilter')?.addEventListener('change', loadUsers);
+  document.getElementById('userSearch')?.addEventListener('input', debounce(loadUsers, 300));
+  document.getElementById('followupStatus')?.addEventListener('change', loadFollowups);
+  document.getElementById('ratingCategory')?.addEventListener('change', loadRatings);
+  document.getElementById('refreshCommands')?.addEventListener('click', loadCommands);
+  document.getElementById('addCommandBtn')?.addEventListener('click', () => toggleEl('createCommandForm'));
+  document.getElementById('cancelCommandBtn')?.addEventListener('click', () => toggleEl('createCommandForm', false));
+  document.getElementById('submitCommandBtn')?.addEventListener('click', createCommand);
+  document.getElementById('vectorReindexAllBtn')?.addEventListener('click', () => reindexVectors());
+  document.getElementById('vectorReindexBibleBtn')?.addEventListener('click', () => reindexVectors('bible-pt-br'));
+  document.getElementById('vectorReindexSourceBtn')?.addEventListener('click', () => reindexVectors(document.getElementById('vectorSourceInput').value));
+  document.getElementById('generateCreativeBtn')?.addEventListener('click', generateCreative);
+  document.getElementById('globalSearchBtn')?.addEventListener('click', doGlobalSearch);
+  document.getElementById('globalSearchInput')?.addEventListener('keypress', e => { if (e.key === 'Enter') doGlobalSearch(); });
+  document.getElementById('refreshEvents')?.addEventListener('click', loadEvents);
+  document.getElementById('refreshThoughts')?.addEventListener('click', loadThoughts);
+  document.getElementById('addRuleBtn')?.addEventListener('click', () => toast('Regras de negocio em breve!', 'info'));
+  document.getElementById('savePlatformStyleBtn')?.addEventListener('click', savePlatformStyle);
+  loadDashboard();
+  setTimeout(initRealtime, 1000);
 }
 
 function switchPage(page) {
   currentPage = page;
   document.querySelectorAll('.nav-link').forEach(l => l.classList.toggle('active', l.dataset.page === page));
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
-  document.getElementById(`page-${page}`)?.classList.add('active');
-  const loaders = { dashboard: loadDashboard, users: loadUsers, personas: loadPersonas, knowledge: loadKnowledge, surveys: loadSurveys, ratings: loadRatings, followups: loadFollowups, bots: loadBots, integrations: loadIntegrations, settings: loadSettings };
+  const el = document.getElementById(`page-${page}`);
+  if (el) el.classList.add('active');
+  const loaders = {
+    dashboard: loadDashboard, users: loadUsers, personas: loadPersonas, knowledge: loadKnowledge, surveys: loadSurveys, ratings: loadRatings, followups: loadFollowups, bots: loadBots, integrations: loadIntegrations, commands: loadCommands, settings: loadSettings,
+    vectors: loadVectors, creatives: loadCreatives, search: loadGlobalSearch, events: loadEvents, thoughts: loadThoughts, workspace: loadWorkspace, billing: loadBillingPlans, queue: loadQueue,
+  };
   loaders[page]?.();
 }
 
-function logout() { localStorage.removeItem('jesus_ai_token'); window.location.href = '/'; }
+function logout() { localStorage.removeItem('mp_token'); localStorage.removeItem('jesus_ai_token'); window.location.href = '/'; }
 function toggleEl(id, show) { const el = document.getElementById(id); if (el) el.style.display = show === false ? 'none' : (el.style.display === 'none' ? 'block' : 'none'); }
 function toast(msg, type = '') { const el = document.getElementById('toast'); el.textContent = msg; el.className = `toast ${type}`; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 3000); }
 function loading(show = true) { document.getElementById('loading').style.display = show ? 'flex' : 'none'; }
@@ -217,12 +330,68 @@ async function startAllBots() { try { await api('/bots/start-all', { method: 'PO
 
 async function loadIntegrations() {
   try {
+    loading();
     const data = await api('/integrations');
-    const entries = Object.entries(data);
-    document.getElementById('integrationsList').innerHTML = entries.map(([type, info]) => {
-      const items = (info.integrations || []).map(i => `<div class="integration-card"><h4>${i.label || type}</h4><div class="meta">${type} | ${i.healthy ? '<span class="badge-active">OK</span>' : '<span class="badge-inactive">Erro</span>'}</div><div class="actions"><button class="btn btn-sm" onclick="toggleIntegration(${i.id})">${i.is_active ? 'Desativar' : 'Ativar'}</button> <button class="btn btn-sm btn-danger" onclick="removeIntegration(${i.id})">Remover</button></div></div>`).join('');
-      return items || `<div class="integration-card"><h4>${info.label || type}</h4><div class="meta">${info.healthy}/${info.total} OK</div></div>`;
-    }).join('');
+    const list = document.getElementById('integrationsList');
+    const items = Array.isArray(data) ? data : Object.values(data).flatMap(g => Array.isArray(g.integrations) ? g.integrations : g);
+    list.innerHTML = items.map(i => `<div class="card">
+      <h4>${i.label || i.service_type}</h4>
+      <p class="status ${i.is_active ? 'active' : 'inactive'}">${i.is_active ? 'Ativo' : 'Inativo'}</p>
+      <p>${i.model || ''}</p>
+    </div>`).join('');
+    loading(false);
+  } catch (e) { toast(e.message, 'error'); loading(false); }
+}
+
+async function loadCommands() {
+  try {
+    loading();
+    const data = await api('/commands');
+    const list = document.getElementById('commandsList');
+    const items = Array.isArray(data) ? data : [];
+    list.innerHTML = items.map(c => `<div class="card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <h4>${c.command}</h4>
+        <span class="badge">${c.category}</span>
+      </div>
+      <p>${c.description || ''}</p>
+      <p class="text-muted">Tipo: ${c.response_type} | Acao: ${c.action_type}</p>
+      <p class="text-muted">Usos: ${c.usage_count}</p>
+      <div style="margin-top:1rem;">
+        <button class="btn" onclick="deleteCommand(${c.id})">Excluir</button>
+      </div>
+    </div>`).join('');
+    if (items.length === 0) list.innerHTML = '<p>Nenhum comando criado.</p>';
+    loading(false);
+  } catch (e) { toast(e.message, 'error'); loading(false); }
+}
+
+async function createCommand() {
+  const data = {
+    command: document.getElementById('cmdCommand').value,
+    description: document.getElementById('cmdDescription').value,
+    response_template: document.getElementById('cmdResponseTemplate').value,
+    response_type: document.getElementById('cmdResponseType').value,
+    action_type: document.getElementById('cmdActionType').value,
+    required_role: document.getElementById('cmdRequiredRole').value,
+    required_persona_id: document.getElementById('cmdPersonaId').value || null,
+    aliases: document.getElementById('cmdAliases').value.split(',').map(a => a.trim()).filter(a => a),
+    category: document.getElementById('cmdCategory').value,
+  };
+  try {
+    await api('/commands', { method: 'POST', body: JSON.stringify(data) });
+    toast('Comando criado!', 'success');
+    toggleEl('createCommandForm', false);
+    loadCommands();
+  } catch (e) { toast(e.message, 'error'); }
+}
+
+async function deleteCommand(id) {
+  if (!confirm('Excluir comando?')) return;
+  try {
+    await api(`/commands/${id}`, { method: 'DELETE' });
+    toast('Comando excluido!', 'success');
+    loadCommands();
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -259,4 +428,177 @@ async function loadSettings() {
 async function saveWhitelabel() {
   const fields = { brand_name: document.getElementById('setting-brand_name').value, brand_tagline: document.getElementById('setting-brand_tagline').value, brand_logo_url: document.getElementById('setting-brand_logo_url').value, brand_primary_color: document.getElementById('setting-brand_primary_color').value };
   try { for (const [k, v] of Object.entries(fields)) { if (v) await api('/settings', { method: 'PUT', body: JSON.stringify({ key: k, value: v }) }); } toast('Whitelabel salvo!', 'success'); } catch (e) { toast(e.message, 'error'); }
+}
+
+async function savePlatformStyle() {
+  const fields = { platform_avatar_style: document.getElementById('setting-platform_avatar_style').value, platform_emoji_style: document.getElementById('setting-platform_emoji_style').value, platform_font_family: document.getElementById('setting-platform_font_family').value, platform_animation_style: document.getElementById('setting-platform_animation_style').value };
+  try { for (const [k, v] of Object.entries(fields)) { if (v) await api('/settings', { method: 'PUT', body: JSON.stringify({ key: k, value: v }) }); } toast('Estilo salvo!', 'success'); } catch (e) { toast(e.message, 'error'); }
+}
+
+async function loadVectors() {
+  try {
+    const data = await api('/vector-stats');
+    const badge = document.getElementById('vectorStatusBadge');
+    badge.textContent = data.enabled ? 'Ativo' : 'Desativado';
+    badge.style.background = data.enabled ? '#10b981' : '#ef4444';
+    const grid = document.getElementById('vectorStats');
+    grid.innerHTML = `
+      <div class="stat-card"><div class="stat-value">${data.totalEmbeddings || 0}</div><div class="stat-label">Embeddings</div></div>
+      <div class="stat-card"><div class="stat-value">${data.model || 'n/a'}</div><div class="stat-label">Modelo</div></div>
+      <div class="stat-card"><div class="stat-value">${data.dimensions || 0}d</div><div class="stat-label">Dimensoes</div></div>
+      <div class="stat-card"><div class="stat-value">${data.vectorWeight || 0.7}/${data.tfidfWeight || 0.3}</div><div class="stat-label">Peso Vector/TF-IDF</div></div>
+    `;
+    const listHtml = (data.sources || []).map(s => `<div class="stat-mini">${s.sourceId}: ${s.count} embeddings</div>`).join('');
+    document.getElementById('vectorResult').innerHTML = listHtml;
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function reindexVectors(sourceId) {
+  document.getElementById('vectorResult').innerHTML = 'Reindexando... Isto pode levar alguns minutos.';
+  try {
+    const body = sourceId ? { sourceId } : {};
+    const result = await api('/vector-reindex', { method: 'POST', body: JSON.stringify(body) });
+    document.getElementById('vectorResult').innerHTML = `<span style="color:#10b981">Reindexacao concluida!</span>`;
+    loadVectors();
+  } catch(e) { document.getElementById('vectorResult').innerHTML = `<span style="color:#ef4444">${e.message}</span>`; }
+}
+
+async function loadCreatives() {
+  try {
+    const templates = await api('/creatives/templates');
+    const list = await api('/creatives?limit=20');
+    document.getElementById('creativesList').innerHTML = list.map(c => `
+      <div class="card" style="margin-bottom:0.5rem">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>${c.template_id || c.type}</strong> <span style="color:var(--muted)">${c.id.substring(0,20)}...</span></div>
+          <div><span style="color:var(--muted)">${new Date(c.created_at).toLocaleString()}</span></div>
+        </div>
+      </div>
+    `).join('') || '<p style="color:var(--muted)">Nenhum criativo ainda. Gere o primeiro acima!</p>';
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function generateCreative() {
+  try {
+    const result = await api('/creatives/generate', { method: 'POST', body: JSON.stringify({
+      template_id: document.getElementById('creativeTemplate').value,
+      size: document.getElementById('creativeSize').value,
+      text: document.getElementById('creativeText').value,
+      author: document.getElementById('creativeAuthor').value,
+      primary_color: document.getElementById('creativePrimaryColor').value,
+      secondary_color: document.getElementById('creativeSecondaryColor').value,
+      accent_color: document.getElementById('creativeAccentColor').value,
+    }) });
+    toast('Criativo gerado!', 'success');
+    if (result.id) {
+      document.getElementById('creativePreview').style.display = 'block';
+      document.getElementById('creativePreviewFrame').src = `/api/admin/creatives/${result.id}/html`;
+    }
+    loadCreatives();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function loadGlobalSearch() {
+  try {
+    const stats = await api('/search/stats');
+    document.getElementById('searchIndexStats').innerHTML = `
+      <h3>Indices de Busca</h3>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.5rem;margin-top:0.5rem">
+        ${Object.entries(stats.indexes || {}).map(([k,v]) => `<div class="stat-mini"><strong>${k}</strong>: ${v.documentCount || 0} docs</div>`).join('')}
+      </div>
+    `;
+  } catch(e) {}
+}
+
+async function doGlobalSearch() {
+  const q = document.getElementById('globalSearchInput').value.trim();
+  if (!q) return;
+  try {
+    const results = await api(`/search?q=${encodeURIComponent(q)}&limit=10`);
+    const html = Object.entries(results.results || {}).map(([coll, items]) => {
+      if (!items || items.length === 0) return '';
+      return `<div style="margin-bottom:1rem"><h4>${coll}</h4>${items.slice(0,5).map(i => `<div style="padding:0.3rem 0;border-bottom:1px solid var(--border)">${i.id?.doc_id || i.id || JSON.stringify(i).substring(0,100)}</div>`).join('')}</div>`;
+    }).join('');
+    document.getElementById('globalSearchResults').innerHTML = html || '<p style="color:var(--muted)">Nenhum resultado encontrado.</p>';
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function loadEvents() {
+  try {
+    const type = document.getElementById('eventFilter')?.value || '';
+    const data = await api(`/events/log?limit=50${type ? '&event_type='+type : ''}`);
+    document.getElementById('eventsTable').innerHTML = `<table class="data-table"><thead><tr><th>Tipo</th><th>Usuario</th><th>Persona</th><th>Data</th><th>Quando</th></tr></thead><tbody>${(data.events || data || []).map(e => `<tr><td>${e.event_type}</td><td>${e.user_id || '-'}</td><td>${e.persona_id || '-'}</td><td>${JSON.stringify(e.data || {}).substring(0,80)}</td><td>${new Date(e.created_at).toLocaleString()}</td></tr>`).join('')}</tbody></table>`;
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function loadThoughts() {
+  try {
+    const stats = await api('/thoughts/stats');
+    const statCards = [
+      { label: 'Total Pensamentos', value: stats.total_thoughts || 0 },
+      { label: 'Tempo Medio (ms)', value: Math.round(stats.avg_response_time || 0) },
+      { label: 'Tokens Medio', value: Math.round(stats.avg_tokens || 0) },
+      { label: 'Ferramenta Top', value: stats.top_tools?.[0]?.tool || 'N/A' },
+    ];
+    document.getElementById('thoughtsStats').innerHTML = statCards.map(c => `<div class="stat-card"><div class="stat-value">${c.value}</div><div class="stat-label">${c.label}</div></div>`).join('');
+    const data = await api('/thoughts?limit=30');
+    document.getElementById('thoughtsTable').innerHTML = `<table class="data-table"><thead><tr><th>Usuario</th><th>Emocao</th><th>Intent</th><th>Ferramentas</th><th>Tempo</th><th>Quando</th></tr></thead><tbody>${(data.thoughts || data || []).map(t => `<tr><td>${t.user_id || '-'}</td><td>${t.reasoning?.emotion || '-'}</td><td>${t.reasoning?.intent || '-'}</td><td>${(t.tools_used || []).join(', ') || '-'}</td><td>${t.response_time_ms || '-'}ms</td><td>${new Date(t.created_at).toLocaleString()}</td></tr>`).join('')}</tbody></table>`;
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function loadWorkspace() {
+  try {
+    const members = await api('/workspace/members');
+    document.getElementById('workspaceMembers').innerHTML = `<table class="data-table"><thead><tr><th>Usuario</th><th>Email</th><th>Role</th><th>Desde</th></tr></thead><tbody>${(members || []).map(m => `<tr><td>${m.name || m.user_id}</td><td>${m.email || '-'}</td><td><span class="badge">${m.role}</span></td><td>${new Date(m.joined_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function loadBillingPlans() {
+  const plans = [
+    { id: 'free', name: 'Free', price: 'R$0', personas: 3, contacts: '1.000', msgs: '500/dia', color: '#6b7280' },
+    { id: 'starter', name: 'Starter', price: 'R$97/mes', personas: 10, contacts: '5.000', msgs: '3.000/dia', color: '#3b82f6' },
+    { id: 'pro', name: 'Pro', price: 'R$297/mes', personas: 50, contacts: '25.000', msgs: '15.000/dia', color: '#8b5cf6' },
+    { id: 'enterprise', name: 'Enterprise', price: 'R$997/mes', personas: 'Ilimitado', contacts: 'Ilimitado', msgs: 'Ilimitado', color: '#f59e0b' },
+  ];
+  document.getElementById('billingPlans').innerHTML = plans.map(p => `
+    <div class="card" style="text-align:center;border-top:3px solid ${p.color}">
+      <h3 style="color:${p.color}">${p.name}</h3>
+      <div style="font-size:1.5rem;font-weight:700;margin:0.5rem 0">${p.price}</div>
+      <div style="color:var(--muted);font-size:0.85rem">${p.personas} personas &middot; ${p.contacts} contatos &middot; ${p.msgs}</div>
+    </div>
+  `).join('');
+  try {
+    const report = await api('/billing/usage');
+    document.getElementById('usageReport').innerHTML = `<h3>Uso Atual</h3><pre style="background:var(--bg-card);padding:1rem;border-radius:8px;overflow:auto">${JSON.stringify(report, null, 2)}</pre>`;
+  } catch(e) { document.getElementById('usageReport').innerHTML = '<p style="color:var(--muted)">Dados de uso nao disponiveis ainda.</p>'; }
+}
+
+async function loadQueue() {
+  try {
+    const data = await api('/queue-stats');
+    const badge = document.getElementById('queueStatusBadge');
+    badge.textContent = data.available ? 'Redis Conectado' : 'Redis Indisponivel';
+    badge.style.background = data.available ? '#10b981' : '#f59e0b';
+    const stats = data.stats || {};
+    const allQueues = ['proactive','followup','ingestion','embedding','notification','automation','blog','email'];
+    document.getElementById('queueStats').innerHTML = allQueues.map(q => {
+      const s = stats[q] || { waiting: 0, active: 0, completed: 0, failed: 0 };
+      return `<div class="stat-card"><div class="stat-label">${q}</div><div style="display:grid;grid-template-columns:1fr 1fr;gap:2px;font-size:0.8rem;color:var(--muted)"><div>Wait: ${s.waiting}</div><div>Active: ${s.active}</div><div>Done: ${s.completed}</div><div>Failed: ${s.failed}</div></div></div>`;
+    }).join('');
+  } catch(e) {
+    document.getElementById('queueStatusBadge').textContent = 'Erro';
+    document.getElementById('queueStatusBadge').style.background = '#ef4444';
+    document.getElementById('queueStats').innerHTML = '<p style="color:var(--muted)">Redis nao conectado. Usando processamento por intervalo.</p>';
+  }
+}
+
+
+function initRealtime() {
+  try {
+    socket = io({ auth: { userId: 'admin' } });
+    socket.on('connect', () => console.log('[RT] Connected'));
+    socket.on('xp_update', data => { /* could update dashboard */ });
+    socket.on('cognitive_state', data => { /* could show live emotion */ });
+    socket.on('new_message', data => { /* could show live messages */ });
+  } catch(e) { console.log('[RT] Socket.IO not available'); }
 }

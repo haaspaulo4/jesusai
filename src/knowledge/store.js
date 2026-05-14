@@ -184,37 +184,107 @@ function getStore(sourceId) {
   return stores.get(primaryId);
 }
 
-function searchVerses(query, topK) {
+async function searchVerses(query, topK) {
+  const { vectorStore, VECTOR_ENABLED } = require('../embeddings/vectorStore');
+  const k = topK || 8;
+
   const store = getStore();
   if (!store) return [];
-  return store.search(query, topK);
-}
 
-function searchMultiSource(query, sourceIds, topK) {
-  const { getKnowledgeConfig } = require('./config');
-  if (!sourceIds || sourceIds.length === 0) {
-    return searchVerses(query, topK);
+  const tfidfResults = store.search(query, k);
+
+  if (VECTOR_ENABLED) {
+    try {
+      const { results: vectorResults } = await vectorStore.search(query, null, k);
+      if (vectorResults && vectorResults.length > 0) {
+        const enrichedVectors = await enrichVectorResults(vectorResults, null);
+        return vectorStore.hybridSearch(tfidfResults, enrichedVectors, k);
+      }
+    } catch {}
   }
 
+  return tfidfResults;
+}
+
+async function searchMultiSource(query, sourceIds, topK) {
+  const { getKnowledgeConfig } = require('./config');
+  const { vectorStore, VECTOR_ENABLED } = require('../embeddings/vectorStore');
+
+  const k = topK || 8;
+
   const allResults = [];
-  const kPerSource = Math.ceil((topK || 8) / sourceIds.length);
+  const kPerSource = Math.ceil(k / (sourceIds || [1]).length);
 
-  for (const sourceId of sourceIds) {
-    const config = getKnowledgeConfig(sourceId);
-    if (!config) continue;
+  const searchSources = sourceIds && sourceIds.length > 0 ? sourceIds : null;
 
-    let store = stores.get(sourceId);
-    if (!store) {
-      store = new KnowledgeStore(config);
-      stores.set(sourceId, store);
+  if (searchSources) {
+    for (const sourceId of searchSources) {
+      const config = getKnowledgeConfig(sourceId);
+      if (!config) continue;
+
+      let store = stores.get(sourceId);
+      if (!store) {
+        store = new KnowledgeStore(config);
+        stores.set(sourceId, store);
+      }
+
+      const results = store.search(query, kPerSource);
+      allResults.push(...results.map(r => ({ ...r, sourceId })));
     }
-
-    const results = store.search(query, kPerSource);
-    allResults.push(...results.map(r => ({ ...r, sourceId })));
+  } else {
+    const store = getStore();
+    if (store) {
+      const results = store.search(query, k);
+      allResults.push(...results);
+    }
   }
 
   allResults.sort((a, b) => (a.distance || 1) - (b.distance || 1));
-  return allResults.slice(0, topK || 8);
+  const tfidfResults = allResults.slice(0, k);
+
+  if (VECTOR_ENABLED) {
+    try {
+      const { results: vectorResults } = await vectorStore.search(query, searchSources, k);
+      if (vectorResults && vectorResults.length > 0) {
+        const enrichedVectors = await enrichVectorResults(vectorResults, searchSources);
+        return vectorStore.hybridSearch(tfidfResults, enrichedVectors, k);
+      }
+    } catch (err) {
+      console.warn('[KnowledgeStore] Vector search failed, using TF-IDF only:', err.message);
+    }
+  }
+
+  return tfidfResults;
+}
+
+async function enrichVectorResults(vectorResults, sourceIds) {
+  const { getKnowledgeConfig } = require('./config');
+  const enriched = [];
+
+  for (const vr of vectorResults) {
+    const sourceConfig = getKnowledgeConfig(vr.sourceId);
+    if (!sourceConfig) {
+      enriched.push(vr);
+      continue;
+    }
+
+    let store = stores.get(vr.sourceId);
+    if (!store) {
+      store = new KnowledgeStore(sourceConfig);
+      stores.set(vr.sourceId, store);
+    }
+
+    const docs = store.loadVerses();
+    const doc = docs.find(d => (d.reference || d.id) === vr.reference);
+
+    enriched.push({
+      ...vr,
+      text: doc?.text || '',
+      reference: vr.reference,
+    });
+  }
+
+  return enriched;
 }
 
 function getVerseCount() {
@@ -243,15 +313,20 @@ function clearStoreCache(sourceId) {
   }
 }
 
-function getAllSourceStats() {
+async function getAllSourceStats() {
   const { getAllEnabledSources } = require('./config');
+  const { vectorStore } = require('../embeddings/vectorStore');
+
   const sources = getAllEnabledSources();
-  return sources.map(source => {
+  const stats = [];
+
+  for (const source of sources) {
     const dataPath = source.dataPath || path.join(KNOWLEDGE_DIR, `${source.id}_documents.json`);
     const indexPath = source.indexPath || path.join(KNOWLEDGE_DIR, `${source.id}_index.json`);
     let docCount = 0;
     let indexExists = false;
     let dataExists = false;
+    let embeddingCount = 0;
 
     try {
       if (fs.existsSync(dataPath)) {
@@ -265,7 +340,15 @@ function getAllSourceStats() {
       indexExists = fs.existsSync(indexPath);
     } catch {}
 
-    return {
+    try {
+      embeddingCount = await vectorStore.getSourceEmbeddingStats
+        ? await vectorStore.getSourceEmbeddingStats(source.id)
+        : 0;
+    } catch {
+      embeddingCount = 0;
+    }
+
+    stats.push({
       id: source.id,
       name: source.name,
       ingester: source.ingester,
@@ -273,8 +356,38 @@ function getAllSourceStats() {
       documentCount: docCount,
       dataExists,
       indexExists,
+      embeddingCount,
+    });
+  }
+
+  return stats;
+}
+
+function getSourceContent(sourceId) {
+  const { getAllEnabledSources } = require('./config');
+  const sources = getAllEnabledSources();
+  const source = sources.find(s => s.id === sourceId);
+  if (!source) return null;
+
+  const dataPath = source.dataPath || path.join(KNOWLEDGE_DIR, `${source.id}_documents.json`);
+  if (!fs.existsSync(dataPath)) return null;
+
+  try {
+    const docs = JSON.parse(fs.readFileSync(dataPath, 'utf-8'));
+    return {
+      id: source.id,
+      name: source.name,
+      documentCount: docs.length,
+      documents: docs.map(d => ({
+        reference: d.reference,
+        text: d.text,
+        source: d.source,
+        type: d.type,
+      })),
     };
-  });
+  } catch {
+    return null;
+  }
 }
 
 module.exports = {
@@ -287,4 +400,6 @@ module.exports = {
   buildIndex,
   clearStoreCache,
   getAllSourceStats,
+  enrichVectorResults,
+  getSourceContent,
 };

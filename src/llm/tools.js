@@ -17,6 +17,7 @@ const overrideModule = require('../override');
 const thoughtsModule = require('../thoughts');
 const optimizationModule = require('../optimization');
 const blueprintsModule = require('../blueprints');
+const creativeEngine = require('../creative');
 
 const TOOL_DEFINITIONS = [
   {
@@ -533,6 +534,107 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'create_visual',
+      description: 'Cria conteúdo visual (post, banner, thumbnail, carousel slide, blog cover) usando templates prontos. Retorna HTML que pode ser renderizado como imagem.',
+      parameters: {
+        type: 'object',
+        properties: {
+          template_id: { type: 'string', enum: ['quote_post', 'announcement_post', 'carousel_slide', 'minimal_blog'], description: 'Template: quote_post=post com citação, announcement_post=post de anúncio, carousel_slide=slide de carrossel, minimal_blog=capa de blog' },
+          text: { type: 'string', description: 'Texto principal do conteúdo visual' },
+          title: { type: 'string', description: 'Título (para announcement_post, carousel_slide, minimal_blog)' },
+          subtitle: { type: 'string', description: 'Subtítulo opcional' },
+          author: { type: 'string', description: 'Autor da citação (para quote_post)' },
+          tag: { type: 'string', description: 'Tag/categoria (ex: "Novidade", "Inspiração")' },
+          cta_text: { type: 'string', description: 'Texto do botão CTA (para announcement_post)' },
+          primary_color: { type: 'string', description: 'Cor principal (hex, ex: #1a1a2e)' },
+          secondary_color: { type: 'string', description: 'Cor secundária (hex, ex: #16213e)' },
+          accent_color: { type: 'string', description: 'Cor de destaque (hex, ex: #e94560)' },
+          text_color: { type: 'string', description: 'Cor do texto (hex, ex: #ffffff)' },
+          size: { type: 'string', description: 'Tamanho: instagram_post, instagram_story, instagram_carousel, facebook_post, twitter_post, linkedin_post, youtube_thumbnail, blog_banner, ebook_cover' },
+          bullet_points: { type: 'array', items: { type: 'string' }, description: 'Lista de pontos para carousel_slide' },
+          slide_number: { type: 'integer', description: 'Número do slide (para carousel)' },
+          total_slides: { type: 'integer', description: 'Total de slides (para carousel)' },
+        },
+        required: ['template_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_visual_templates',
+      description: 'Lista templates visuais disponíveis e tamanhos de imagem para criação de conteúdo.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'manage_business_config',
+      description: 'Gerencia configuração de negócio da persona: horários, serviços, produtos, FAQ, preços, equipe, endereço, redes sociais, políticas, agendamento. Use para configurar informações operacionais do negócio.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['get', 'update', 'reset'], description: 'Ação: get=buscar config completa, update=atualizar campos específicos (merge), reset=restaurar padrões' },
+          persona_id: { type: 'string', description: 'ID da persona' },
+          updates: { type: 'object', description: 'Campos para atualizar (para action=update). Qualquer campo do business_config: name, tagline, description, logo_url, phone, email, whatsapp, address, city, state, country, business_hours, services, products, faq, pricing, social, payment_methods, policies, branding, scheduling, highlights, team.' },
+        },
+        required: ['action', 'persona_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'manage_quizzes',
+      description: 'Gerencia quizzes: criar, listar, buscar, gerar via LLM, ver estatísticas e respostas. Use para criar quizzes interativos para engajamento do usuário.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['list', 'get', 'create', 'generate', 'stats', 'progress'], description: 'Ação: list=quizzes ativos, get=detalhes, create=criar quiz, generate=gerar via LLM, stats=estatísticas, progress=progresso do usuário' },
+          quiz_id: { type: 'string', description: 'ID do quiz (para get, stats)' },
+          persona_id: { type: 'string', description: 'ID da persona para filtrar' },
+          topic: { type: 'string', description: 'Tópico do quiz (para generate)' },
+          question_count: { type: 'integer', description: 'Número de questões (para generate/create, padrão: 5)' },
+          title: { type: 'string', description: 'Título do quiz (para create)' },
+          description: { type: 'string', description: 'Descrição do quiz (para create)' },
+          quiz_type: { type: 'string', enum: ['multiple_choice', 'true_false', 'open_ended', 'ordered', 'fill_blank', 'survey'], description: 'Tipo do quiz (para create)' },
+          questions: { type: 'array', description: 'Array de questões (para create). Cada questão: {id, text, type, options, correctAnswer, explanation, points}' },
+          xp_reward: { type: 'integer', description: 'XP奖励 ao completar (padrão: 10)' },
+          user_id: { type: 'string', description: 'ID do usuário (para progress)' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'manage_media',
+      description: 'Gerencia biblioteca de mídia: listar, buscar, ver galeria, estatísticas, criar via URL. Use para acessar e compartilhar imagens, vídeos, áudio e documentos.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['list', 'get', 'gallery', 'stats', 'folders', 'create'], description: 'Ação: list=listar mídia, get=detalhes, gallery=galeria por tipo, stats=estatísticas, folders=pastas, create=criar registro' },
+          media_id: { type: 'string', description: 'ID da mídia (para get)' },
+          persona_id: { type: 'string', description: 'ID da persona para filtrar' },
+          type: { type: 'string', enum: ['image', 'video', 'audio', 'document', 'presentation', 'spreadsheet', 'archive', 'other'], description: 'Tipo de mídia para filtrar' },
+          folder: { type: 'string', description: 'Pasta para filtrar' },
+          search: { type: 'string', description: 'Busca por título ou descrição' },
+          url: { type: 'string', description: 'URL da mídia (para create)' },
+          title: { type: 'string', description: 'Título (para create)' },
+          description: { type: 'string', description: 'Descrição (para create)' },
+        },
+        required: ['action'],
+      },
+    },
+  },
 ];
 
 async function executeTool(name, args, context = {}) {
@@ -542,7 +644,7 @@ async function executeTool(name, args, context = {}) {
   switch (name) {
     case 'bible_lookup': {
       const limit = args.limit || 5;
-      const results = searchVerses(args.query, limit);
+      const results = await searchVerses(args.query, limit);
       if (results.length === 0) {
         return { result: 'Nenhum versículo encontrado.', verses: [] };
       }
@@ -1414,6 +1516,193 @@ async function executeTool(name, args, context = {}) {
       } catch (err) {
         return { error: `Erro: ${err.message}` };
       }
+    }
+
+    case 'create_visual': {
+      try {
+        const data = {
+          text: args.text || '',
+          title: args.title || '',
+          subtitle: args.subtitle || '',
+          author: args.author || '',
+          tag: args.tag || '',
+          ctaText: args.cta_text || '',
+          primaryColor: args.primary_color || '#1a1a2e',
+          secondaryColor: args.secondary_color || '#16213e',
+          accentColor: args.accent_color || '#e94560',
+          textColor: args.text_color || '#ffffff',
+          size: args.size,
+          bulletPoints: args.bullet_points || null,
+          slideNumber: args.slide_number || 1,
+          totalSlides: args.total_slides || 5,
+        };
+
+        const html = creativeEngine.compileTemplate(args.template_id, data);
+        const personaId = context.personaId || 'default';
+        const ownerId = context.userId || 'system';
+
+        const saved = await creativeEngine.saveCreative(personaId, ownerId, args.template_id, args.template_id, data, html);
+
+        return {
+          success: true,
+          id: saved.id,
+          template: args.template_id,
+          html_preview: html.substring(0, 500) + '...',
+          message: `Visual "${args.template_id}" criado com sucesso. Use a API para renderizar como imagem.`,
+        };
+      } catch (err) {
+        return { error: `Erro ao criar visual: ${err.message}` };
+      }
+    }
+
+    case 'list_visual_templates': {
+      const templates = creativeEngine.getAvailableTemplates();
+      const sizes = creativeEngine.getAvailableSizes();
+      return { templates, sizes };
+    }
+
+    case 'manage_business_config': {
+      const businessModule = require('../business');
+      const action = args.action;
+      const pid = args.persona_id;
+
+      if (action === 'get') {
+        const config = await businessModule.getBusinessConfig(pid);
+        if (!config) return { error: 'Persona not found' };
+        return { persona_id: pid, business_config: config };
+      }
+
+      if (action === 'update') {
+        if (!args.updates || typeof args.updates !== 'object') {
+          return { error: 'updates object is required for action=update' };
+        }
+        const updated = await businessModule.updateBusinessConfig(pid, args.updates);
+        return { persona_id: pid, business_config: updated, updated: true };
+      }
+
+      if (action === 'reset') {
+        const defaults = await businessModule.resetBusinessConfig(pid);
+        return { persona_id: pid, business_config: defaults, reset: true };
+      }
+
+      return { error: `Unknown action: ${action}` };
+    }
+
+    case 'manage_quizzes': {
+      const quizModule = require('../quiz');
+      const qAction = args.action;
+
+      if (qAction === 'list') {
+        const quizzes = await quizModule.listQuizzes({ persona_id: args.persona_id, status: 'active', limit: 20 });
+        return { quizzes: quizzes.quizzes, total: quizzes.total };
+      }
+
+      if (qAction === 'get') {
+        if (!args.quiz_id) return { error: 'quiz_id required' };
+        const quiz = await quizModule.getQuiz(args.quiz_id);
+        if (!quiz) return { error: 'Quiz not found' };
+        const stats = await quizModule.getQuizStats(args.quiz_id);
+        return { quiz, stats };
+      }
+
+      if (qAction === 'create') {
+        if (!args.title) return { error: 'title required' };
+        const quiz = await quizModule.createQuiz({
+          persona_id: args.persona_id,
+          title: args.title,
+          description: args.description,
+          quiz_type: args.quiz_type || 'multiple_choice',
+          questions: args.questions || [],
+          xp_reward: args.xp_reward || 10,
+          settings: { passingScore: 60, showResults: true, showExplanation: true, shuffleQuestions: true },
+          created_by: context.userId,
+        });
+        return { quiz, created: true };
+      }
+
+      if (qAction === 'generate') {
+        if (!args.persona_id || !args.topic) return { error: 'persona_id and topic required' };
+        const quiz = await quizModule.generateQuizFromPersona(args.persona_id, args.topic, args.question_count || 5);
+        return { quiz, generated: true };
+      }
+
+      if (qAction === 'stats') {
+        if (!args.quiz_id) return { error: 'quiz_id required' };
+        const stats = await quizModule.getQuizStats(args.quiz_id);
+        return stats;
+      }
+
+      if (qAction === 'progress') {
+        if (!args.user_id) return { error: 'user_id required' };
+        const progress = await quizModule.getUserQuizProgress(args.user_id, args.persona_id);
+        return { progress, total: progress.length };
+      }
+
+      return { error: `Unknown quiz action: ${qAction}` };
+    }
+
+    case 'manage_media': {
+      const mediaModule = require('../media');
+      const mAction = args.action;
+
+      if (mAction === 'list') {
+        const result = await mediaModule.listMedia({
+          persona_id: args.persona_id,
+          type: args.type,
+          folder: args.folder,
+          search: args.search,
+          limit: 20,
+        });
+        return { media: result.media, total: result.total };
+      }
+
+      if (mAction === 'get') {
+        if (!args.media_id) return { error: 'media_id required' };
+        const media = await mediaModule.getMedia(args.media_id);
+        if (!media) return { error: 'Media not found' };
+        return media;
+      }
+
+      if (mAction === 'gallery') {
+        const result = await mediaModule.listMedia({
+          persona_id: args.persona_id,
+          type: args.type,
+          status: 'ready',
+          limit: 50,
+        });
+        const gallery = result.media.map(m => ({
+          id: m.id, title: m.title, type: m.type, url: m.url,
+          thumbnail: m.type === 'image' ? m.url : null,
+          caption: m.caption, tags: m.tags,
+        }));
+        return { gallery, total: gallery.length };
+      }
+
+      if (mAction === 'stats') {
+        const stats = await mediaModule.getMediaStats(args.persona_id);
+        return stats;
+      }
+
+      if (mAction === 'folders') {
+        const folders = await mediaModule.getMediaFolders(args.persona_id);
+        return { folders };
+      }
+
+      if (mAction === 'create') {
+        if (!args.url) return { error: 'url required for create' };
+        const media = await mediaModule.createMedia({
+          persona_id: args.persona_id,
+          owner_id: context.userId,
+          title: args.title || 'Untitled',
+          description: args.description,
+          url: args.url,
+          type: args.type || 'other',
+          source: 'url',
+        });
+        return { media, created: true };
+      }
+
+      return { error: `Unknown media action: ${mAction}` };
     }
 
     default:

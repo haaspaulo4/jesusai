@@ -417,7 +417,7 @@ async function handleCommand(remoteJid, text, pushName) {
     case '/versiculo': {
       const topics = ['amor', 'fé', 'esperança', 'perdão', 'paz', 'força', 'sabedoria', 'graça', 'confiança', 'consolo'];
       const topic = topics[Math.floor(Math.random() * topics.length)];
-      const verses = searchVerses(topic, 10);
+      const verses = await searchVerses(topic, 10);
       const verse = verses[Math.floor(Math.random() * verses.length)];
       const verseText = `${verse.reference}. ${verse.text}`;
       await sendWhatsAppText(remoteJid, `📖 *${verse.reference}*\n\n${verse.text}`);
@@ -441,7 +441,7 @@ async function handleCommand(remoteJid, text, pushName) {
         await sendWhatsAppText(remoteJid, '🔍 Use: /buscar <tema ou palavra>\n\nExemplo: /buscar amor\nExemplo: /buscar Mateus 5');
         return;
       }
-      const results = searchVerses(args, 5);
+      const results = await searchVerses(args, 5);
       if (results.length === 0) {
         await sendWhatsAppText(remoteJid, '🔍 Nenhum versículo encontrado. Tente outro tema.');
         return;

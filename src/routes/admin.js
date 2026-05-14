@@ -246,11 +246,14 @@ router.get('/knowledge', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { getAllSources } = require('../knowledge/config');
     const { getAllSourceStats } = require('../knowledge/store');
-    const sources = getAllSourceStats();
+    const sources = await getAllSourceStats();
+    const { vectorStore } = require('../embeddings/vectorStore');
+    const vectorStats = await vectorStore.getStats();
     res.json({
       sources,
       totalSources: sources.length,
       totalDocuments: sources.reduce((sum, s) => sum + s.documentCount, 0),
+      vectorSearch: vectorStats,
     });
   } catch (err) {
     console.error('[Admin] Knowledge stats error:', err);
@@ -261,7 +264,16 @@ router.get('/knowledge', authMiddleware, adminMiddleware, async (req, res) => {
 router.post('/knowledge/reindex', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const result = await admin.reindexKnowledge();
-    res.json(result);
+
+    const { vectorStore } = require('../embeddings/vectorStore');
+    let vectorResult = null;
+    try {
+      vectorResult = await vectorStore.indexAllSources();
+    } catch (vecErr) {
+      console.warn('[Admin] Vector reindex warning:', vecErr.message);
+    }
+
+    res.json({ ...result, vectorReindex: vectorResult });
   } catch (err) {
     console.error('[Admin] Reindex error:', err);
     res.status(500).json({ error: 'Failed to reindex' });
@@ -1468,6 +1480,556 @@ router.post('/reflection/:personaId/auto-adjust', authMiddleware, adminMiddlewar
     const result = await reflectionModule.autoAdjustPersona(req.params.personaId, days);
     res.json(result);
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Chat Commands =====
+const chatCommands = require('../chat/commands');
+
+router.get('/commands', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const commands = await chatCommands.getCommands();
+    res.json(commands);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/commands', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await chatCommands.createCommand({ ...req.body, created_by: req.userId });
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/commands/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await chatCommands.updateCommand(req.params.id, req.body);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/commands/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await chatCommands.deleteCommand(req.params.id);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/vector-stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { vectorStore } = require('../embeddings/vectorStore');
+    const stats = await vectorStore.getStats();
+    res.json(stats);
+  } catch (err) {
+    console.error('[Admin] Vector stats error:', err);
+    res.status(500).json({ error: 'Failed to get vector stats' });
+  }
+});
+
+router.post('/vector-reindex', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { vectorStore } = require('../embeddings/vectorStore');
+    const { sourceId } = req.body;
+    
+    let result;
+    if (sourceId) {
+      result = await vectorStore.indexSource(sourceId);
+    } else {
+      result = await vectorStore.indexAllSources();
+    }
+    
+    res.json({ success: true, result });
+  } catch (err) {
+    console.error('[Admin] Vector reindex error:', err);
+    res.status(500).json({ error: 'Failed to reindex vectors' });
+  }
+});
+
+router.get('/creatives', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const creative = require('../creative');
+    const { persona_id, owner_id, type, limit } = req.query;
+    const creatives = await creative.listCreatives(persona_id || null, owner_id || 'system', type || null, parseInt(limit) || 20);
+    res.json(creatives);
+  } catch (err) {
+    console.error('[Admin] List creatives error:', err);
+    res.status(500).json({ error: 'Failed to list creatives' });
+  }
+});
+
+router.get('/creatives/templates', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const creative = require('../creative');
+    res.json({
+      templates: creative.getAvailableTemplates(),
+      sizes: creative.getAvailableSizes(),
+    });
+  } catch (err) {
+    console.error('[Admin] List templates error:', err);
+    res.status(500).json({ error: 'Failed to list templates' });
+  }
+});
+
+router.post('/creatives/generate', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const creative = require('../creative');
+    const { template_id, ...data } = req.body;
+    
+    if (!template_id) {
+      return res.status(400).json({ error: 'template_id is required' });
+    }
+
+    const html = creative.compileTemplate(template_id, data);
+    const personaId = data.persona_id || 'default';
+    const ownerId = req.userId || 'admin';
+
+    const saved = await creative.saveCreative(personaId, ownerId, template_id, template_id, data, html);
+    res.json({ success: true, id: saved.id, html });
+  } catch (err) {
+    console.error('[Admin] Generate creative error:', err);
+    res.status(500).json({ error: 'Failed to generate creative' });
+  }
+});
+
+router.get('/creatives/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const creative = require('../creative');
+    const result = await creative.getCreative(req.params.id);
+    if (!result) return res.status(404).json({ error: 'Creative not found' });
+    res.json(result);
+  } catch (err) {
+    console.error('[Admin] Get creative error:', err);
+    res.status(500).json({ error: 'Failed to get creative' });
+  }
+});
+
+router.get('/creatives/:id/html', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const creative = require('../creative');
+    const result = await creative.getCreative(req.params.id);
+    if (!result) return res.status(404).json({ error: 'Creative not found' });
+    
+    const fs = require('fs');
+    if (result.html_path && fs.existsSync(result.html_path)) {
+      res.setHeader('Content-Type', 'text/html');
+      res.send(fs.readFileSync(result.html_path, 'utf-8'));
+    } else {
+      res.status(404).json({ error: 'HTML file not found' });
+    }
+  } catch (err) {
+    console.error('[Admin] Get creative HTML error:', err);
+    res.status(500).json({ error: 'Failed to get creative HTML' });
+  }
+});
+
+router.delete('/creatives/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const creative = require('../creative');
+    await creative.deleteCreative(req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Admin] Delete creative error:', err);
+    res.status(500).json({ error: 'Failed to delete creative' });
+  }
+});
+
+router.get('/queue-stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const jobQueue = require('../queue');
+    if (!jobQueue.isAvailable()) {
+      return res.json({ available: false, message: 'Redis not connected' });
+    }
+    const stats = await jobQueue.getQueueStats();
+    res.json({ available: true, stats });
+  } catch (err) {
+    res.json({ available: false, error: err.message });
+  }
+});
+
+router.get('/search', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { q, collection, limit } = req.query;
+    if (!q) return res.status(400).json({ error: 'Query parameter "q" is required' });
+
+    const { fulltextSearch } = require('../search');
+    const searchLimit = parseInt(limit) || 10;
+
+    if (collection) {
+      const results = fulltextSearch.search(collection, q, searchLimit);
+      return res.json({ collection, query: q, results });
+    }
+
+    const allResults = {};
+    const collections = ['personas', 'knowledge_sources', 'contacts', 'goals', 'org_memory', 'tasks', 'skills'];
+    for (const coll of collections) {
+      allResults[coll] = fulltextSearch.search(coll, q, searchLimit);
+    }
+
+    res.json({ query: q, results: allResults });
+  } catch (err) {
+    console.error('[Admin] Search error:', err);
+    res.status(500).json({ error: 'Search failed' });
+  }
+});
+
+router.get('/search/stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { fulltextSearch } = require('../search');
+    res.json(fulltextSearch.getStats());
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/personas/:id/business-config', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const businessModule = require('../business');
+    const config = await businessModule.getBusinessConfig(req.params.id);
+    if (!config) return res.status(404).json({ error: 'Persona not found' });
+    res.json({ persona_id: req.params.id, business_config: config });
+  } catch (err) {
+    console.error('[Admin] Get business config error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/personas/:id/business-config', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const businessModule = require('../business');
+    const updated = await businessModule.updateBusinessConfig(req.params.id, req.body);
+    res.json({ persona_id: req.params.id, business_config: updated });
+  } catch (err) {
+    console.error('[Admin] Update business config error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/personas/:id/business-config', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const businessModule = require('../business');
+    const defaults = await businessModule.resetBusinessConfig(req.params.id);
+    res.json({ persona_id: req.params.id, business_config: defaults, reset: true });
+  } catch (err) {
+    console.error('[Admin] Reset business config error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/onboarding/steps', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const onboarding = require('../onboarding');
+    const { persona_id } = req.query;
+    const steps = await onboarding.getOnboardingSteps(persona_id || null);
+    res.json({ steps });
+  } catch (err) {
+    console.error('[Admin] Get onboarding steps error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/onboarding/steps', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const onboarding = require('../onboarding');
+    const result = await onboarding.createOnboardingStep(req.body);
+    res.json(result);
+  } catch (err) {
+    console.error('[Admin] Create onboarding step error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/onboarding/steps/:stepKey', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const onboarding = require('../onboarding');
+    const result = await onboarding.deleteOnboardingStep(req.params.stepKey);
+    res.json(result);
+  } catch (err) {
+    console.error('[Admin] Delete onboarding step error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/onboarding/reset', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const onboarding = require('../onboarding');
+    const { persona_id } = req.body;
+    const result = await onboarding.resetOnboardingSteps(persona_id);
+    res.json(result);
+  } catch (err) {
+    console.error('[Admin] Reset onboarding steps error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/onboarding/status/:userId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const onboarding = require('../onboarding');
+    const { persona_id } = req.query;
+    const status = await onboarding.getUserOnboardingStatus(req.params.userId, persona_id || null);
+    res.json(status);
+  } catch (err) {
+    console.error('[Admin] Get onboarding status error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/onboarding/reset-user/:userId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const onboarding = require('../onboarding');
+    const { persona_id } = req.body;
+    const result = await onboarding.resetUserOnboarding(req.params.userId, persona_id);
+    res.json(result);
+  } catch (err) {
+    console.error('[Admin] Reset user onboarding error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Quizzes =====
+const quizModule = require('../quiz');
+
+router.get('/quizzes', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { persona_id, status, quiz_type, page, limit, search } = req.query;
+    const result = await quizModule.listQuizzes({
+      persona_id: persona_id || undefined,
+      status: status || undefined,
+      quiz_type: quiz_type || undefined,
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 20,
+      search: search || undefined,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[Admin] List quizzes error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/quizzes/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const quiz = await quizModule.getQuiz(req.params.id);
+    if (!quiz) return res.status(404).json({ error: 'Quiz not found' });
+    res.json(quiz);
+  } catch (err) {
+    console.error('[Admin] Get quiz error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/quizzes', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const quiz = await quizModule.createQuiz({ ...req.body, created_by: req.userId });
+    res.json(quiz);
+  } catch (err) {
+    console.error('[Admin] Create quiz error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.put('/quizzes/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const quiz = await quizModule.updateQuiz(req.params.id, req.body);
+    res.json(quiz);
+  } catch (err) {
+    console.error('[Admin] Update quiz error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.delete('/quizzes/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await quizModule.deleteQuiz(req.params.id);
+    res.json(result);
+  } catch (err) {
+    console.error('[Admin] Delete quiz error:', err);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get('/quizzes/:id/stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const stats = await quizModule.getQuizStats(req.params.id);
+    res.json(stats);
+  } catch (err) {
+    console.error('[Admin] Quiz stats error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/quizzes/:id/attempts', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { page, limit } = req.query;
+    const result = await quizModule.listAttempts({
+      quiz_id: req.params.id,
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 20,
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[Admin] Quiz attempts error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/quizzes/generate', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { personaId, topic, questionCount } = req.body;
+    if (!personaId || !topic) return res.status(400).json({ error: 'personaId and topic required' });
+    const quiz = await quizModule.generateQuizFromPersona(personaId, topic, questionCount || 5);
+    res.json(quiz);
+  } catch (err) {
+    console.error('[Admin] Generate quiz error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ===== Media Library =====
+const mediaModule = require('../media');
+const multer = require('multer');
+const path = require('path');
+
+const mediaStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = mediaModule.UPLOAD_DIR;
+    const fs = require('fs');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+
+const mediaUpload = multer({
+  storage: mediaStorage,
+  limits: { fileSize: 200 * 1024 * 1024 },
+});
+
+router.get('/media', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { persona_id, type, folder, tag, search, page, limit, sort, order, status } = req.query;
+    const result = await mediaModule.listMedia({
+      persona_id: persona_id || undefined,
+      type: type || undefined,
+      folder: folder || undefined,
+      tag: tag || undefined,
+      search: search || undefined,
+      status: status || undefined,
+      page: parseInt(page) || 1,
+      limit: parseInt(limit) || 30,
+      sort: sort || 'created_at',
+      order: order || 'DESC',
+    });
+    res.json(result);
+  } catch (err) {
+    console.error('[Admin] List media error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/media/stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { persona_id } = req.query;
+    const stats = await mediaModule.getMediaStats(persona_id || null);
+    res.json(stats);
+  } catch (err) {
+    console.error('[Admin] Media stats error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/media/folders', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { persona_id } = req.query;
+    const folders = await mediaModule.getMediaFolders(persona_id || null);
+    res.json({ folders });
+  } catch (err) {
+    console.error('[Admin] Media folders error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/media/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const media = await mediaModule.getMedia(req.params.id);
+    if (!media) return res.status(404).json({ error: 'Media not found' });
+    res.json(media);
+  } catch (err) {
+    console.error('[Admin] Get media error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/media/upload', authMiddleware, adminMiddleware, mediaUpload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+    const { persona_id, title, description, alt_text, caption, tags, folder } = req.body;
+    const parsedTags = typeof tags === 'string' ? JSON.parse(tags) : (tags || []);
+
+    const media = await mediaModule.createMediaFromUpload(req.file, {
+      persona_id: persona_id || null,
+      owner_id: req.userId,
+      title,
+      description,
+      alt_text,
+      caption,
+      tags: parsedTags,
+      folder,
+    });
+    res.json(media);
+  } catch (err) {
+    console.error('[Admin] Media upload error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/media/upload-batch', authMiddleware, adminMiddleware, mediaUpload.array('files', 20), async (req, res) => {
+  try {
+    if (!req.files || req.files.length === 0) return res.status(400).json({ error: 'No files uploaded' });
+    const { persona_id, folder } = req.body;
+    const results = [];
+    for (const file of req.files) {
+      const media = await mediaModule.createMediaFromUpload(file, {
+        persona_id: persona_id || null,
+        owner_id: req.userId,
+        folder,
+      });
+      results.push(media);
+    }
+    res.json({ media: results, total: results.length });
+  } catch (err) {
+    console.error('[Admin] Batch upload error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/media/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const media = await mediaModule.updateMedia(req.params.id, req.body);
+    if (!media) return res.status(404).json({ error: 'Media not found' });
+    res.json(media);
+  } catch (err) {
+    console.error('[Admin] Update media error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/media/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const result = await mediaModule.deleteMedia(req.params.id);
+    res.json(result);
+  } catch (err) {
+    console.error('[Admin] Delete media error:', err);
     res.status(500).json({ error: err.message });
   }
 });

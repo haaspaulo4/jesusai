@@ -1,20 +1,32 @@
 const express = require('express');
 const { getAllPosts, getPost, generatePost, addComment } = require('../blog');
-const { authMiddleware } = require('../auth');
 const { searchVerses } = require('../rag/store');
+const { searchMultiSource, getSourceContent } = require('../knowledge/store');
+const personaManager = require('../persona/manager');
+const businessModule = require('../business');
 
 const router = express.Router();
 
 router.get('/posts', async (req, res) => {
   try {
+    const { personaId, lang } = req.query;
     const today = new Date();
-    const todaySlug = `palavra-${today.toISOString().split('T')[0]}`;
-    const posts = await getAllPosts();
+    const prefix = personaId ? `${personaId}-` : 'palavra-';
+    const todaySlug = `${prefix}${today.toISOString().split('T')[0]}`;
+    const posts = await getAllPosts(personaId || null);
 
     const hasToday = posts.some(p => p.slug === todaySlug);
     if (!hasToday) {
-      const newPost = await generatePost(today);
+      const newPost = await generatePost(today, personaId || null, lang || 'pt-BR');
       posts.unshift(newPost);
+    }
+
+    let businessInfo = null;
+    if (personaId) {
+      try {
+        const config = await businessModule.getBusinessConfig(personaId);
+        if (config && config.name) businessInfo = { name: config.name, tagline: config.tagline, logoUrl: config.logo_url };
+      } catch {}
     }
 
     const limited = posts.slice(0, 30).map(p => ({
@@ -23,27 +35,20 @@ router.get('/posts', async (req, res) => {
       topic: p.topic,
       verse: p.verse,
       publishedAt: p.publishedAt,
-      commentCount: p.commentCount || countAllComments(p.comments || []),
+      commentCount: p.commentCount || 0,
       excerpt: (p.content || '').substring(0, 180) + '...',
+      personaId: p.personaId || null,
+      postType: p.postType || 'devotional',
+      media: p.media || [],
+      language: p.language || 'pt-BR',
     }));
 
-    res.json(limited);
+    res.json({ posts: limited, businessInfo });
   } catch (err) {
     console.error('Error listing posts:', err);
-    res.json([]);
+    res.json({ posts: [], businessInfo: null });
   }
 });
-
-function countAllComments(comments) {
-  let count = 0;
-  for (const c of comments) {
-    count++;
-    if (c.replies && c.replies.length > 0) {
-      count += countAllComments(c.replies);
-    }
-  }
-  return count;
-}
 
 router.get('/posts/:slug', async (req, res) => {
   try {
@@ -80,6 +85,52 @@ router.post('/posts/:slug/comments', async (req, res) => {
   res.json(comment);
 });
 
+router.get('/search', async (req, res) => {
+  const { q, limit, personaId, sourceId } = req.query;
+  const query = q || '';
+  const topK = Math.min(parseInt(limit) || 20, 50);
+
+  if (!query.trim() && !sourceId) {
+    return res.json([]);
+  }
+
+  let personaSources = null;
+  let personaName = null;
+  if (personaId) {
+    try {
+      const persona = await personaManager.getPersona(personaId);
+      if (persona && persona.knowledgeSources && persona.knowledgeSources.length > 0) {
+        personaSources = persona.knowledgeSources;
+        personaName = persona.name;
+      }
+    } catch {}
+  }
+
+  let results;
+  if (sourceId) {
+    const sources = personaSources && personaSources.includes(sourceId) ? [sourceId] : [sourceId];
+    results = await searchMultiSource(query || sourceId.replace(/[-_]/g, ' '), sources, topK);
+  } else if (personaSources && personaSources.length > 0) {
+    results = await searchMultiSource(query, personaSources, topK);
+  } else {
+    results = await searchVerses(query, topK);
+  }
+
+  res.json({ results, personaName, personaId: personaId || null });
+});
+
+router.get('/source-content/:sourceId', async (req, res) => {
+  try {
+    const { sourceId } = req.params;
+    const content = getSourceContent(sourceId);
+    if (!content) return res.status(404).json({ error: 'Source not found' });
+    res.json(content);
+  } catch (err) {
+    console.error('[Blog] Source content error:', err);
+    res.status(500).json({ error: 'Failed to get source content' });
+  }
+});
+
 const BIBLE_BOOKS_INDEX = {
   'Velho Testamento': [
     { name: 'Gênesis', abbr: 'gn' }, { name: 'Êxodo', abbr: 'ex' }, { name: 'Levítico', abbr: 'lv' },
@@ -89,7 +140,7 @@ const BIBLE_BOOKS_INDEX = {
     { name: '1 Crônicas', abbr: '1cr' }, { name: '2 Crônicas', abbr: '2cr' }, { name: 'Esdras', abbr: 'ed' },
     { name: 'Neemias', abbr: 'ne' }, { name: 'Ester', abbr: 'et' }, { name: 'Jó', abbr: 'jo' },
     { name: 'Salmos', abbr: 'sl' }, { name: 'Provérbios', abbr: 'pv' }, { name: 'Eclesiastes', abbr: 'ec' },
-    { name: 'Cantares', abbr: 'ct' }, { name: 'Isaias', abbr: 'is' }, { name: 'Jeremias', abbr: 'jr' },
+    { name: 'Cantares', abbr: 'ct' }, { name: 'Isaías', abbr: 'is' }, { name: 'Jeremias', abbr: 'jr' },
     { name: 'Lamentações', abbr: 'lm' }, { name: 'Ezequiel', abbr: 'ez' }, { name: 'Daniel', abbr: 'dn' },
     { name: 'Oseias', abbr: 'os' }, { name: 'Joel', abbr: 'jl' }, { name: 'Amos', abbr: 'am' },
     { name: 'Obadias', abbr: 'ob' }, { name: 'Jonas', abbr: 'jn' }, { name: 'Miqueias', abbr: 'mq' },
@@ -110,21 +161,36 @@ const BIBLE_BOOKS_INDEX = {
   ],
 };
 
-router.get('/search', (req, res) => {
-  const { q, limit } = req.query;
-  const query = q || '';
-  const topK = Math.min(parseInt(limit) || 20, 50);
-
-  if (!query.trim()) {
-    return res.json([]);
+router.get('/books', (req, res) => {
+  const { personaId } = req.query;
+  if (personaId) {
+    personaManager.getPersona(personaId).then(persona => {
+      if (persona && persona.knowledgeSources && persona.knowledgeSources.length > 0) {
+        res.json({ bible: BIBLE_BOOKS_INDEX, knowledgeSources: persona.knowledgeSources });
+      } else {
+        res.json({ bible: BIBLE_BOOKS_INDEX });
+      }
+    }).catch(() => {
+      res.json({ bible: BIBLE_BOOKS_INDEX });
+    });
+  } else {
+    res.json(BIBLE_BOOKS_INDEX);
   }
-
-  const results = searchVerses(query, topK);
-  res.json(results);
 });
 
-router.get('/books', (req, res) => {
-  res.json(BIBLE_BOOKS_INDEX);
+router.get('/business', async (req, res) => {
+  try {
+    const { personaId } = req.query;
+    if (!personaId) return res.json({ business: null, isOpen: null });
+
+    const config = await businessModule.getBusinessConfig(personaId);
+    if (!config || !config.name) return res.json({ business: null, isOpen: null });
+
+    const isOpen = businessModule.isOpenNow(config);
+    res.json({ business: config, isOpen });
+  } catch (err) {
+    res.json({ business: null, isOpen: null });
+  }
 });
 
 module.exports = router;

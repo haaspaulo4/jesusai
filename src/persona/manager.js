@@ -32,7 +32,7 @@ async function loadPersonas() {
       }
       let namePatterns = row.name_patterns;
       if (typeof namePatterns === 'string') {
-        try { namePatterns = JSON.parse(name_patterns); } catch {}
+        try { namePatterns = JSON.parse(namePatterns); } catch {}
       }
 
       cache.set(row.persona_id, {
@@ -66,6 +66,22 @@ async function loadPersonas() {
         knowledgeSources: row.knowledge_sources ? (typeof row.knowledge_sources === 'string' ? JSON.parse(row.knowledge_sources) : row.knowledge_sources) : null,
         isActive: true,
         priority: row.priority || 100,
+        // Identity Visual System
+        avatarUrl: row.avatar_url || null,
+        avatarStyle: row.avatar_style || 'realistic',
+        palette: row.palette ? (typeof row.palette === 'string' ? JSON.parse(row.palette) : row.palette) : null,
+        fontFamily: row.font_family || 'Inter',
+        emojiStyle: row.emoji_style || 'native',
+        backgroundStyle: row.background_style ? (typeof row.background_style === 'string' ? JSON.parse(row.background_style) : row.background_style) : null,
+        animationStyle: row.animation_style || 'subtle',
+        accentColor: row.accent_color || '#D4A843',
+        // Media Identity
+        avatarVideoUrl: row.avatar_video_url || null,
+        avatarAudioGreeting: row.avatar_audio_greeting || null,
+        coverImageUrl: row.cover_image_url || null,
+        mediaGallery: row.media_gallery ? (typeof row.media_gallery === 'string' ? JSON.parse(row.media_gallery) : row.media_gallery) : null,
+        responseMediaEnabled: row.response_media_enabled !== 0,
+        businessConfig: row.business_config ? (typeof row.business_config === 'string' ? JSON.parse(row.business_config) : row.business_config) : null,
       });
     }
   } catch (err) {
@@ -104,6 +120,22 @@ async function listPersonas() {
     model: p.model,
     isActive: p.isActive !== false,
     priority: p.priority,
+    // Visual Identity
+    avatarUrl: p.avatarUrl || `https://api.dicebear.com/9.x/adventurer/svg?seed=${p.id}`,
+    avatarStyle: p.avatarStyle || 'adventurer',
+    palette: p.palette || { primary: '#D4A843', secondary: '#1a1a2e' },
+    emojiStyle: p.emojiStyle || 'native',
+    animationStyle: p.animationStyle || 'subtle',
+    accentColor: p.accentColor || '#D4A843',
+    fontFamily: p.fontFamily || 'Inter',
+    backgroundStyle: p.backgroundStyle || { type: 'gradient', colors: ['#667eea', '#764ba2'] },
+    // Media Identity
+    avatarVideoUrl: p.avatarVideoUrl || null,
+    avatarAudioGreeting: p.avatarAudioGreeting || null,
+    coverImageUrl: p.coverImageUrl || null,
+    mediaGallery: p.mediaGallery || [],
+    responseMediaEnabled: p.responseMediaEnabled !== false,
+    businessConfig: p.businessConfig || null,
   }));
 }
 
@@ -147,15 +179,16 @@ async function createPersona(data) {
     const finalDonateVerse = data.donateVerse || data.donate_verse || (existing ? existing.donateVerse : null) || DEFAULT_PERSONAS.jesus?.donateVerse;
     const finalSummaryPrompt = data.summaryPrompt || data.summary_prompt || (existing ? existing.summaryPrompt : null) || DEFAULT_PERSONAS.jesus?.summaryPrompt;
     const finalProfileSummaryPrompt = data.profileSummaryPrompt || data.profile_summary_prompt || (existing ? existing.profileSummaryPrompt : null) || DEFAULT_PERSONAS.jesus?.profileSummaryPrompt;
-    const finalNamePatterns = data.namePatterns || data.name_patterns || (existing ? existing.namePatterns : null) || DEFAULT_PERSONAS.jesus?.namePatterns;
-    const finalTopicKeywords = data.topicKeywords || data.topic_keywords || (existing ? existing.topicKeywords : null) || DEFAULT_PERSONAS.jesus?.topicKeywords;
-    const finalEmotionKeywords = data.emotionKeywords || data.emotion_keywords || (existing ? existing.emotionKeywords : null) || DEFAULT_PERSONAS.jesus?.emotionKeywords;
+  const finalNamePatterns = data.namePatterns || data.name_patterns || (existing ? existing.namePatterns : null) || DEFAULT_PERSONAS.jesus?.namePatterns;
+  const finalTopicKeywords = data.topicKeywords || data.topic_keywords || (existing ? existing.topicKeywords : null) || DEFAULT_PERSONAS.jesus?.topicKeywords;
+  const finalEmotionKeywords = data.emotionKeywords || data.emotion_keywords || (existing ? existing.emotionKeywords : null) || DEFAULT_PERSONAS.jesus?.emotionKeywords;
+  const finalBusinessConfig = data.businessConfig || data.business_config || (existing ? existing.businessConfig : null);
 
     await pool.execute(
       `INSERT INTO personas (persona_id, name, name_en, name_es, identity, commands, tts_voice, tts_lang, model, priority, is_active, knowledge_sources,
         disclaimer, conversation_with, memory_block, profile_block, group_context, cjk_fallback, llm_error, welcome_title, welcome_body,
-        prayer_prompt, blog_prompt, blog_topics, donate_verse, summary_prompt, profile_summary_prompt, name_patterns, topic_keywords, emotion_keywords)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        prayer_prompt, blog_prompt, blog_topics, donate_verse, summary_prompt, profile_summary_prompt, name_patterns, topic_keywords, emotion_keywords, business_config)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE name=VALUES(name), name_en=VALUES(name_en), name_es=VALUES(name_es), identity=VALUES(identity),
        commands=VALUES(commands), tts_voice=VALUES(tts_voice), tts_lang=VALUES(tts_lang), model=VALUES(model), priority=VALUES(priority),
        knowledge_sources=VALUES(knowledge_sources), disclaimer=VALUES(disclaimer), conversation_with=VALUES(conversation_with),
@@ -163,7 +196,8 @@ async function createPersona(data) {
        cjk_fallback=VALUES(cjk_fallback), llm_error=VALUES(llm_error), welcome_title=VALUES(welcome_title), welcome_body=VALUES(welcome_body),
        prayer_prompt=VALUES(prayer_prompt), blog_prompt=VALUES(blog_prompt), blog_topics=VALUES(blog_topics), donate_verse=VALUES(donate_verse),
        summary_prompt=VALUES(summary_prompt), profile_summary_prompt=VALUES(profile_summary_prompt),
-       name_patterns=VALUES(name_patterns), topic_keywords=VALUES(topic_keywords), emotion_keywords=VALUES(emotion_keywords)`,
+       name_patterns=VALUES(name_patterns), topic_keywords=VALUES(topic_keywords), emotion_keywords=VALUES(emotion_keywords),
+       business_config=VALUES(business_config)`,
       [id, name, name_en, name_es, stringFields(finalIdentity), stringFields(finalCommands), ttsVoice, ttsLang, model, priority, stringFields(finalKnowledgeSources),
        stringFields(finalDisclaimer), stringFields(finalConversationWith),
        stringFields(finalMemoryBlock), stringFields(finalProfileBlock),
@@ -174,7 +208,8 @@ async function createPersona(data) {
        stringFields(finalProfileSummaryPrompt),
        stringFields(finalNamePatterns),
        stringFields(finalTopicKeywords),
-       stringFields(finalEmotionKeywords)]
+       stringFields(finalEmotionKeywords),
+       stringFields(finalBusinessConfig)]
     );
   } catch (err) {
     console.error('[PersonaManager] DB save failed, using in-memory only:', err.message);
@@ -204,6 +239,7 @@ async function createPersona(data) {
     profileSummaryPrompt: data.profileSummaryPrompt || data.profile_summary_prompt || DEFAULT_PERSONAS.jesus.profileSummaryPrompt,
     ttsVoice, ttsLang, model, knowledgeSources: knowledgeSources,
     isActive: true, priority,
+    businessConfig: finalBusinessConfig || null,
   };
 
   cache.set(id, persona);

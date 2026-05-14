@@ -127,8 +127,8 @@ NEVER say "I can't do that." If something is outside your scope, explain what yo
 async function generatePersona(nameOrDescription, lang = 'pt-BR') {
   const knowledgeSources = getAllSourceIds();
   const sourceContext = knowledgeSources.length > 0
-    ? searchMultiSource(nameOrDescription, knowledgeSources, 3)
-    : searchVerses(nameOrDescription, 3);
+    ? await searchMultiSource(nameOrDescription, knowledgeSources, 3)
+    : await searchVerses(nameOrDescription, 3);
   const contextParts = sourceContext.map(v => `${v.reference}: "${v.text}"`).join('\n');
   const contextAddition = contextParts
     ? `\n\nAvailable knowledge sources for reference:\n${contextParts}`

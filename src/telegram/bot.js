@@ -212,7 +212,7 @@ async function handleTelegramMessage(bot, msg) {
   await updateProfileFromMessage(uid, processedText);
 
   try {
-    const relevantVerses = searchVerses(processedText, 6);
+    const relevantVerses = await searchVerses(processedText, 6);
     const contextStr = relevantVerses.length > 0 ? relevantVerses.map((v) => `${v.reference}: "${v.text}"`).join('\n') : '';
     const [memoryStr, profileStr] = await Promise.all([buildMemoryContext(sid), buildProfileContext(uid)]);
 

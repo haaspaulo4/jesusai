@@ -1,5 +1,6 @@
 const integrations = require('../llm/integrationManager');
 const { getToolDefinitions, executeTool, formatToolResultToMessage } = require('../llm/tools');
+const { executeTool: execExtTool, getToolDefinitions: getExtToolDefs, loadTools: loadExtTools } = require('../tools');
 const { extractContent } = require('../llm');
 const { buildSystemPrompt } = require('../persona/config');
 const personaManager = require('../persona/manager');
@@ -26,6 +27,7 @@ const gamificationModule = require('../gamification');
 const progressModule = require('../progress');
 const cognitiveModule = require('../cognitive');
 const thoughtsModule = require('../thoughts');
+const realtime = require('../realtime');
 
 const MAX_TOOL_ROUNDS = 5;
 
@@ -44,40 +46,53 @@ async function getPersonaForContext(sessionId, userId) {
   return persona || personaManager.getActivePersona();
 }
 
-async function checkOnboarding(uid, lang) {
-  try {
-    const nextStep = await onboarding.shouldOnboard(uid);
-    if (!nextStep) return null;
-    return onboarding.formatOnboardingQuestion(nextStep, lang);
-  } catch {
-    return null;
+async function checkOnboarding(uid, lang, personaId) {
+  let pid = personaId;
+  if (!pid) {
+    const persona = await getPersonaForContext(null, uid);
+    pid = persona ? persona.id : null;
   }
+  return onboarding.shouldOnboard(uid, pid);
 }
 
-async function processOnboardingAnswer(uid, message, lang) {
+async function processOnboardingAnswer(uid, message, lang, personaId) {
   try {
-    const status = await onboarding.getUserOnboardingStatus(uid);
+    let pid = personaId;
+    let persona = null;
+    if (!pid) {
+      persona = await getPersonaForContext(null, uid);
+      pid = persona ? persona.id : null;
+    } else {
+      persona = await personaManager.getPersona(pid).catch(() => null);
+    }
+    const status = await onboarding.getUserOnboardingStatus(uid, pid);
     if (!status || !status.nextStep) {
       return null;
     }
 
     const step = status.nextStep;
     const parsedAnswer = onboarding.parseOnboardingAnswer(step, message);
-    const result = await onboarding.saveOnboardingAnswer(uid, step.step_key, parsedAnswer);
+    const result = await onboarding.saveOnboardingAnswer(uid, step.step_key, parsedAnswer, pid);
 
     if (result.done) {
-      return { done: true, message: 'Onboarding completo! Como posso ajudar?' };
+      const personaName = persona ? (persona.name || persona.id) : 'MetaPersona.AI';
+      const welcomeDone = {
+        'pt-BR': `Onboarding completo! Bem-vindo ao ${personaName}. Como posso ajudar?`,
+        'en-US': `Onboarding complete! Welcome to ${personaName}. How can I help?`,
+        'es-ES': `¡Onboarding completo! Bienvenido a ${personaName}. ¿Cómo puedo ayudar?`,
+      };
+      return { done: true, message: welcomeDone[lang] || welcomeDone['pt-BR'], totalSteps: result.totalSteps, completedSteps: result.completedSteps };
     }
 
     const nextQuestion = onboarding.formatOnboardingQuestion(result.nextStep, lang);
-    return { done: false, message: nextQuestion };
+    return { done: false, message: nextQuestion, totalSteps: result.totalSteps, completedSteps: result.completedSteps };
   } catch (err) {
     console.error('[Onboarding] processOnboardingAnswer error:', err.message);
     return null;
   }
 }
 
-async function processMessage({ message, sessionId, userId, language, isGroup, source, userName }) {
+async function processMessage({ message, sessionId, userId, language, isGroup, source, userName, personaId }) {
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
   const uid = userId || 'user_default';
   const sid = sessionId || 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
@@ -100,9 +115,9 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   }
 
   if (uid && uid !== 'user_default' && !isGroup) {
-    const onboardMsg = await checkOnboarding(uid, lang);
+    const onboardMsg = await checkOnboarding(uid, lang, personaId);
     if (onboardMsg) {
-      const answerResult = await processOnboardingAnswer(uid, message, lang);
+      const answerResult = await processOnboardingAnswer(uid, message, lang, personaId);
       if (answerResult) {
         return {
           response: answerResult.message,
@@ -111,6 +126,8 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
           language: lang,
           onboarding: !answerResult.done,
           onboardingDone: answerResult.done,
+          onboardingTotalSteps: answerResult.totalSteps,
+          onboardingCompletedSteps: answerResult.completedSteps,
         };
       }
       return {
@@ -149,6 +166,15 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   try {
     cognitiveState = await cognitiveModule.analyzeCognitiveState(uid, persona.id, message, sid);
     cognitiveContext = cognitiveModule.formatCognitiveContext(cognitiveState);
+    if (cognitiveState) {
+      realtime.emitToUser(uid, 'cognitive_state', {
+        personaId: persona.id,
+        emotion: cognitiveState.emotion,
+        intent: cognitiveState.intent,
+        churnRisk: cognitiveState.churn_risk,
+        engagement: cognitiveState.engagement_score,
+      });
+    }
   } catch {}
 
   let contextStr = '';
@@ -157,6 +183,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   let stageContext = '';
   let progressContext = '';
   let contextAwareInfo = null;
+  let relevantVerses = [];
 
   const useContextAware = await getSetting('context_aware_search', 'true') === 'true';
 
@@ -178,15 +205,15 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
       progressContext = ctxResult.progressContext;
       contextAwareInfo = ctxResult.contextApplied;
     } catch {
-      const relevantVerses = personaSources
-        ? searchMultiSource(message, personaSources, numVerses)
-        : searchVerses(message, numVerses);
+      relevantVerses = personaSources
+        ? await searchMultiSource(message, personaSources, numVerses)
+        : await searchVerses(message, numVerses);
       contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
     }
   } else {
-    const relevantVerses = personaSources
-      ? searchMultiSource(message, personaSources, numVerses)
-      : searchVerses(message, numVerses);
+    relevantVerses = personaSources
+      ? await searchMultiSource(message, personaSources, numVerses)
+      : await searchVerses(message, numVerses);
     contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
   }
 
@@ -211,10 +238,12 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     } catch {}
   }
   let xpContext = '';
+  let xpData = null;
   try {
-    const xpData = await gamificationModule.getXp(uid, persona.id);
+    xpData = await gamificationModule.getXp(uid, persona.id);
     xpContext = gamificationModule.formatXpContext(xpData);
     await gamificationModule.updateStreak(uid, persona.id);
+    realtime.emitXpUpdate(uid, xpData);
   } catch {}
   if (!progressContext) {
     try {
@@ -247,7 +276,16 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     } catch {}
   }
 
-  let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources);
+  let businessStr = '';
+  try {
+    const businessModule = require('../business');
+    const businessConfig = await businessModule.getBusinessConfig(persona.id);
+    if (businessConfig && businessConfig.name) {
+      businessStr = businessModule.formatBusinessContext(businessConfig);
+    }
+  } catch {}
+
+  let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources, businessStr);
   if (extraContext) {
     systemPrompt += '\n\n' + extraContext;
   }
@@ -284,6 +322,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   const temperature = parseFloat(await getSetting('temperature', '0.7')) || 0.7;
 
   const isMetaPersona = persona.id === 'meta-persona';
+  const isAdmin = await isUserAdmin(uid);
   let executionPlan = null;
 
   if (isMetaPersona || isAdmin) {
@@ -301,9 +340,10 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   }
 
   while (toolRounds < MAX_TOOL_ROUNDS) {
-    const allTools = getToolDefinitions();
-    const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints'];
-    const isAdmin = await isUserAdmin(uid);
+    const llmTools = getToolDefinitions();
+    const extTools = getExtToolDefs ? getExtToolDefs() : [];
+    const allTools = [...llmTools, ...extTools];
+    const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools'];
 
     let tools;
     if (isMetaPersona) {
@@ -337,7 +377,13 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     for (const tc of toolCalls) {
       const fnName = tc.function?.name || tc.name;
       const fnArgs = tc.function?.arguments ? (typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments) : {};
-      const toolResult = await executeTool(fnName, fnArgs, { userId: uid, lang, isAdmin: isAdmin || isMetaPersona });
+      let toolResult;
+      const isExternalTool = fnName === 'use_external_tool' || fnName === 'list_external_tools';
+      if (isExternalTool) {
+        toolResult = await execExtTool(fnName, fnArgs, { userId: uid, lang });
+      } else {
+        toolResult = await executeTool(fnName, fnArgs, { userId: uid, lang, isAdmin: isAdmin || isMetaPersona });
+      }
 
       messages.push({
         role: 'tool',
@@ -367,6 +413,8 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
   await addMessage(sid, 'assistant', fullResponse);
 
+  realtime.emitNewMessage(sid, { role: 'assistant', content: fullResponse, personaId: persona.id });
+
   const updatedSession = await getSession(sid);
   const summaryEvery = parseInt(await getSetting('summary_every', '10')) || 10;
   if (updatedSession.messages.length % summaryEvery === 0) {
@@ -380,7 +428,18 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     generateProfileSummary(uid).catch(() => {});
   }
 
+  const smartFollowUp = require('../onboarding/followup');
   surveyEngine.autoCreateFollowUp(uid, sid).catch(() => {});
+
+  smartFollowUp.shouldCreateFollowUp(uid, persona.id, sid).catch(() => {});
+
+  if (xpData && xpData.streak > 1 && xpData.last_activity) {
+    const lastActivity = new Date(xpData.last_activity);
+    const daysSince = Math.floor((Date.now() - lastActivity) / (1000 * 60 * 60 * 24));
+    if (daysSince >= 2) {
+      smartFollowUp.checkStreakFollowUp(uid, persona.id).catch(() => {});
+    }
+  }
 
   return {
     response: fullResponse,
@@ -393,6 +452,18 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     ttsVoice: persona.ttsVoice,
     ttsLang: persona.ttsLang,
   };
+}
+
+async function getContextualWelcome(userId, personaId, lang) {
+  const smartFollowUp = require('../onboarding/followup');
+  return smartFollowUp.getContextualWelcome(userId, personaId, lang);
+}
+
+async function getQuickActions(personaId, userId) {
+  const smartFollowUp = require('../onboarding/followup');
+  const { getProfile } = require('../memory/profile');
+  const profile = userId ? await getProfile(userId).catch(() => null) : null;
+  return smartFollowUp.getQuickActions(personaId, profile);
 }
 
 async function processMessageStream({ message, sessionId, userId, language, isGroup, source }, onChunk) {
@@ -424,8 +495,8 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
     ? persona.knowledgeSources
     : null;
   const relevantVerses = personaSources
-    ? searchMultiSource(message, personaSources, numVerses)
-    : searchVerses(message, numVerses);
+    ? await searchMultiSource(message, personaSources, numVerses)
+    : await searchVerses(message, numVerses);
 
   const contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
   const memoryStr = await buildMemoryContext(sid);
@@ -464,8 +535,17 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   const session = await getSession(sid);
   const displayName = (source === 'whatsapp' || source === 'telegram') ? undefined : (session.userName || session.userContext?.name);
 
+  let businessStrStream = '';
+  try {
+    const businessModule = require('../business');
+    const businessConfig = await businessModule.getBusinessConfig(persona.id);
+    if (businessConfig && businessConfig.name) {
+      businessStrStream = businessModule.formatBusinessContext(businessConfig);
+    }
+  } catch {}
+
   const extraContextStream = [goalContextStream, orgContextStream, stageContextStream, xpContextStream, progressContextStream, cognitiveContextStream].filter(Boolean).join('\n\n');
-  let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources);
+  let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources, businessStrStream);
   if (extraContextStream) {
     systemPrompt += '\n\n' + extraContextStream;
   }
@@ -583,6 +663,22 @@ async function handleChatCommand(text, userId, source, sessionId) {
   const args = parts.slice(1).join(' ');
   const isAdmin = await isUserAdmin(userId);
   const uid = userId || 'unknown';
+
+  // Check custom commands first
+  try {
+    const chatCommands = require('./commands');
+    const customCmd = await chatCommands.processCommand(text, uid, isAdmin ? 'admin' : 'user', persona?.id);
+    if (customCmd) {
+      if (customCmd.error) return customCmd.error;
+      // Handle different response types
+      if (customCmd.response_type === 'image' || customCmd.response_type === 'video' || customCmd.response_type === 'audio') {
+        return { type: 'media', content: customCmd.response, media_type: customCmd.response_type };
+      }
+      return customCmd.response;
+    }
+  } catch (err) {
+    console.log('[ChatCommands] Custom cmd error:', err.message);
+  }
 
   const persona = await getPersonaForContext(sessionId, uid);
   const cmdConfig = persona.commands;
@@ -1239,4 +1335,6 @@ module.exports = {
   isUserAdmin,
   getUserRole: getUserRoleStr,
   getPersonaForContext,
+  getContextualWelcome,
+  getQuickActions,
 };

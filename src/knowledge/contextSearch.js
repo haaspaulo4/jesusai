@@ -50,9 +50,9 @@ async function searchContextAware(message, { userId, personaId, personaSources, 
 
   let ragResults = [];
   if (personaSources && personaSources.length > 0) {
-    ragResults = searchMultiSource(enhancedQuery, personaSources, kForRag);
+    ragResults = await searchMultiSource(enhancedQuery, personaSources, kForRag);
   } else {
-    ragResults = searchVerses(enhancedQuery, kForRag);
+    ragResults = await searchVerses(enhancedQuery, kForRag);
   }
 
   if (cognitiveState) {
@@ -94,7 +94,7 @@ async function searchContextAware(message, { userId, personaId, personaSources, 
       if (goals.length > 0) {
         const goalKeywords = goals.map(g => g.title).join(' ');
         if (personaSources && personaSources.length > 0) {
-          const goalResults = searchMultiSource(goalKeywords, personaSources, kForGoals);
+          const goalResults = await searchMultiSource(goalKeywords, personaSources, kForGoals);
           ragResults = [...ragResults, ...goalResults];
         }
         goalContext = goalsModule.formatGoalContext(goals);

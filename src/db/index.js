@@ -170,6 +170,21 @@ CREATE TABLE IF NOT EXISTS personas (
   knowledge_sources JSON,
   priority INT DEFAULT 100,
   is_active TINYINT(1) DEFAULT 1,
+  -- Identity Visual System
+  avatar_url TEXT,
+  avatar_style VARCHAR(50) DEFAULT 'realistic',
+  palette JSON,
+  font_family VARCHAR(100) DEFAULT 'Inter',
+  emoji_style VARCHAR(50) DEFAULT 'native',
+  background_style JSON,
+  animation_style VARCHAR(50) DEFAULT 'subtle',
+  accent_color VARCHAR(20) DEFAULT '#D4A843',
+  -- Media Identity
+  avatar_video_url TEXT,
+  avatar_audio_greeting TEXT,
+  cover_image_url TEXT,
+  media_gallery JSON,
+  response_media_enabled TINYINT(1) DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -182,6 +197,26 @@ CREATE TABLE IF NOT EXISTS mcp_servers (
   env_vars JSON,
   is_active TINYINT(1) DEFAULT 1,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS chat_commands (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  command VARCHAR(50) NOT NULL UNIQUE,
+  description TEXT,
+  response_template TEXT,
+  response_type VARCHAR(20) DEFAULT 'text',
+  action_type VARCHAR(30) DEFAULT 'respond',
+  action_config JSON,
+  required_role VARCHAR(20) DEFAULT 'user',
+  required_persona_id VARCHAR(60),
+  aliases JSON,
+  usage_examples JSON,
+  category VARCHAR(50) DEFAULT 'general',
+  is_active TINYINT(1) DEFAULT 1,
+  usage_count INT DEFAULT 0,
+  created_by VARCHAR(60),
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS rate_limits (
@@ -607,6 +642,128 @@ CREATE TABLE IF NOT EXISTS agent_thoughts (
   KEY idx_thoughts_persona (persona_id),
   KEY idx_thoughts_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS embeddings (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  source_id VARCHAR(100) NOT NULL,
+  doc_id VARCHAR(500) NOT NULL,
+  text TEXT,
+  vector JSON,
+  model VARCHAR(100) DEFAULT 'nomic-embed-text',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_embed_source_doc (source_id, doc_id),
+  KEY idx_embed_source (source_id),
+  KEY idx_embed_model (model)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS creatives (
+  id VARCHAR(100) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  owner_id VARCHAR(60) DEFAULT NULL,
+  type VARCHAR(50) DEFAULT 'quote_post',
+  template_id VARCHAR(50) DEFAULT NULL,
+  data JSON,
+  html_path TEXT,
+  image_path TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_creative_persona (persona_id),
+  KEY idx_creative_owner (owner_id),
+  KEY idx_creative_type (type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS workspaces (
+  id VARCHAR(60) PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  slug VARCHAR(100) DEFAULT NULL,
+  owner_id VARCHAR(60) DEFAULT NULL,
+  plan VARCHAR(20) DEFAULT 'free',
+  settings JSON DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_workspace_slug (slug),
+  KEY idx_workspace_owner (owner_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS workspace_members (
+  id VARCHAR(80) PRIMARY KEY,
+  workspace_id VARCHAR(60) NOT NULL,
+  user_id VARCHAR(60) NOT NULL,
+  role VARCHAR(20) DEFAULT 'operator',
+  joined_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_ws_member (workspace_id, user_id),
+  KEY idx_ws_user (user_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS business_rules (
+  id VARCHAR(80) PRIMARY KEY,
+  workspace_id VARCHAR(60) DEFAULT NULL,
+  name VARCHAR(255) NOT NULL,
+  description TEXT,
+  rule_type VARCHAR(50) DEFAULT 'custom',
+  rule_config JSON,
+  priority INT DEFAULT 50,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_brule_workspace (workspace_id),
+  KEY idx_brule_type (rule_type)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS channel_messages (
+  id VARCHAR(80) PRIMARY KEY,
+  direction ENUM('inbound','outbound') NOT NULL,
+  channel VARCHAR(30) NOT NULL,
+  session_id VARCHAR(80) DEFAULT NULL,
+  user_id VARCHAR(60) DEFAULT NULL,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  content TEXT,
+  metadata JSON,
+  status VARCHAR(20) DEFAULT 'delivered',
+  workspace_id VARCHAR(60) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_chmsg_session (session_id),
+  KEY idx_chmsg_user (user_id),
+  KEY idx_chmsg_channel (channel),
+  KEY idx_chmsg_direction (direction),
+  KEY idx_chmsg_workspace (workspace_id),
+  KEY idx_chmsg_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS subscriptions (
+  id VARCHAR(80) PRIMARY KEY,
+  workspace_id VARCHAR(60) NOT NULL,
+  plan VARCHAR(20) DEFAULT 'free',
+  status VARCHAR(20) DEFAULT 'active',
+  current_period_start TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  current_period_end TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  cancelled_at TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_sub_workspace (workspace_id),
+  KEY idx_sub_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS usage_tracking (
+  id VARCHAR(80) PRIMARY KEY,
+  workspace_id VARCHAR(60) DEFAULT NULL,
+  resource VARCHAR(50) NOT NULL,
+  amount INT DEFAULT 1,
+  period_start DATE,
+  period_end DATE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_usage_workspace (workspace_id),
+  KEY idx_usage_resource (resource),
+  KEY idx_usage_period (period_start, period_end)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE IF NOT EXISTS persona_lifecycle_log (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  persona_id VARCHAR(60) NOT NULL,
+  from_state VARCHAR(20) DEFAULT NULL,
+  to_state VARCHAR(20) NOT NULL,
+  changed_by VARCHAR(60) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_plc_persona (persona_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
 async function initDatabase() {
@@ -628,6 +785,121 @@ async function initDatabase() {
   try { await pool.execute("ALTER TABLE personas ADD COLUMN org_memory JSON DEFAULT NULL"); } catch {}
   try { await pool.execute("ALTER TABLE sessions ADD COLUMN human_override TINYINT(1) DEFAULT 0"); } catch {}
   try { await pool.execute("ALTER TABLE sessions ADD COLUMN override_type VARCHAR(20) DEFAULT NULL"); } catch {}
+
+  try { await pool.execute("ALTER TABLE personas ADD COLUMN lifecycle_state VARCHAR(20) DEFAULT 'active'"); } catch {}
+  try { await pool.execute("ALTER TABLE personas ADD COLUMN approval_mode VARCHAR(20) DEFAULT 'full_auto'"); } catch {}
+  try { await pool.execute("ALTER TABLE personas ADD COLUMN tool_permissions JSON DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE personas ADD COLUMN workspace_id VARCHAR(60) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD COLUMN workspace_id VARCHAR(60) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE persona_contacts ADD COLUMN workspace_id VARCHAR(60) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE persona_automations ADD COLUMN workspace_id VARCHAR(60) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE persona_tasks ADD COLUMN workspace_id VARCHAR(60) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE persona_goals ADD COLUMN workspace_id VARCHAR(60) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE persona_org_memory ADD COLUMN workspace_id VARCHAR(60) DEFAULT NULL"); } catch {}
+
+  // Onboarding persona-aware + branching
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN persona_id VARCHAR(60) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN condition_field VARCHAR(100) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN condition_value VARCHAR(255) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE user_onboarding ADD COLUMN persona_id VARCHAR(60) DEFAULT 'global'"); } catch {}
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD INDEX idx_onboarding_persona (persona_id)"); } catch {}
+  try { await pool.execute("ALTER TABLE user_onboarding ADD INDEX idx_user_onboarding_persona (user_id, persona_id)"); } catch {}
+
+  // Business config on personas
+  try { await pool.execute("ALTER TABLE personas ADD COLUMN business_config JSON DEFAULT NULL"); } catch {}
+
+  // Slug + persona_id on posts for whitelabel blog
+  try { await pool.execute("ALTER TABLE posts ADD COLUMN persona_id VARCHAR(60) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE posts ADD COLUMN media JSON DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE posts ADD COLUMN post_type VARCHAR(30) DEFAULT 'devotional'"); } catch {}
+  try { await pool.execute("ALTER TABLE posts ADD COLUMN language VARCHAR(10) DEFAULT 'pt-BR'"); } catch {}
+  try { await pool.execute("ALTER TABLE posts ADD INDEX idx_posts_persona (persona_id)"); } catch {}
+
+  // Onboarding enhancements — i18n choices, icons, placeholders, skip labels, branching, multi-choice
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN choices_en JSON"); } catch {}
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN choices_es JSON"); } catch {}
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN icon VARCHAR(10) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN placeholder JSON DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN skip_label JSON DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN max_choices INT DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN field_type ENUM('text','choice','email','phone','number','multichoice','confirm','message') DEFAULT 'text'"); } catch {}
+
+  // Quizzes table
+  try { await pool.execute(`
+    CREATE TABLE IF NOT EXISTS quizzes (
+      id VARCHAR(80) PRIMARY KEY,
+      persona_id VARCHAR(60) DEFAULT NULL,
+      title VARCHAR(500) NOT NULL,
+      description TEXT,
+      quiz_type VARCHAR(30) DEFAULT 'multiple_choice',
+      questions JSON NOT NULL,
+      settings JSON DEFAULT NULL,
+      xp_reward INT DEFAULT 10,
+      badge_id VARCHAR(100) DEFAULT NULL,
+      time_limit_seconds INT DEFAULT NULL,
+      metadata JSON DEFAULT NULL,
+      status VARCHAR(20) DEFAULT 'draft',
+      created_by VARCHAR(60) DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      KEY idx_quiz_persona (persona_id),
+      KEY idx_quiz_status (status),
+      KEY idx_quiz_type (quiz_type),
+      KEY idx_quiz_created_by (created_by)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
+
+  // Quiz attempts table
+  try { await pool.execute(`
+    CREATE TABLE IF NOT EXISTS quiz_attempts (
+      id VARCHAR(80) PRIMARY KEY,
+      quiz_id VARCHAR(80) NOT NULL,
+      user_id VARCHAR(60) NOT NULL,
+      persona_id VARCHAR(60) DEFAULT NULL,
+      answers JSON DEFAULT NULL,
+      score INT DEFAULT 0,
+      max_score INT DEFAULT 0,
+      percentage INT DEFAULT 0,
+      passed TINYINT(1) DEFAULT 0,
+      time_taken_seconds INT DEFAULT NULL,
+      started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      completed_at TIMESTAMP NULL,
+      KEY idx_attempt_quiz (quiz_id),
+      KEY idx_attempt_user (user_id),
+      KEY idx_attempt_persona (persona_id),
+      KEY idx_attempt_completed (completed_at),
+      FOREIGN KEY (quiz_id) REFERENCES quizzes(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
+
+  // Media library table
+  try { await pool.execute(`
+    CREATE TABLE IF NOT EXISTS media_library (
+      id VARCHAR(80) PRIMARY KEY,
+      persona_id VARCHAR(60) DEFAULT NULL,
+      owner_id VARCHAR(60) DEFAULT NULL,
+      title VARCHAR(500) NOT NULL,
+      description TEXT,
+      filename VARCHAR(500) DEFAULT NULL,
+      original_name VARCHAR(500) DEFAULT NULL,
+      mimetype VARCHAR(200) DEFAULT 'application/octet-stream',
+      size BIGINT DEFAULT 0,
+      url TEXT,
+      type VARCHAR(30) DEFAULT 'other',
+      alt_text VARCHAR(500) DEFAULT NULL,
+      caption TEXT,
+      metadata JSON DEFAULT NULL,
+      tags JSON DEFAULT NULL,
+      folder VARCHAR(255) DEFAULT NULL,
+      source VARCHAR(30) DEFAULT 'upload',
+      status VARCHAR(20) DEFAULT 'uploading',
+      views INT DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      KEY idx_media_persona (persona_id),
+      KEY idx_media_owner (owner_id),
+      KEY idx_media_type (type),
+      KEY idx_media_status (status),
+      KEY idx_media_folder (folder)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
 
   console.log('Database schema initialized (with migrations)');
 }

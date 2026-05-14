@@ -10,7 +10,8 @@ Plataforma de agentes cognitivos persistentes com RAG multimodal, multi-persona 
 - **Backend**: Node.js 18+ + Express
 - **Database**: MySQL 8.4 (via mysql2/promise)
 - **LLM**: Ollama Cloud API (OpenAI-compatible) — model glm-5.1, **multi-key fallback automático**
-- **RAG**: Pluggable TF-IDF + multimodal ingestion (PDF, DOCX, images/OCR, audio/STT, JSON, text, APIs)
+- **RAG**: **Hybrid TF-IDF + Vector Embeddings** (Ollama embeddings via API, MySQL vector storage, hybrid search scoring) + multimodal ingestion (PDF, DOCX, images/OCR, audio/STT, JSON, text, APIs)
+- **Fulltext Search**: FlexSearch — in-memory fulltext search across personas, contacts, goals, org memory, tasks, skills
 - **Persona**: **Multi-persona com Meta-RAG** — criar via LLM, trocar com `/persona`, **skills configuráveis e criáveis**, whitelabel
 - **Meta-Persona**: **Admin god** — orquestra personas, cria skills, gerencia tarefas, agenda, CRM, automações, RAG
 - **Agent**: **Agentic** — tasks, calendar, CRM/contacts, automations, goals, conversation stages, org memory, history, dashboard — tudo via tools LLM
@@ -18,6 +19,9 @@ Plataforma de agentes cognitivos persistentes com RAG multimodal, multi-persona 
 - **Follow-ups**: Automático por intervalo de mensagens ou agendado
 - **Auth**: JWT + bcrypt + Google OAuth + **role-based access (guest/user/premium/admin/banned)** + **rate limiting per role**
 - **Bots**: Multi-instance Telegram + WhatsApp + Instagram via bot manager, cada um com persona própria
+- **Realtime**: Socket.IO — eventos ao vivo (new_message, agent_thinking, xp_update, badge_earned, stage_advance, goal_update, creative_progress, override_status, cognitive_state)
+- **Job Queue**: BullMQ (Redis-backed) — proactive engine, ingestion, embeddings, automations, blog, email com retry e scheduling
+- **Creative Engine**: Handlebars templates + html-to-image — quote_post, announcement_post, carousel_slide, minimal_blog + post sizes (Instagram, Facebook, Twitter, YouTube, blog, ebook)
 - **STT**: Groq Whisper (primary) + OpenAI Whisper (fallback) + web mic input
 - **TTS**: Kokoro-82M (default) + Edge TTS (fallback) + Google Translate (fallback)
 - **Instagram**: instagram-private-api (DM polling, persona per instance)
@@ -172,7 +176,7 @@ Dashboard (get_dashboard tool or /dashboard command):
   - Tasks by status, upcoming events, contacts by stage, active automations, personas, skills, goals by status, org memory by category
 ```
 
-### RAG Knowledge (Multimodal + APIs)
+### RAG Knowledge (Hybrid TF-IDF + Vector Embeddings)
 ```
 Knowledge Sources (configurable per persona):
   - Bible verses (JSON, built-in)
@@ -184,7 +188,15 @@ Knowledge Sources (configurable per persona):
   - JSON data (structured)
   - API endpoints → fetch + cache → index
 
-Ingestion: npm run ingest → reads all configured sources → TF-IDF index
+Hybrid Search:
+  - TF-IDF: Existing keyword-based search (fast exact match, references, keywords)
+  - Vector: Ollama embeddings (nomic-embed-text, 768d) stored in MySQL `embeddings` table
+  - Hybrid scoring: VECTOR_WEIGHT (0.7) × vector_score + TFIDF_WEIGHT (0.3) × tfidf_score
+  - Fallback: If vector search fails, falls back to TF-IDF only (seamless degradation)
+  - Migration: npm run migrate-vectors → indexes all knowledge sources into embeddings
+  - Auto-index: VECTOR_AUTO_INDEX=true → embeddings generated on every ingestion
+
+Ingestion: npm run ingest → reads all configured sources → TF-IDF index + vector embeddings
 Per-persona: personas.knowledge_sources selects which sources to search
   - searchMultiSource(query, sourceIds, topK) splits topK evenly across sources
   - Each source has its own contextTemplate per language
@@ -424,6 +436,118 @@ Role middleware: authMiddleware → sets req.userId + req.userRole
 roleMiddleware('admin') → 403 if not admin
 Login/register/Google returns role in response
 Onboarding: auto-creates user for bot users (ensureUser)
+```
+
+### Hybrid Vector Search (Embeddings)
+```
+Embeddings Service (src/embeddings/index.js):
+  - getEmbedding(text) → Ollama /embed API (nomic-embed-text, 768d)
+  - In-memory cache (5000 entries) for repeated queries
+  - cosineSimilarity(a, b) → vector similarity score
+  - saveEmbedding(sourceId, docId, text, vector) → MySQL embeddings table
+  - searchEmbeddings(queryVector, sourceIds, topK) → cosine similarity search
+
+Vector Store (src/embeddings/vectorStore.js):
+  - Hybrid search: VECTOR_WEIGHT (0.7) × vector + TFIDF_WEIGHT (0.3) × tfidf
+  - Fallback to TF-IDF only if embeddings unavailable
+  - indexSource(sourceId) → generate embeddings for all docs in source
+  - indexAllSources() → index all enabled sources
+  - getStats() → embedding count per source, model, dimensions
+
+Migration: npm run migrate-vectors → indexes all knowledge sources into embeddings table
+Auto-index: VECTOR_AUTO_INDEX=true → embeddings generated during ingestion
+Environment: EMBEDDING_MODEL, EMBEDDING_DIMENSIONS, VECTOR_SEARCH_ENABLED, VECTOR_WEIGHT, TFIDF_WEIGHT, VECTOR_MIN_SCORE
+
+Admin API:
+  GET /api/admin/vector-stats — Vector DB statistics
+  POST /api/admin/vector-reindex — Reindex all (or specific source via body.sourceId)
+```
+
+### Fulltext Search (FlexSearch)
+```
+FulltextSearch (src/search/index.js):
+  - FlexSearch Document index per entity: personas, knowledge_sources, contacts, goals, org_memory, tasks, skills
+  - Built on startup from MySQL data
+  - search(collection, query, limit) → fast fulltext search across entities
+  - rebuildIndex(collection) → rebuild specific or all indexes
+
+Admin API:
+  GET /api/admin/search?q=term&collection=personas&limit=10 — Global search
+  GET /api/admin/search/stats — Search index statistics
+```
+
+### Creative Engine (Templates + Media Generation)
+```
+Creative Engine (src/creative/index.js):
+  Templates: quote_post, announcement_post, carousel_slide, minimal_blog
+  Post Sizes: instagram_post (1080×1080), instagram_story (1080×1920), instagram_carousel (1080×1350),
+              facebook_post (1200×630), twitter_post (1200×675), linkedin_post (1200×627),
+              youtube_thumbnail (1280×720), blog_banner (1920×600), ebook_cover (1600×2400)
+
+  compileTemplate(templateId, data) → HTML via Handlebars
+  saveCreative(personaId, ownerId, type, templateId, data, html) → MySQL + file
+  listCreatives(personaId, ownerId, type, limit) → list generated creatives
+  getCreative(id) → get creative by ID
+  deleteCreative(id) → delete creative + file
+  generateWithLLM(personaContext, prompt, contentType) → LLM prompt for content generation
+
+DB Table: creatives (id, persona_id, owner_id, type, template_id, data, html_path, image_path, created_at)
+
+LLM Tools: create_visual, list_visual_templates
+
+Admin API:
+  GET /api/admin/creatives — List creatives
+  GET /api/admin/creatives/templates — Available templates + sizes
+  POST /api/admin/creatives/generate — Generate creative (template_id + data)
+  GET /api/admin/creatives/:id — Get creative
+  GET /api/admin/creatives/:id/html — Preview HTML
+  DELETE /api/admin/creatives/:id — Delete creative
+```
+
+### Job Queue (BullMQ)
+```
+Queue System (src/queue/index.js):
+  Redis-backed job queue with retry, scheduling, and concurrency
+  Queues: proactive, followup, ingestion, embedding, notification, automation, blog, email
+
+Processors (src/queue/processors/):
+  - proactive.js — checkAutomations, checkStreaks, checkGoals
+  - ingestion.js — runIngestion, indexEmbeddings (auto-triggers vector indexing)
+  - blog.js — generateDailyPost, sendEmail
+
+Environment: REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
+
+Admin API:
+  GET /api/admin/queue-stats — Queue statistics (waiting, active, completed, failed)
+
+Graceful shutdown: Closes workers + queues on SIGTERM/SIGINT
+Fallback: If Redis unavailable, falls back to interval-based processing
+```
+
+### Realtime Events (Socket.IO)
+```
+Realtime Engine (src/realtime/index.js):
+  Socket.IO server attached to HTTP server
+  Room-based events: user:{userId}, session:{sessionId}
+
+Client Events:
+  auth — authenticate with userId + sessionId
+  join_session / leave_session — join/leave session room
+  typing — emit typing indicator
+
+Server Events:
+  new_message — message sent/received
+  agent_thinking — AI processing status
+  agent_step — step in processing pipeline (search, analyze, generate, etc.)
+  xp_update — XP/level/streak change
+  badge_earned — new badge earned
+  stage_advance — conversation stage advanced
+  goal_update — goal progress update
+  creative_progress — creative generation progress
+  override_status — human override status change
+  cognitive_state — emotion/intent/churn risk update
+
+Integration: Chat engine emits events on message save, XP update, cognitive state
 ```
 
 ## Admin Chat Commands
@@ -808,3 +932,81 @@ Admin API:
   GET /api/admin/events/log    — Event log (filter: event_type, user_id, persona_id)
   GET /api/admin/events/stats   — Event statistics
 ```
+
+## Frontend Architecture
+
+### Tech Stack
+- **Vue 3** (CDN, Composition API, no build step)
+- **Tailwind CSS** (CDN)
+- **Socket.IO Client** (realtime events)
+- **No SSR** — static HTML served by Express from `/public`
+
+### File Structure
+```
+public/
+  index.html          — Vue 3 SPA (landing + auth + chat + content + search)
+  admin.html          — Vue 3 SPA (admin dashboard, all management sections)
+  css/
+    style.css         — Custom CSS (Tailwind utilities via CDN + custom theme)
+    admin.css          — Admin panel custom styles
+  js/
+    app.js             — Vue 3 app (landing, auth, chat, persona switch, content, search)
+    admin.js            — Vue 3 admin app
+```
+
+### Pages / Views (Chat App — `index.html`)
+
+| View | Route | Description |
+|---|---|---|
+| Landing | `#landing` | Hero, features, use cases, CTA |
+| Auth | `#auth` | Login / register / Google / skip modal |
+| Chat | `#chat` | Main chat with persona switcher, messages, TTS, sources |
+| Content | `#content` | Blog posts (persona-aware) |
+| Search | `#search` | Knowledge search (persona-aware sources) |
+| Onboarding | `#onboarding` | Multi-step onboarding overlay |
+| Donate | `#donate` | PIX donation + API key modal |
+
+### Persona Switcher
+- Dropdown in sidebar showing current persona avatar + name
+- Click shows all active personas with avatar, name, description
+- Switching calls `POST /api/persona/switch` → clears messages → shows welcome
+- Persona identity (colors, avatar, font) applied via CSS variables
+- `localStorage('mp_persona')` persists choice across sessions
+
+### Chat Flow (Critical Fix)
+1. User types message → `POST /api/chat { message, sessionId, userId, language, personaId }`
+2. If no sessionId → server generates one → returned in response
+3. On persona switch → `POST /api/persona/switch` → clear local `sessionId` → next chat call gets new sessionId from response
+4. **Bug fix:** Never send empty `sessionId` string — always send `null` or let server generate, then save the returned sessionId
+
+### Admin Panel Sections (`admin.html`)
+Dashboard, Users, Personas, Skills, Knowledge/RAG, Integrations, Settings, Bots, Surveys, Ratings, Follow-ups, Tasks, Calendar, Contacts, Automations, Goals, Stages, Org Memory, Blueprints, XP/Gamification, Progress, Cognitive, Override, Thoughts, Creatives, Events, Commands, Queue, Search
+
+### Key API Endpoints (Frontend Focus)
+
+| Purpose | Method | Endpoint |
+|---|---|---|
+| Send message | POST | `/api/chat` |
+| List personas | GET | `/api/personas` |
+| Switch persona | POST | `/api/persona/switch` |
+| Current persona | GET | `/api/persona/current` |
+| Create persona | POST | `/api/persona/create` |
+| List sessions | GET | `/api/sessions` |
+| Get session | GET | `/api/session/:id` |
+| Login | POST | `/api/auth/login` |
+| Register | POST | `/api/auth/register` |
+| Profile | GET/PUT | `/api/profile/:userId` |
+| TTS | POST | `/api/tts` |
+| STT | POST | `/api/stt` |
+| Rating | POST | `/api/rating` |
+| Blog posts | GET | `/api/blog/posts` |
+| Blog search | GET | `/api/blog/search?q=` |
+| Bible books | GET | `/api/blog/books` |
+| Blueprints | GET | `/api/blueprints` |
+| Blueprint clone | POST | `/api/blueprints/:id/clone` |
+| Follow-ups | GET | `/api/followups/pending` |
+| Surveys | GET | `/api/surveys/active` |
+| Whitelabel | GET | `/api/settings` |
+| Translations | GET | `/api/translations/:lang` |
+| Config | GET | `/api/config` |
+| Donate/Pix | GET | `/api/donate` |

@@ -3,6 +3,8 @@ const path = require('path');
 
 const DATA_DIR = path.join(__dirname, '..', '..', 'data');
 
+const VECTOR_INDEX_ENABLED = process.env.VECTOR_AUTO_INDEX !== 'false';
+
 const INGESTERS = {
   bible: require('./sources/bible'),
   json: require('./sources/json'),
@@ -72,6 +74,19 @@ async function runIngestion(sourceConfigs) {
       const store = new KnowledgeStore({ ...source, dataPath: outputPath });
       store.buildIndex();
       console.log(`Search index rebuilt for ${source.id}.\n`);
+
+      if (VECTOR_INDEX_ENABLED) {
+        try {
+          const { vectorStore } = require('../embeddings/vectorStore');
+          console.log(`[VectorIndex] Starting vector indexing for ${source.id}...`);
+          const result = await vectorStore.indexSource(source.id);
+          if (result) {
+            console.log(`[VectorIndex] ${source.id}: ${result.indexed} indexed, ${result.skipped} skipped, ${result.failed} failed`);
+          }
+        } catch (vecErr) {
+          console.warn(`[VectorIndex] Failed for ${source.id}: ${vecErr.message}. Continuing with TF-IDF only.`);
+        }
+      }
 
       console.log(`Done! ${allDocs.length} documents ready for search from ${source.name}.`);
     } catch (err) {
