@@ -293,9 +293,6 @@ O tom deve ser amoroso mas com autoridade. Cite os versículos. Responda EM PRIM
     if (!response.ok) throw new Error(`API error ${response.status}`);
     const data = await response.json();
     let content = data.message?.content?.trim() || '';
-    if (!content && data.message?.thinking) {
-      content = data.message.thinking.trim();
-    }
     if (!content) {
       throw new Error('Empty response from LLM');
     }

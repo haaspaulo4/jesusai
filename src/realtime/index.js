@@ -5,11 +5,20 @@ const connectedUsers = new Map();
 const sessionRooms = new Map();
 
 function initializeSocketIO(httpServer) {
+  const allowedOrigins = [
+    process.env.SERVER_URL,
+    'http://localhost:3000',
+    'http://127.0.0.1:3000',
+    process.env.CORS_ORIGIN !== '*' && process.env.CORS_ORIGIN,
+  ].filter(Boolean);
+
   const io = new Server(httpServer, {
     cors: {
-      origin: process.env.SERVER_URL || 'http://localhost:3000',
+      origin: allowedOrigins.length > 0 ? allowedOrigins : '*',
       methods: ['GET', 'POST'],
     },
+    connectTimeout: 10000,
+    pingTimeout: 20000,
   });
 
   io.on('connection', (socket) => {

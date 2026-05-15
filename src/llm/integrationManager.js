@@ -3,6 +3,7 @@ const { pool } = require('../db');
 
 const SERVICE_TYPES = {
   llm: { label: 'LLM / Chat', envKey: 'OLLAMA_API_KEY', envUrl: 'OLLAMA_BASE_URL', testModel: true, healthModel: 'ok', healthMaxTokens: 1 },
+  llm_groq: { label: 'LLM Groq', envKey: 'GROQ_API_KEY', envUrl: 'GROQ_BASE_URL', testModel: true, healthModel: 'llama-3.3-70b-versatile', healthMaxTokens: 1 },
   tts_kokoro: { label: 'TTS Kokoro', envKey: '', envUrl: 'KOKORO_URL', testModel: false, healthEndpoint: '/health' },
   tts_edge: { label: 'TTS Edge', envKey: '', envUrl: '', testModel: false, healthCmd: 'edge-tts' },
   tts_multivozes: { label: 'TTS Multivozes', envKey: 'MULTIVOZES_KEY', envUrl: 'MULTIVOZES_URL', testModel: false },
@@ -83,13 +84,47 @@ class IntegrationManager {
       if (this.integrations[type]?.length > 0) continue;
 
       if (type === 'llm') {
-        const key = process.env.OLLAMA_API_KEY;
-        const url = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
-        const model = process.env.CHAT_MODEL || 'glm-5.1';
+        const envUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
+        const envModel = process.env.OLLAMA_MODEL || 'glm-5.1';
+
+        // Load multiple keys from .env (OLLAMA_API_KEY_1, _2, etc.)
+        const envKeys = Object.entries(process.env)
+          .filter(([k]) => k.startsWith('OLLAMA_API_KEY_') && !k.includes('BASE_URL'))
+          .sort(([a], [b]) => parseInt(a.split('_').pop()) - parseInt(b.split('_').pop()));
+
+        if (envKeys.length > 0) {
+          for (const [key, value] of envKeys) {
+            const keyNum = key.split('_').pop();
+            this.integrations[type].push({
+              id: `env_key_${keyNum}`,
+              type, key: value,
+              baseUrl: process.env[`OLLAMA_BASE_URL_${keyNum}`] || envUrl,
+              model: process.env[`OLLAMA_MODEL_${keyNum}`] || envModel,
+              label: `Key ${keyNum} (env)`, priority: parseInt(keyNum), active: true,
+              healthy: true, lastUsed: null, lastError: null, consecutiveFailures: 0,
+              lastHealthCheck: null, rateLimitRemaining: null, extraConfig: {},
+            });
+          }
+          console.log(`[Integrations] Loaded ${envKeys.length} Ollama keys from .env`);
+        } else if (process.env.OLLAMA_API_KEY) {
+          // Fallback: single key
+          this.integrations[type].push({
+            id: 'env_llm',
+            type, key: process.env.OLLAMA_API_KEY, baseUrl: envUrl, model: envModel,
+            label: 'LLM Default (env)', priority: 0, active: true,
+            healthy: true, lastUsed: null, lastError: null, consecutiveFailures: 0,
+            lastHealthCheck: null, rateLimitRemaining: null, extraConfig: {},
+          });
+        }
+      }
+
+      if (type === 'llm_groq' && process.env.GROQ_API_KEY) {
+        const url = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
+        const model = process.env.GROQ_MODEL || 'llama-3.3-70b-versatile';
         this.integrations[type].push({
-          id: 'env_llm',
-          type, key: key || '', baseUrl: url, model,
-          label: 'LLM Default (env)', priority: 0, active: true,
+          id: 'env_llm_groq',
+          type, key: process.env.GROQ_API_KEY, baseUrl: url, model,
+          label: 'LLM Groq (env)', priority: 0, active: true,
           healthy: true, lastUsed: null, lastError: null, consecutiveFailures: 0,
           lastHealthCheck: null, rateLimitRemaining: null, extraConfig: {},
         });
@@ -179,7 +214,7 @@ class IntegrationManager {
           return {
             id: `user_${userId}`, type: 'llm', key: rows[0].ollama_api_key,
             baseUrl: defaultLlm?.baseUrl || process.env.OLLAMA_BASE_URL || 'https://ollama.com/api',
-            model: defaultLlm?.model || process.env.CHAT_MODEL || 'glm-5.1',
+            model: defaultLlm?.model || process.env.OLLAMA_MODEL || 'glm-5.1',
             label: `User ${userId} key`, priority: -1, active: true, healthy: true,
             lastUsed: null, lastError: null, consecutiveFailures: 0, lastHealthCheck: null, extraConfig: {},
           };
@@ -268,7 +303,24 @@ class IntegrationManager {
   }
 
   async callLLM(messages, options = {}) {
-    return this.callWithFallback('llm', async (integ) => {
+    const useGroq = process.env.GROQ_AS_PRIMARY === 'true';
+    const serviceTypes = useGroq ? ['llm_groq', 'llm'] : ['llm', 'llm_groq'];
+    let lastErr = null;
+
+    for (const st of serviceTypes) {
+      if (!this.integrations[st]?.length) continue;
+      try {
+        return await this._callLLMWithService(messages, options, st);
+      } catch (err) {
+        lastErr = err;
+        console.warn(`[IntegrationManager] ${st} failed: ${err.message}`);
+      }
+    }
+    throw lastErr;
+  }
+
+  async _callLLMWithService(messages, options, serviceType) {
+    return this.callWithFallback(serviceType, async (integ) => {
       const timeout = options.timeout ?? 30000;
       const stream = options.stream ?? false;
       const temperature = options.temperature ?? 0.7;
@@ -278,15 +330,18 @@ class IntegrationManager {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeout);
 
-      const body = {
-        model: options.model || integ.model,
-        messages,
-        stream,
-        options: { temperature, num_predict: numPredict },
-      };
+      const isOllama = integ.baseUrl?.includes('ollama.com') || integ.id === 'env_llm';
+      const endpoint = isOllama ? '/chat' : '/chat/completions';
+
+      let body;
+      if (isOllama) {
+        body = { model: options.model || integ.model, messages, stream, options: { temperature, num_predict: numPredict } };
+      } else {
+        body = { model: options.model || integ.model, messages, temperature, max_tokens: numPredict };
+      }
       if (tools?.length > 0) body.tools = tools;
 
-      const response = await fetch(`${integ.baseUrl}/chat`, {
+      const response = await fetch(`${integ.baseUrl}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -432,21 +487,26 @@ class IntegrationManager {
     if (!config) return true;
 
     try {
-      if (integ.type === 'llm') {
+      if (integ.type === 'llm' || integ.type === 'llm_groq') {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 10000);
-        const response = await fetch(`${integ.baseUrl}/chat`, {
+        const isOllama = integ.baseUrl?.includes('ollama.com') || integ.id === 'env_llm';
+        const endpoint = isOllama ? '/chat' : '/chat/completions';
+
+        let body;
+        if (isOllama) {
+          body = { model: integ.model || 'glm-5.1', messages: [{ role: 'user', content: 'ok' }], stream: false, options: { temperature: 0.1, num_predict: 1 } };
+        } else {
+          body = { model: integ.model || 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: 'ok' }], temperature: 0.1, max_tokens: 1 };
+        }
+
+        const response = await fetch(`${integ.baseUrl}${endpoint}`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
             ...(integ.key ? { Authorization: `Bearer ${integ.key}` } : {}),
           },
-          body: JSON.stringify({
-            model: integ.model || 'glm-5.1',
-            messages: [{ role: 'user', content: 'ok' }],
-            stream: false,
-            options: { temperature: 0.1, num_predict: 1 },
-          }),
+          body: JSON.stringify(body),
           signal: controller.signal,
         });
         clearTimeout(timer);

@@ -40,26 +40,26 @@ async function loadPersonas() {
         name: row.name,
         nameEn: row.name_en || row.name,
         nameEs: row.name_es || row.name,
-        identity: identity || DEFAULT_PERSONAS.jesus?.identity,
-        commands: commands || DEFAULT_PERSONAS.jesus?.commands,
-        topicKeywords: topicKeywords || DEFAULT_PERSONAS.jesus?.topicKeywords,
-        emotionKeywords: emotionKeywords || DEFAULT_PERSONAS.jesus?.emotionKeywords,
-        namePatterns: namePatterns || DEFAULT_PERSONAS.jesus?.namePatterns,
-        disclaimer: row.disclaimer ? (typeof row.disclaimer === 'string' ? JSON.parse(row.disclaimer) : row.disclaimer) : DEFAULT_PERSONAS.jesus?.disclaimer,
-        conversationWith: row.conversation_with ? (typeof row.conversation_with === 'string' ? JSON.parse(row.conversation_with) : row.conversation_with) : DEFAULT_PERSONAS.jesus?.conversationWith,
-        memoryBlock: row.memory_block ? (typeof row.memory_block === 'string' ? JSON.parse(row.memory_block) : row.memory_block) : DEFAULT_PERSONAS.jesus?.memoryBlock,
-        profileBlock: row.profile_block ? (typeof row.profile_block === 'string' ? JSON.parse(row.profile_block) : row.profile_block) : DEFAULT_PERSONAS.jesus?.profileBlock,
-        groupContext: row.group_context ? (typeof row.group_context === 'string' ? JSON.parse(row.group_context) : row.group_context) : DEFAULT_PERSONAS.jesus?.groupContext,
-        cjkFallback: row.cjk_fallback ? (typeof row.cjk_fallback === 'string' ? JSON.parse(row.cjk_fallback) : row.cjk_fallback) : DEFAULT_PERSONAS.jesus?.cjkFallback,
-        llmError: row.llm_error ? (typeof row.llm_error === 'string' ? JSON.parse(row.llm_error) : row.llm_error) : DEFAULT_PERSONAS.jesus?.llmError,
+        identity: identity || null,
+        commands: commands || null,
+        topicKeywords: topicKeywords || null,
+        emotionKeywords: emotionKeywords || null,
+        namePatterns: namePatterns || null,
+        disclaimer: row.disclaimer ? (typeof row.disclaimer === 'string' ? JSON.parse(row.disclaimer) : row.disclaimer) : null,
+        conversationWith: row.conversation_with ? (typeof row.conversation_with === 'string' ? JSON.parse(row.conversation_with) : row.conversation_with) : null,
+        memoryBlock: row.memory_block ? (typeof row.memory_block === 'string' ? JSON.parse(row.memory_block) : row.memory_block) : null,
+        profileBlock: row.profile_block ? (typeof row.profile_block === 'string' ? JSON.parse(row.profile_block) : row.profile_block) : null,
+        groupContext: row.group_context ? (typeof row.group_context === 'string' ? JSON.parse(row.group_context) : row.group_context) : null,
+        cjkFallback: row.cjk_fallback ? (typeof row.cjk_fallback === 'string' ? JSON.parse(row.cjk_fallback) : row.cjk_fallback) : null,
+        llmError: row.llm_error ? (typeof row.llm_error === 'string' ? JSON.parse(row.llm_error) : row.llm_error) : null,
         welcomeTitle: row.welcome_title ? (typeof row.welcome_title === 'string' ? JSON.parse(row.welcome_title) : row.welcome_title) : null,
         welcomeBody: row.welcome_body ? (typeof row.welcome_body === 'string' ? JSON.parse(row.welcome_body) : row.welcome_body) : null,
-        prayerPrompt: row.prayer_prompt ? (typeof row.prayer_prompt === 'string' ? JSON.parse(row.prayer_prompt) : row.prayer_prompt) : DEFAULT_PERSONAS.jesus?.prayerPrompt,
-        blogPrompt: row.blog_prompt ? (typeof row.blog_prompt === 'string' ? JSON.parse(row.blog_prompt) : row.blog_prompt) : DEFAULT_PERSONAS.jesus?.blogPrompt,
-        blogTopics: row.blog_topics ? (typeof row.blog_topics === 'string' ? JSON.parse(row.blog_topics) : row.blog_topics) : DEFAULT_PERSONAS.jesus?.blogTopics,
-        donateVerse: row.donate_verse ? (typeof row.donate_verse === 'string' ? JSON.parse(row.donate_verse) : row.donate_verse) : DEFAULT_PERSONAS.jesus?.donateVerse,
-        summaryPrompt: row.summary_prompt ? (typeof row.summary_prompt === 'string' ? JSON.parse(row.summary_prompt) : row.summary_prompt) : DEFAULT_PERSONAS.jesus?.summaryPrompt,
-        profileSummaryPrompt: row.profile_summary_prompt ? (typeof row.profile_summary_prompt === 'string' ? JSON.parse(row.profile_summary_prompt) : row.profile_summary_prompt) : DEFAULT_PERSONAS.jesus?.profileSummaryPrompt,
+        prayerPrompt: row.prayer_prompt ? (typeof row.prayer_prompt === 'string' ? JSON.parse(row.prayer_prompt) : row.prayer_prompt) : null,
+        blogPrompt: row.blog_prompt ? (typeof row.blog_prompt === 'string' ? JSON.parse(row.blog_prompt) : row.blog_prompt) : null,
+        blogTopics: row.blog_topics ? (typeof row.blog_topics === 'string' ? JSON.parse(row.blog_topics) : row.blog_topics) : null,
+        donateVerse: row.donate_verse ? (typeof row.donate_verse === 'string' ? JSON.parse(row.donate_verse) : row.donate_verse) : null,
+        summaryPrompt: row.summary_prompt ? (typeof row.summary_prompt === 'string' ? JSON.parse(row.summary_prompt) : row.summary_prompt) : null,
+        profileSummaryPrompt: row.profile_summary_prompt ? (typeof row.profile_summary_prompt === 'string' ? JSON.parse(row.profile_summary_prompt) : row.profile_summary_prompt) : null,
         ttsVoice: row.tts_voice || 'pm_alex',
         ttsLang: row.tts_lang || 'p',
         model: row.model || null,
@@ -147,8 +147,8 @@ async function createPersona(data) {
     knowledgeSources = cache.get(id).knowledgeSources || null;
   }
 
-  const identity = data.identity || (cache.has(id) ? cache.get(id).identity : null) || DEFAULT_PERSONAS.jesus.identity;
-  const commands = data.commands || (cache.has(id) ? cache.get(id).commands : null) || DEFAULT_PERSONAS.jesus.commands;
+  const identity = data.identity || (cache.has(id) ? cache.get(id).identity : null) || null;
+  const commands = data.commands || (cache.has(id) ? cache.get(id).commands : null) || null;
   const ttsVoice = data.tts_voice || data.ttsVoice || 'pm_alex';
   const ttsLang = data.tts_lang || data.ttsLang || 'p';
   const model = data.model || null;
@@ -159,31 +159,31 @@ async function createPersona(data) {
 
   const stringFields = (val) => val && typeof val === 'object' ? JSON.stringify(val) : (val || null);
 
-  try {
-    const existing = cache.get(id);
-    const finalIdentity = identity || (existing ? existing.identity : null) || DEFAULT_PERSONAS.jesus.identity;
-    const finalCommands = commands || (existing ? existing.commands : null) || DEFAULT_PERSONAS.jesus.commands;
-    const finalKnowledgeSources = knowledgeSources || (existing ? existing.knowledgeSources : null);
-    const finalDisclaimer = data.disclaimer || data.disclaimer || (existing ? existing.disclaimer : null) || DEFAULT_PERSONAS.jesus?.disclaimer;
-    const finalConversationWith = data.conversationWith || data.conversation_with || (existing ? existing.conversationWith : null) || DEFAULT_PERSONAS.jesus?.conversationWith;
-    const finalMemoryBlock = data.memoryBlock || data.memory_block || (existing ? existing.memoryBlock : null) || DEFAULT_PERSONAS.jesus?.memoryBlock;
-    const finalProfileBlock = data.profileBlock || data.profile_block || (existing ? existing.profileBlock : null) || DEFAULT_PERSONAS.jesus?.profileBlock;
-    const finalGroupContext = data.groupContext || data.group_context || (existing ? existing.groupContext : null) || DEFAULT_PERSONAS.jesus?.groupContext;
-    const finalCjkFallback = data.cjkFallback || data.cjk_fallback || (existing ? existing.cjkFallback : null) || DEFAULT_PERSONAS.jesus?.cjkFallback;
-    const finalLlmError = data.llmError || data.llm_error || (existing ? existing.llmError : null) || DEFAULT_PERSONAS.jesus?.llmError;
-    const finalWelcomeTitle = data.welcomeTitle || data.welcome_title || (existing ? existing.welcomeTitle : null);
-    const finalWelcomeBody = data.welcomeBody || data.welcome_body || (existing ? existing.welcomeBody : null);
-    const finalPrayerPrompt = data.prayerPrompt || data.prayer_prompt || (existing ? existing.prayerPrompt : null) || DEFAULT_PERSONAS.jesus?.prayerPrompt;
-    const finalBlogPrompt = data.blogPrompt || data.blog_prompt || (existing ? existing.blogPrompt : null) || DEFAULT_PERSONAS.jesus?.blogPrompt;
-    const finalBlogTopics = data.blogTopics || data.blog_topics || (existing ? existing.blogTopics : null) || DEFAULT_PERSONAS.jesus?.blogTopics;
-    const finalDonateVerse = data.donateVerse || data.donate_verse || (existing ? existing.donateVerse : null) || DEFAULT_PERSONAS.jesus?.donateVerse;
-    const finalSummaryPrompt = data.summaryPrompt || data.summary_prompt || (existing ? existing.summaryPrompt : null) || DEFAULT_PERSONAS.jesus?.summaryPrompt;
-    const finalProfileSummaryPrompt = data.profileSummaryPrompt || data.profile_summary_prompt || (existing ? existing.profileSummaryPrompt : null) || DEFAULT_PERSONAS.jesus?.profileSummaryPrompt;
-  const finalNamePatterns = data.namePatterns || data.name_patterns || (existing ? existing.namePatterns : null) || DEFAULT_PERSONAS.jesus?.namePatterns;
-  const finalTopicKeywords = data.topicKeywords || data.topic_keywords || (existing ? existing.topicKeywords : null) || DEFAULT_PERSONAS.jesus?.topicKeywords;
-  const finalEmotionKeywords = data.emotionKeywords || data.emotion_keywords || (existing ? existing.emotionKeywords : null) || DEFAULT_PERSONAS.jesus?.emotionKeywords;
+  const existing = cache.get(id);
+  const finalIdentity = identity || (existing ? existing.identity : null) || null;
+  const finalCommands = commands || (existing ? existing.commands : null) || null;
+  const finalKnowledgeSources = knowledgeSources || (existing ? existing.knowledgeSources : null);
+  const finalDisclaimer = data.disclaimer || (existing ? existing.disclaimer : null) || null;
+  const finalConversationWith = data.conversationWith || data.conversation_with || (existing ? existing.conversationWith : null) || null;
+  const finalMemoryBlock = data.memoryBlock || data.memory_block || (existing ? existing.memoryBlock : null) || null;
+  const finalProfileBlock = data.profileBlock || data.profile_block || (existing ? existing.profileBlock : null) || null;
+  const finalGroupContext = data.groupContext || data.group_context || (existing ? existing.groupContext : null) || null;
+  const finalCjkFallback = data.cjkFallback || data.cjk_fallback || (existing ? existing.cjkFallback : null) || null;
+  const finalLlmError = data.llmError || data.llm_error || (existing ? existing.llmError : null) || null;
+  const finalWelcomeTitle = data.welcomeTitle || data.welcome_title || (existing ? existing.welcomeTitle : null);
+  const finalWelcomeBody = data.welcomeBody || data.welcome_body || (existing ? existing.welcomeBody : null);
+  const finalPrayerPrompt = data.prayerPrompt || data.prayer_prompt || (existing ? existing.prayerPrompt : null) || null;
+  const finalBlogPrompt = data.blogPrompt || data.blog_prompt || (existing ? existing.blogPrompt : null) || null;
+  const finalBlogTopics = data.blogTopics || data.blog_topics || (existing ? existing.blogTopics : null) || null;
+  const finalDonateVerse = data.donateVerse || data.donate_verse || (existing ? existing.donateVerse : null) || null;
+  const finalSummaryPrompt = data.summaryPrompt || data.summary_prompt || (existing ? existing.summaryPrompt : null) || null;
+  const finalProfileSummaryPrompt = data.profileSummaryPrompt || data.profile_summary_prompt || (existing ? existing.profileSummaryPrompt : null) || null;
+  const finalNamePatterns = data.namePatterns || data.name_patterns || (existing ? existing.namePatterns : null) || null;
+  const finalTopicKeywords = data.topicKeywords || data.topic_keywords || (existing ? existing.topicKeywords : null) || null;
+  const finalEmotionKeywords = data.emotionKeywords || data.emotion_keywords || (existing ? existing.emotionKeywords : null) || null;
   const finalBusinessConfig = data.businessConfig || data.business_config || (existing ? existing.businessConfig : null);
 
+  try {
     await pool.execute(
       `INSERT INTO personas (persona_id, name, name_en, name_es, identity, commands, tts_voice, tts_lang, model, priority, is_active, knowledge_sources,
         disclaimer, conversation_with, memory_block, profile_block, group_context, cjk_fallback, llm_error, welcome_title, welcome_body,
@@ -217,26 +217,26 @@ async function createPersona(data) {
 
   const persona = {
     id, name, nameEn: name_en, nameEs: name_es,
-    identity: identity || DEFAULT_PERSONAS.jesus.identity,
-    commands: commands || DEFAULT_PERSONAS.jesus.commands,
-    topicKeywords: data.topicKeywords || data.topic_keywords || DEFAULT_PERSONAS.jesus.topicKeywords,
-    emotionKeywords: data.emotionKeywords || data.emotion_keywords || DEFAULT_PERSONAS.jesus.emotionKeywords,
-    namePatterns: data.namePatterns || data.name_patterns || DEFAULT_PERSONAS.jesus.namePatterns,
-    disclaimer: data.disclaimer || DEFAULT_PERSONAS.jesus.disclaimer,
-    conversationWith: data.conversationWith || data.conversation_with || DEFAULT_PERSONAS.jesus.conversationWith,
-    memoryBlock: data.memoryBlock || data.memory_block || DEFAULT_PERSONAS.jesus.memoryBlock,
-    profileBlock: data.profileBlock || data.profile_block || DEFAULT_PERSONAS.jesus.profileBlock,
-    groupContext: data.groupContext || data.group_context || DEFAULT_PERSONAS.jesus.groupContext,
-    cjkFallback: data.cjkFallback || data.cjk_fallback || DEFAULT_PERSONAS.jesus.cjkFallback,
-    llmError: data.llmError || data.llm_error || DEFAULT_PERSONAS.jesus.llmError,
-    welcomeTitle: data.welcomeTitle || data.welcome_title || DEFAULT_PERSONAS.jesus.welcomeTitle,
-    welcomeBody: data.welcomeBody || data.welcome_body || DEFAULT_PERSONAS.jesus.welcomeBody,
-    prayerPrompt: data.prayerPrompt || data.prayer_prompt || DEFAULT_PERSONAS.jesus.prayerPrompt,
-    blogPrompt: data.blogPrompt || data.blog_prompt || DEFAULT_PERSONAS.jesus.blogPrompt,
-    blogTopics: data.blogTopics || data.blog_topics || DEFAULT_PERSONAS.jesus.blogTopics,
-    donateVerse: data.donateVerse || data.donate_verse || DEFAULT_PERSONAS.jesus.donateVerse,
-    summaryPrompt: data.summaryPrompt || data.summary_prompt || DEFAULT_PERSONAS.jesus.summaryPrompt,
-    profileSummaryPrompt: data.profileSummaryPrompt || data.profile_summary_prompt || DEFAULT_PERSONAS.jesus.profileSummaryPrompt,
+    identity: identity || null,
+    commands: commands || null,
+    topicKeywords: data.topicKeywords || data.topic_keywords || null,
+    emotionKeywords: data.emotionKeywords || data.emotion_keywords || null,
+    namePatterns: data.namePatterns || data.name_patterns || null,
+    disclaimer: data.disclaimer || null,
+    conversationWith: data.conversationWith || data.conversation_with || null,
+    memoryBlock: data.memoryBlock || data.memory_block || null,
+    profileBlock: data.profileBlock || data.profile_block || null,
+    groupContext: data.groupContext || data.group_context || null,
+    cjkFallback: data.cjkFallback || data.cjk_fallback || null,
+    llmError: data.llmError || data.llm_error || null,
+    welcomeTitle: data.welcomeTitle || data.welcome_title || null,
+    welcomeBody: data.welcomeBody || data.welcome_body || null,
+    prayerPrompt: data.prayerPrompt || data.prayer_prompt || null,
+    blogPrompt: data.blogPrompt || data.blog_prompt || null,
+    blogTopics: data.blogTopics || data.blog_topics || null,
+    donateVerse: data.donateVerse || data.donate_verse || null,
+    summaryPrompt: data.summaryPrompt || data.summary_prompt || null,
+    profileSummaryPrompt: data.profileSummaryPrompt || data.data?.profile_summary_prompt || null,
     ttsVoice, ttsLang, model, knowledgeSources: knowledgeSources,
     isActive: true, priority,
     businessConfig: finalBusinessConfig || null,

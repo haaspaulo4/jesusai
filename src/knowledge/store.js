@@ -96,12 +96,25 @@ class KnowledgeStore {
     const docs = this.loadVerses();
     const docFreq = {};
     const tokenDocs = {};
+    const docLengths = {};
+    const referenceField = this.config.referenceField || 'reference';
     const searchFields = this.config.searchFields || ['reference', 'text'];
+
+    const referenceGroups = {};
+    for (let i = 0; i < docs.length; i++) {
+      const ref = (docs[i][referenceField] || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+      const chapterMatch = ref.match(/^(.+?)\s+\d/);
+      const groupKey = chapterMatch ? chapterMatch[1].trim() : ref;
+      if (!referenceGroups[groupKey]) referenceGroups[groupKey] = [];
+      referenceGroups[groupKey].push(i);
+    }
 
     for (let i = 0; i < docs.length; i++) {
       const combinedText = searchFields.map(f => docs[i][f] || '').join(' ');
-      const tokens = new Set(this.tokenize(combinedText));
-      for (const t of tokens) {
+      const tokens = this.tokenize(combinedText);
+      const tokenSet = new Set(tokens);
+      docLengths[i] = tokens.length;
+      for (const t of tokenSet) {
         docFreq[t] = (docFreq[t] || 0) + 1;
         if (!tokenDocs[t]) tokenDocs[t] = [];
         tokenDocs[t].push(i);
@@ -109,12 +122,13 @@ class KnowledgeStore {
     }
 
     const N = docs.length;
+    const avgDl = Object.values(docLengths).reduce((a, b) => a + b, 0) / N;
     const idf = {};
     for (const [t, df] of Object.entries(docFreq)) {
       idf[t] = Math.log((N + 1) / (df + 1)) + 1;
     }
 
-    const indexData = { idf, tokenDocs };
+    const indexData = { idf, tokenDocs, docLengths, avgDl, referenceGroups };
     fs.writeFileSync(this.indexPath, JSON.stringify(indexData), 'utf-8');
     this._index = indexData;
     console.log(`Search index built for ${this.config.id} (${docs.length} documents)`);
@@ -131,13 +145,55 @@ class KnowledgeStore {
     const queryTokens = this.tokenize(query);
     if (queryTokens.length === 0) return [];
 
+    const k1 = 1.5;
+    const b = 0.75;
+    const avgDl = idx.avgDl || 50;
+    const docLengths = idx.docLengths || {};
+
+    const referenceField = this.config.referenceField || 'reference';
+    const referenceGroups = idx.referenceGroups || {};
+    const stopWords = new Set(['a','o','e','de','do','da','em','um','uma','que','se','nao','com','para','por','os','as','dos','das','ao','ou','mas','como','mais','pelo','nos','num','dela','dele','este','esse','ele','ela','meu','sua','nosso','tudo','qual','quando','onde','quem','entre','sobre','ate','ainda','foi','sao','tem','pode','the','is','are','was','were','be','have','has','do','does','did','will','can','this','that','with','from','about']);
+    const queryTokenCounts = {};
+    for (const t of queryTokens) {
+      queryTokenCounts[t] = (queryTokenCounts[t] || 0) + 1;
+    }
+
+    const lowerQuery = query.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const matchedGroups = [];
+    for (const groupKey of Object.keys(referenceGroups)) {
+      if (lowerQuery.includes(groupKey)) {
+        matchedGroups.push(groupKey);
+      }
+    }
+
     const scores = {};
-    for (const token of queryTokens) {
+    for (const token of Object.keys(queryTokenCounts)) {
       const idfScore = idx.idf[token] || 1;
       const docIds = idx.tokenDocs[token] || [];
       for (const docId of docIds) {
         if (!scores[docId]) scores[docId] = 0;
-        scores[docId] += idfScore;
+        const dl = docLengths[docId] || avgDl;
+        const tfNorm = (k1 + 1) / (k1 * (1 - b + b * (dl / avgDl)) + 1);
+        scores[docId] += idfScore * tfNorm;
+      }
+    }
+
+    if (matchedGroups.length > 0) {
+      const boostPerGroup = Math.max(queryTokens.length * 2, 8);
+      for (const groupKey of matchedGroups) {
+        const docIds = referenceGroups[groupKey];
+        if (!docIds) continue;
+        for (const docId of docIds) {
+          scores[docId] = (scores[docId] || 0) + boostPerGroup;
+          const docText = (docs[docId].text || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+          let textMatchBonus = 0;
+          for (const qt of queryTokens) {
+            if (docText.includes(qt)) textMatchBonus += 3;
+          }
+          if (docText.length > 100) textMatchBonus += 2;
+          if (docText.length > 200) textMatchBonus += 2;
+          scores[docId] += textMatchBonus;
+        }
       }
     }
 

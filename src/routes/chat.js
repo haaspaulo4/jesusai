@@ -19,7 +19,8 @@ const {
 } = require('../memory/profile');
 const { authMiddleware, getUser, roleMiddleware } = require('../auth');
 const { pool } = require('../db');
-const { chatEngine, generateSessionId } = require('../chat/engine');
+const chatEngine = require('../chat/engine');
+const { generateSessionId } = chatEngine;
 const multer = require('multer');
 
 const optionalAuth = (req, res, next) => {
@@ -84,7 +85,7 @@ router.post('/chat', optionalAuth, async (req, res) => {
   }
 
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
-  const uid = (req.userId || req.body.userId || 'user_default').toString().slice(0, 60);
+  const uid = (req.userId || 'user_default').toString().slice(0, 60);
   const sid = sessionId || generateSessionId();
 
   try {
@@ -122,13 +123,13 @@ router.post('/chat', optionalAuth, async (req, res) => {
 
     res.json(response);
   } catch (err) {
-    console.error('Chat error:', err);
+    console.error('Chat error:', err.stack || err.message || err);
     res.status(500).json({ error: 'Failed to generate response' });
   }
 });
 router.get('/sessions', authMiddleware, async (req, res) => {
   try {
-    const userId = req.userId || req.query.userId;
+    const userId = req.userId;
     const sessions = await listSessions(userId);
     res.json(sessions);
   } catch (err) {
@@ -155,7 +156,7 @@ router.get('/session/:id', authMiddleware, async (req, res) => {
   }
 });
 
-router.delete('/session/:id', async (req, res) => {
+router.delete('/session/:id', authMiddleware, async (req, res) => {
   try {
     await deleteSession(req.params.id);
     res.json({ ok: true });
@@ -164,14 +165,11 @@ router.delete('/session/:id', async (req, res) => {
   }
 });
 
-router.post('/session', async (req, res) => {
-  const { userId } = req.body || {};
+router.post('/session', authMiddleware, async (req, res) => {
   const sid = generateSessionId();
   const session = await getSession(sid);
-  if (userId) {
-    session.userId = userId;
-    await saveSession(session);
-  }
+  session.userId = req.userId;
+  await saveSession(session);
   res.json({ id: session.id, createdAt: session.createdAt });
 });
 
@@ -448,7 +446,7 @@ router.get('/personas', async (req, res) => {
 router.post('/persona/switch', optionalAuth, async (req, res) => {
   try {
     const { personaId, sessionId } = req.body;
-    const userId = req.userId || req.body.userId || 'user_default';
+    const userId = req.userId || 'user_default';
     if (!personaId) return res.status(400).json({ error: 'personaId is required' });
 
     const result = await metaRag.switchPersona(userId || 'user_default', sessionId, personaId);

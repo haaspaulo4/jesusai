@@ -347,11 +347,6 @@ async function saveOnboardingAnswer(userId, stepKey, answer, personaId) {
   const mapping = FIELD_MAPPING[step.field];
 
   if (mapping) {
-    if (mapping.db) {
-      try {
-        await pool.execute(`UPDATE ${mapping.db} = ? WHERE id = ?`, [answer, userId]);
-      } catch {}
-    }
     if (mapping.profile) {
       if (mapping.isArray) {
         const values = typeof answer === 'string' ? answer.split(',').map(v => v.trim()) : [answer];

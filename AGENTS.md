@@ -554,6 +554,9 @@ Integration: Chat engine emits events on message save, XP update, cognitive stat
 | Command | Access | Description |
 |---|---|---|
 | `/admin` | admin | Admin dashboard |
+| `/stop` | anyone | Interrupt response (info about silence mode) |
+| `/silence <N>` | anyone | Silence persona for N messages, /silence off to disable, /silence infinite for indefinite |
+| `/mute` | anyone | Alias for /silence |
 | `/stats` | user | Your stats |
 | `/myprofile` | user | Your profile |
 | `/persona` | anyone | List personas |
@@ -576,6 +579,27 @@ Integration: Chat engine emits events on message save, XP update, cognitive stat
 | `/orgmem` | user | Manage org memory (/orgmem create, /orgmem search <query>) |
 | `/xp` | user | Gamification — XP, level, streak, badges, leaderboard |
 | `/progress` | user | View/update progress state (key-value per user+persona) |
+| `/cognitive, /cognitivo` | user | Cognitive state (emotion, intent, churn risk, engagement) |
+| `/override` | admin | Human override control (full/approval/observation per session) |
+| `/thoughts, /pensamentos` | admin | Agent thought logs (reasoning, tools, response time) |
+| `/suggestions, /sugestoes` | admin | Self-optimization suggestions (tone, retention, engagement) |
+| `/creative` | admin | Generate visual content (quote_post, announcement, carousel, blog) |
+| `/blog` | admin | Blog posts (list, generate via LLM) |
+| `/email` | admin | Send email (to | subject | body) |
+| `/search, /buscar` | anyone | Search knowledge sources (persona-aware) |
+| `/quiz` | anyone | Interactive quizzes (list, create, answer) |
+| `/context` | anyone | View recent conversation context |
+| `/reflect, /refletir` | anyone | Persona self-reflection (strengths, weaknesses, recommendations) |
+| `/events, /eventos` | anyone | Event log and statistics |
+| `/media` | admin | Media listing |
+| `/workspace, /ws` | admin | Workspace management (create, usage, rules) |
+| `/billing` | admin | Plans and usage reports |
+| `/lang, /idioma` | anyone | Switch language (pt-BR, en-US, es-ES) |
+| `/plan, /planejar, /planner` | anyone | AI planning agent (intent analysis, tool plan) |
+| `/history, /historico` | anyone | Session message history |
+| `/export` | admin | Export DB data (personas, skills, goals, etc.) |
+| `/stats2, /estatisticas` | anyone | Global statistics (messages, users, emotions, intents) |
+| `/config` | admin | Quick settings (view/set) |
 | `/keys, /addkey, /removekey, /togglekey` | admin | Integration management |
 | `/blueprints` | anyone | List/clone/view blueprints (/blueprints list, /blueprints clone <id>, /blueprints categories) |
 | `/health` | anyone | Integration health |

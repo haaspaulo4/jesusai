@@ -11,7 +11,7 @@ function makeWhatsAppHandler(options = {}) {
     const sid = isGroup ? `wa_grp_${remoteJid}` : `wa_lid_${senderId}`;
     const uid = senderId || 'unknown';
 
-    const cmdResult = await handleChatCommand(text, uid, 'whatsapp', sid);
+    const cmdResult = await handleChatCommand(text, uid, 'whatsapp', sid, instancePersonaId);
     if (cmdResult) return { type: 'command', response: cmdResult };
 
     const { processMessage } = require('../chat/engine');

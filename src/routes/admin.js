@@ -38,6 +38,11 @@ function premiumMiddleware(req, res, next) {
   next();
 }
 
+function checkOwner(ownerId, userId, userRole) {
+  if (userRole === 'admin') return true;
+  return ownerId === userId;
+}
+
 router.get('/stats', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const stats = await admin.getStats();
@@ -93,8 +98,9 @@ router.delete('/users/:id', authMiddleware, adminMiddleware, async (req, res) =>
 
 router.get('/personas', authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const { limit, offset } = paginated(req, 200);
     const personas = await admin.listPersonas();
-    res.json(personas);
+    res.json({ personas: personas.slice(offset, offset + limit), total: personas.length, limit, offset });
   } catch (err) {
     console.error('[Admin] List personas error:', err);
     res.status(500).json({ error: 'Failed to list personas' });
@@ -156,8 +162,10 @@ router.post('/personas/:id/toggle', authMiddleware, adminMiddleware, async (req,
 router.get('/integrations', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { service } = req.query;
+    const { limit, offset } = paginated(req, 200);
     const result = await admin.listIntegrations(service);
-    res.json(result);
+    const items = Array.isArray(result) ? result : (result.integrations || result.data || []);
+    res.json({ integrations: items.slice(offset, offset + limit), total: items.length, limit, offset });
   } catch (err) {
     console.error('[Admin] List integrations error:', err);
     res.status(500).json({ error: 'Failed to list integrations' });
@@ -236,8 +244,17 @@ router.get('/settings', authMiddleware, adminMiddleware, async (req, res) => {
 
 router.put('/settings', authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const ALLOWED_SETTINGS = [
+      'brand_name', 'brand_tagline', 'brand_logo_url', 'brand_primary_color', 'brand_secondary_color',
+      'onboarding_enabled', 'onboarding_greeting', 'onboarding_greeting_en', 'onboarding_greeting_es',
+      'survey_enabled', 'followup_enabled', 'followup_interval_messages', 'ratings_enabled',
+      'rate_limit_guest', 'rate_limit_user', 'rate_limit_premium', 'rate_limit_admin',
+      'message_chunk_size', 'audio_chunk_size', 'default_persona', 'default_language',
+      'welcome_message', 'welcome_message_en', 'welcome_message_es',
+    ];
     const { key, value } = req.body;
     if (!key) return res.status(400).json({ error: 'key is required' });
+    if (!ALLOWED_SETTINGS.includes(key)) return res.status(400).json({ error: `Setting "${key}" is not allowed. Allowed: ${ALLOWED_SETTINGS.join(', ')}` });
     const result = await admin.setSettings(key, value);
     res.json(result);
   } catch (err) {
@@ -407,8 +424,10 @@ router.delete('/knowledge/sources/:sourceId', authMiddleware, adminMiddleware, a
 
 router.get('/mcp', authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const { limit, offset } = paginated(req, 200);
     const servers = await admin.listMCPServers();
-    res.json(servers);
+    const items = Array.isArray(servers) ? servers : [];
+    res.json({ servers: items.slice(offset, offset + limit), total: items.length, limit, offset });
   } catch (err) {
     console.error('[Admin] List MCP error:', err);
     res.status(500).json({ error: 'Failed to list MCP servers' });
@@ -622,13 +641,14 @@ router.post('/followups/:id/send', authMiddleware, adminMiddleware, async (req, 
 router.get('/bots', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const { platform } = req.query;
+    const { limit, offset } = paginated(req, 200);
     const bots = await botManager.listBots(platform);
     const active = botManager.getActiveBots();
     const enriched = bots.map(b => ({
       ...b,
       running: active.some(a => a.id === b.id),
     }));
-    res.json(enriched);
+    res.json({ bots: enriched.slice(offset, offset + limit), total: enriched.length, limit, offset });
   } catch (err) {
     console.error('[Admin] List bots error:', err);
     res.status(500).json({ error: 'Failed to list bots' });
@@ -723,8 +743,9 @@ router.get('/skills', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const filters = {};
     if (req.query.persona_id) filters.persona_id = req.query.persona_id;
+    const { limit, offset } = paginated(req, 200);
     const skills = await skillsModule.listSkills(filters);
-    res.json({ skills, total: skills.length });
+    res.json({ skills: skills.slice(offset, offset + limit), total: skills.length, limit, offset });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -784,7 +805,7 @@ router.get('/tasks', authMiddleware, premiumMiddleware, async (req, res) => {
 
 router.post('/tasks', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const task = await agentModule.createTask({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    const task = await agentModule.createTask({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
     res.json(task);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -793,8 +814,10 @@ router.post('/tasks', authMiddleware, premiumMiddleware, async (req, res) => {
 
 router.put('/tasks/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await agentModule.getTask(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Task not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to modify this task' });
     const task = await agentModule.updateTask(req.params.id, req.body);
-    if (!task) return res.status(404).json({ error: 'Task not found' });
     res.json(task);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -803,6 +826,9 @@ router.put('/tasks/:id', authMiddleware, premiumMiddleware, async (req, res) => 
 
 router.delete('/tasks/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await agentModule.getTask(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Task not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to delete this task' });
     await agentModule.deleteTask(req.params.id);
     res.json({ deleted: true });
   } catch (err) {
@@ -814,8 +840,9 @@ router.delete('/tasks/:id', authMiddleware, premiumMiddleware, async (req, res) 
 router.get('/calendar', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const filters = { owner_id: req.userId, ...req.query };
+    const { limit, offset } = paginated(req, 500);
     const events = await agentModule.listCalendarEvents(filters);
-    res.json({ events, total: events.length });
+    res.json({ events: events.slice(offset, offset + limit), total: events.length, limit, offset });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -823,7 +850,7 @@ router.get('/calendar', authMiddleware, premiumMiddleware, async (req, res) => {
 
 router.post('/calendar', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const event = await agentModule.createCalendarEvent({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    const event = await agentModule.createCalendarEvent({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
     res.json(event);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -832,8 +859,10 @@ router.post('/calendar', authMiddleware, premiumMiddleware, async (req, res) => 
 
 router.put('/calendar/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await agentModule.getCalendarEvent(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Event not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to modify this event' });
     const event = await agentModule.updateCalendarEvent(req.params.id, req.body);
-    if (!event) return res.status(404).json({ error: 'Event not found' });
     res.json(event);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -842,6 +871,9 @@ router.put('/calendar/:id', authMiddleware, premiumMiddleware, async (req, res) 
 
 router.delete('/calendar/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await agentModule.getCalendarEvent(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Event not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to delete this event' });
     await agentModule.deleteCalendarEvent(req.params.id);
     res.json({ deleted: true });
   } catch (err) {
@@ -865,7 +897,7 @@ router.get('/contacts', authMiddleware, premiumMiddleware, async (req, res) => {
 
 router.post('/contacts', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const contact = await agentModule.createContact({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    const contact = await agentModule.createContact({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
     res.json(contact);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -874,8 +906,10 @@ router.post('/contacts', authMiddleware, premiumMiddleware, async (req, res) => 
 
 router.put('/contacts/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await agentModule.getContact(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Contact not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to modify this contact' });
     const contact = await agentModule.updateContact(req.params.id, req.body);
-    if (!contact) return res.status(404).json({ error: 'Contact not found' });
     res.json(contact);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -884,6 +918,9 @@ router.put('/contacts/:id', authMiddleware, premiumMiddleware, async (req, res) 
 
 router.delete('/contacts/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await agentModule.getContact(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Contact not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to delete this contact' });
     await agentModule.deleteContact(req.params.id);
     res.json({ deleted: true });
   } catch (err) {
@@ -907,7 +944,7 @@ router.get('/automations', authMiddleware, premiumMiddleware, async (req, res) =
 
 router.post('/automations', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const auto = await agentModule.createAutomation({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    const auto = await agentModule.createAutomation({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
     res.json(auto);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -916,8 +953,10 @@ router.post('/automations', authMiddleware, premiumMiddleware, async (req, res) 
 
 router.put('/automations/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await agentModule.getAutomation(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Automation not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to modify this automation' });
     const auto = await agentModule.updateAutomation(req.params.id, req.body);
-    if (!auto) return res.status(404).json({ error: 'Automation not found' });
     res.json(auto);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -926,6 +965,9 @@ router.put('/automations/:id', authMiddleware, premiumMiddleware, async (req, re
 
 router.delete('/automations/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await agentModule.getAutomation(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Automation not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to delete this automation' });
     await agentModule.deleteAutomation(req.params.id);
     res.json({ deleted: true });
   } catch (err) {
@@ -959,7 +1001,7 @@ router.get('/goals', authMiddleware, premiumMiddleware, async (req, res) => {
 
 router.post('/goals', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const goal = await goalsModule.createGoal({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    const goal = await goalsModule.createGoal({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
     res.json(goal);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -978,8 +1020,10 @@ router.get('/goals/:id', authMiddleware, premiumMiddleware, async (req, res) => 
 
 router.put('/goals/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await goalsModule.getGoal(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Goal not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to modify this goal' });
     const goal = await goalsModule.updateGoal(req.params.id, req.body);
-    if (!goal) return res.status(404).json({ error: 'Goal not found' });
     res.json(goal);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -988,6 +1032,9 @@ router.put('/goals/:id', authMiddleware, premiumMiddleware, async (req, res) => 
 
 router.delete('/goals/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await goalsModule.getGoal(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Goal not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to delete this goal' });
     await goalsModule.deleteGoal(req.params.id);
     res.json({ deleted: true });
   } catch (err) {
@@ -1018,8 +1065,9 @@ router.get('/stages', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
     const filters = {};
     if (req.query.persona_id) filters.persona_id = req.query.persona_id;
+    const { limit, offset } = paginated(req, 200);
     const stages = await stagesModule.listConversationStages(filters);
-    res.json({ stages, total: stages.length });
+    res.json({ stages: stages.slice(offset, offset + limit), total: stages.length, limit, offset });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1087,8 +1135,9 @@ router.get('/org-memory', authMiddleware, premiumMiddleware, async (req, res) =>
     if (req.query.persona_id) filters.persona_id = req.query.persona_id;
     if (req.query.category) filters.category = req.query.category;
     if (req.query.search) filters.search = req.query.search;
+    const { limit, offset } = paginated(req, 200);
     const memories = await orgMemoryModule.listOrgMemory(filters);
-    res.json({ memories, total: memories.length });
+    res.json({ memories: memories.slice(offset, offset + limit), total: memories.length, limit, offset });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1096,7 +1145,7 @@ router.get('/org-memory', authMiddleware, premiumMiddleware, async (req, res) =>
 
 router.post('/org-memory', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const mem = await orgMemoryModule.createOrgMemory({ ...req.body, owner_id: req.userId || req.body.owner_id });
+    const mem = await orgMemoryModule.createOrgMemory({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
     res.json(mem);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1124,8 +1173,10 @@ router.get('/org-memory/:id', authMiddleware, premiumMiddleware, async (req, res
 
 router.put('/org-memory/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await orgMemoryModule.getOrgMemory(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Memory not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to modify this memory' });
     const mem = await orgMemoryModule.updateOrgMemory(req.params.id, req.body);
-    if (!mem) return res.status(404).json({ error: 'Memory not found' });
     res.json(mem);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1134,6 +1185,9 @@ router.put('/org-memory/:id', authMiddleware, premiumMiddleware, async (req, res
 
 router.delete('/org-memory/:id', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
+    const existing = await orgMemoryModule.getOrgMemory(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Memory not found' });
+    if (!checkOwner(existing.owner_id, req.userId, req.userRole)) return res.status(403).json({ error: 'Not authorized to delete this memory' });
     await orgMemoryModule.deleteOrgMemory(req.params.id);
     res.json({ deleted: true });
   } catch (err) {
@@ -1287,8 +1341,9 @@ router.get('/override/status/:sessionId', authMiddleware, premiumMiddleware, asy
 
 router.get('/override/list', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const overrides = await overrideModule.listOverrides({ is_active: true, limit: 20 });
-    res.json({ overrides, total: overrides.length });
+    const { limit, offset } = paginated(req, 200);
+    const overrides = await overrideModule.listOverrides({ is_active: true });
+    res.json({ overrides: overrides.slice(offset, offset + limit), total: overrides.length, limit, offset });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1297,8 +1352,9 @@ router.get('/override/list', authMiddleware, adminMiddleware, async (req, res) =
 // ===== Agent Thoughts =====
 router.get('/thoughts', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    const thoughts = await thoughtsModule.getThoughts({ persona_id: req.query.persona_id, limit: parseInt(req.query.limit) || 50 });
-    res.json({ thoughts, total: thoughts.length });
+    const { limit, offset } = paginated(req, 200);
+    const thoughts = await thoughtsModule.getThoughts({ persona_id: req.query.persona_id, limit: 1000 });
+    res.json({ thoughts: thoughts.slice(offset, offset + limit), total: thoughts.length, limit, offset });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1574,9 +1630,10 @@ router.post('/vector-reindex', authMiddleware, adminMiddleware, async (req, res)
 router.get('/creatives', authMiddleware, adminMiddleware, async (req, res) => {
   try {
     const creative = require('../creative');
-    const { persona_id, owner_id, type, limit } = req.query;
-    const creatives = await creative.listCreatives(persona_id || null, owner_id || 'system', type || null, parseInt(limit) || 20);
-    res.json(creatives);
+    const { persona_id, owner_id, type } = req.query;
+    const { limit, offset } = paginated(req, 200);
+    const creatives = await creative.listCreatives(persona_id || null, owner_id || 'system', type || null, 1000);
+    res.json({ creatives: creatives.slice(offset, offset + limit), total: creatives.length, limit, offset });
   } catch (err) {
     console.error('[Admin] List creatives error:', err);
     res.status(500).json({ error: 'Failed to list creatives' });

@@ -595,8 +595,10 @@ async function loadQueue() {
 
 function initRealtime() {
   try {
-    socket = io({ auth: { userId: 'admin' } });
+    socket = io({ transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 5, reconnectionDelay: 3000, auth: { userId: 'admin' } });
     socket.on('connect', () => console.log('[RT] Connected'));
+    socket.on('disconnect', () => {});
+    socket.on('connect_error', () => {});
     socket.on('xp_update', data => { /* could update dashboard */ });
     socket.on('cognitive_state', data => { /* could show live emotion */ });
     socket.on('new_message', data => { /* could show live messages */ });

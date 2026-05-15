@@ -45,7 +45,7 @@ function makeInstagramHandler(options = {}) {
 
     if (text.startsWith('/')) {
       try {
-        const cmdResult = await handleChatCommand(text, userId, 'instagram', sid);
+        const cmdResult = await handleChatCommand(text, userId, 'instagram', sid, instancePersonaId);
         if (cmdResult) {
           await sendInstagramMessage(igClient, threadId, cmdResult);
           return;

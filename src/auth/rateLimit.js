@@ -24,48 +24,35 @@ async function checkRateLimit(userId, role) {
   const limit = parseInt(await getSetting(limitKey, '30')) || 30;
 
   const windowHours = 24;
+  const windowMs = windowHours * 60 * 60 * 1000;
   const serviceType = 'chat';
+
+  await pool.execute(
+    'INSERT INTO rate_limits (user_id, service_type, request_count, window_start) VALUES (?, ?, 1, NOW()) ON DUPLICATE KEY UPDATE request_count = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, 1, request_count + 1), window_start = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, NOW(), window_start)',
+    [userId, serviceType, windowHours, windowHours]
+  );
 
   const [rows] = await pool.execute(
     'SELECT request_count, window_start FROM rate_limits WHERE user_id = ? AND service_type = ?',
     [userId, serviceType]
   );
 
-  const now = new Date();
-
-  if (rows.length === 0) {
-    await pool.execute(
-      'INSERT INTO rate_limits (user_id, service_type, request_count, window_start) VALUES (?, ?, 1, NOW())',
-      [userId, serviceType]
-    );
-    return { allowed: true, remaining: limit - 1, limit, resetIn: windowHours * 60 };
-  }
-
   const row = rows[0];
-  const windowStart = new Date(row.window_start);
-  const elapsedMs = now - windowStart;
-  const windowMs = windowHours * 60 * 60 * 1000;
 
-  if (elapsedMs >= windowMs) {
-    await pool.execute(
-      'UPDATE rate_limits SET request_count = 1, window_start = NOW() WHERE user_id = ? AND service_type = ?',
-      [userId, serviceType]
-    );
-    return { allowed: true, remaining: limit - 1, limit, resetIn: windowHours * 60 };
-  }
-
-  if (row.request_count >= limit) {
+  if (row.request_count > limit) {
+    const windowStart = new Date(row.window_start);
+    const elapsedMs = Date.now() - windowStart;
     const remainingMs = windowMs - elapsedMs;
     const remainingMin = Math.ceil(remainingMs / 60000);
+    await pool.execute(
+      'UPDATE rate_limits SET request_count = ? WHERE user_id = ? AND service_type = ?',
+      [limit, userId, serviceType]
+    );
     return { allowed: false, remaining: 0, limit, resetIn: remainingMin };
   }
 
-  await pool.execute(
-    'UPDATE rate_limits SET request_count = request_count + 1 WHERE user_id = ? AND service_type = ?',
-    [userId, serviceType]
-  );
-
-  return { allowed: true, remaining: limit - row.request_count - 1, limit, resetIn: Math.ceil((windowMs - elapsedMs) / 60000) };
+  const remaining = limit - row.request_count;
+  return { allowed: true, remaining, limit, resetIn: Math.ceil(windowMs / 60000) };
 }
 
 async function checkBan(userId) {
@@ -74,7 +61,7 @@ async function checkBan(userId) {
 }
 
 async function rateLimitMiddleware(req, res, next) {
-  const userId = req.userId || req.body?.userId || 'user_default';
+  const userId = req.userId || 'user_default';
   const role = req.userRole || await getUserRole(userId);
 
   if (role === 'banned') {

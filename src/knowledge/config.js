@@ -29,9 +29,9 @@ const DEFAULT_SOURCES = [
 
     defaultTopK: 8,
     contextTemplate: {
-      'pt-BR': 'VERSÍCULOS BÍBLICOS ENCONTRADOS (CONTEXTO PARA ESTA RESPOSTA):\n{context}\n\nUse estes versículos como base para sua resposta. Cite-os quando pertinente.',
-      'en-US': 'BIBLE VERSES FOUND (CONTEXT FOR THIS RESPONSE):\n{context}\n\nUse these verses as the basis for your response. Cite them when relevant.',
-      'es-ES': 'VERSÍCULOS BÍBLICOS ENCONTRADOS (CONTEXTO PARA ESTA RESPUESTA):\n{context}\n\nUsa estos versículos como base para tu respuesta. Cítalos cuando sea pertinente.',
+      'pt-BR': 'VERSÍCULOS BÍBLICOS ENCONTRADOS (CONTEXTO PARA ESTA RESPOSTA):\n{context}\n\nIMPORTANTE: Os versículos acima JÁ ESTÃO DISPONÍVEIS no contexto. NÃO diga "deixe-me buscar", "vou procurar" ou "espere enquanto busco" — USE os versículos diretamente na sua resposta, citando livro, capítulo e versículo.',
+      'en-US': 'BIBLE VERSES FOUND (CONTEXT FOR THIS RESPONSE):\n{context}\n\nIMPORTANT: The verses above are ALREADY AVAILABLE in context. Do NOT say "let me search" or "I will look up" — USE the verses directly in your response, citing book, chapter and verse.',
+      'es-ES': 'VERSÍCULOS BÍBLICOS ENCONTRADOS (CONTEXTO PARA ESTA RESPUESTA):\n{context}\n\nIMPORTANTE: Los versículos arriba YA ESTÁN DISPONIBLES en el contexto. NO diga "déjame buscar" o "voy a buscar" — USE los versículos directamente en su respuesta, citando libro, capítulo y versículo.',
     },
 
     sourceFormat: (verses) => verses.map(v => `${v.reference}: "${v.text}"`).join('\n'),

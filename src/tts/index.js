@@ -69,6 +69,7 @@ const DEFAULT_PITCH = process.env.TTS_PITCH || '-2Hz';
 const DEFAULT_VOLUME = process.env.TTS_VOLUME || '+0%';
 const MAX_TTS_LENGTH = 5000;
 const MAX_EDGE_TTS_CHUNK = 5000;
+const MAX_KOKORO_CHUNK = 200;
 const SUPPORTED_TTS_LANGS = ['pt-BR', 'en-US', 'es-ES'];
 
 function cleanTextForTTS(text) {
@@ -282,7 +283,6 @@ async function generateAudioBuffer(text, options = {}) {
   if (!cleanText) return null;
 
   const lang = options.lang || 'pt-BR';
-  const maxChunk = TTS_MODE === 'multivozes' ? MAX_TTS_LENGTH : MAX_EDGE_TTS_CHUNK;
   const ttsLang = SUPPORTED_TTS_LANGS.includes(lang) ? lang : 'pt-BR';
 
   let engine = 'edge-tts';
@@ -295,6 +295,8 @@ async function generateAudioBuffer(text, options = {}) {
     engine = 'multivozes';
     contentType = 'audio/mp3';
   }
+
+  const maxChunk = MAX_EDGE_TTS_CHUNK;
 
   if (cleanText.length <= maxChunk) {
     try {

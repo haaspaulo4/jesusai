@@ -21,11 +21,10 @@ function getConfig(userId, userKey) {
 
 function extractContent(data) {
   if (!data || !data.message) return '';
-  const content = data.message.content || '';
-  const thinking = data.message.thinking || '';
-  if (content.trim()) return content.trim();
-  if (thinking.trim()) return thinking.trim();
-  return (content + thinking).trim();
+  const content = (data.message.content || '').trim();
+  if (content) return content;
+
+  return '';
 }
 
 async function chat(messages, options = {}) {
@@ -137,7 +136,7 @@ async function* parseStream(response) {
         const data = JSON.parse(trimmed);
         if (data.done) return;
         if (data.message) {
-          const content = data.message.content || data.message.thinking || '';
+          const content = data.message.content || '';
           if (content) yield content;
         }
         if (data.tool_calls && data.tool_calls.length > 0) {

@@ -8,7 +8,7 @@
   <link rel="icon" id="pageFavicon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
-  <script src="https://cdn.socket.io/4.7.4/socket.io.min.js"></script>
+  <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
   <link rel="stylesheet" href="css/style.css">
   <script>
     tailwind.config = {
@@ -654,7 +654,7 @@
       <div class="flex gap-2">
         <input v-model="followUpAnswer" type="text" :placeholder="t('onboardingAnswer')" class="flex-1 bg-surface-700 border border-white/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-500" @keydown.enter="answerFollowUp(followUpAnswer)">
         <button @click="answerFollowUp(followUpAnswer)" class="bg-brand-500 hover:bg-brand-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition">{{ t('submit') }}</button>
-        <button @click="showFollowUp=false;followUpData=null" class="border border-white/10 text-gray-400 hover:text-white px-3 py-2 rounded-lg text-sm transition">&times;</button>
+        <button @click="dismissFollowUp" class="border border-white/10 text-gray-400 hover:text-white px-3 py-2 rounded-lg text-sm transition">&times;</button>
       </div>
     </div>
   </div>

@@ -17,7 +17,7 @@ const app = createApp({
 
     const authToken = ref(localStorage.getItem('mp_token') || null);
     const currentUserId = ref(localStorage.getItem('mp_user_id') || 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8));
-    const sessionId = ref(localStorage.getItem('mp_session_id') || '');
+    const sessionId = ref(localStorage.getItem('mp_session_id') || null);
     const currentPersonaId = ref(localStorage.getItem('mp_persona') || 'jesus');
     const currentPersonaName = ref('');
     const currentPersonaIcon = ref('');
@@ -327,9 +327,10 @@ const app = createApp({
       localStorage.removeItem('mp_user_id');
       localStorage.removeItem('mp_session_id');
       authToken.value = null;
-      sessionId.value = '';
+      sessionId.value = null;
       messages.value = [];
       view.value = 'landing';
+      if (currentAudio.value) { currentAudio.value.pause(); currentAudio.value = null; }
       if (socketIo) { socketIo.disconnect(); socketIo = null; }
     }
 
@@ -354,10 +355,12 @@ const app = createApp({
     function connectSocketIO() {
       try {
         if (socketIo) { socketIo.disconnect(); }
-        socketIo = io('/', { transports: ['websocket', 'polling'] });
+        socketIo = io({ transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 5, reconnectionDelay: 3000 });
         socketIo.on('connect', () => {
-          if (currentUserId.value) socketIo.emit('auth', { userId: currentUserId.value, sessionId: sessionId.value });
+          if (currentUserId.value) socketIo.emit('auth', { userId: currentUserId.value, sessionId: sessionId.value || undefined });
         });
+        socketIo.on('disconnect', () => {});
+        socketIo.on('connect_error', () => {});
         socketIo.on('xp_update', () => {});
         socketIo.on('badge_earned', () => {});
       } catch (e) {}
@@ -441,7 +444,7 @@ const app = createApp({
         const data = await res.json();
         currentPersonaId.value = id;
         localStorage.setItem('mp_persona', id);
-        sessionId.value = '';
+        sessionId.value = null;
         localStorage.removeItem('mp_session_id');
         messages.value = [];
         chatHistory = [];
@@ -459,8 +462,8 @@ const app = createApp({
         }
         if (data.ttsVoice) currentTTSVoice.value = data.ttsVoice;
 
-        const wt = data.welcomeTitle;
-        const wb = data.welcomeBody;
+        const wt = data.welcomeTitle || {};
+        const wb = data.welcomeBody || {};
         const title = (typeof wt === 'object' ? (wt[currentLang.value] || wt['pt-BR'] || '') : (wt || ''));
         const body = (typeof wb === 'object' ? (wb[currentLang.value] || wb['pt-BR'] || '') : (wb || ''));
         if (title || body) {
@@ -494,14 +497,13 @@ const app = createApp({
       messages.value.push({ role: 'bot', content: '', sources: [], speaking: false });
 
       try {
-        const res = await fetch('/api/chat', {
+        const res = await api('/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             message: text,
             sessionId: sessionId.value || undefined,
-            userId: currentUserId.value,
             language: currentLang.value,
+            personaId: currentPersonaId.value || undefined,
           }),
         });
 
@@ -573,6 +575,28 @@ const app = createApp({
       }
     }
 
+    const TTS_CHUNK_SIZE = 200;
+
+    function splitIntoChunks(text, maxLen) {
+      const clean = text.replace(/\*[^*]+\*/g, m => m.replace(/\*/g, '')).replace(/<[^>]+>/g, '').replace(/#{1,6}\s/g, '').trim();
+      if (!clean) return [];
+      const sentences = clean.match(/[^.!?]+[.!?]+/g) || [clean];
+      const chunks = [];
+      let current = '';
+      for (const s of sentences) {
+        const t = s.trim();
+        if (!t) continue;
+        if ((current + ' ' + t).trim().length > maxLen && current.length > 0) {
+          chunks.push(current.trim());
+          current = t;
+        } else {
+          current = current ? current + ' ' + t : t;
+        }
+      }
+      if (current.trim()) chunks.push(current.trim());
+      return chunks.length > 0 ? chunks : [clean.substring(0, maxLen)];
+    }
+
     function speakText(text, index) {
       const msg = messages.value[index];
       if (!msg) return;
@@ -587,28 +611,42 @@ const app = createApp({
       }
 
       msg.speaking = true;
-      const cleanText = text.replace(/\*[^*]+\*/g, m => m.replace(/\*/g, '')).replace(/<[^>]+>/g, '').replace(/#{1,6}\s/g, '').substring(0, 200);
-
       const ttsLang = { 'pt-BR': 'pt-BR', 'en-US': 'en-US', 'es-ES': 'es-ES' }[currentLang.value] || 'pt-BR';
+      const chunks = splitIntoChunks(text, TTS_CHUNK_SIZE);
 
-      fetch('/api/tts', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: cleanText, lang: ttsLang, voice: currentTTSVoice.value || undefined }),
-      }).then(res => {
-        if (res.ok) return res.blob();
-        throw new Error('TTS failed');
-      }).then(blob => {
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        currentAudio.value = audio;
-        audio.onended = () => { msg.speaking = false; currentAudio.value = null; URL.revokeObjectURL(url); };
-        audio.onerror = () => { msg.speaking = false; currentAudio.value = null; URL.revokeObjectURL(url); };
-        audio.play().catch(() => { msg.speaking = false; speakWithBrowser(cleanText, msg); });
-      }).catch(() => {
-        msg.speaking = false;
-        speakWithBrowser(cleanText, msg);
-      });
+      if (chunks.length === 0) { msg.speaking = false; return; }
+
+      let chunkIndex = 0;
+
+      function playNextChunk() {
+        if (chunkIndex >= chunks.length || !msg.speaking) {
+          msg.speaking = false;
+          currentAudio.value = null;
+          return;
+        }
+
+        const chunk = chunks[chunkIndex];
+        chunkIndex++;
+
+        api('/tts', {
+          method: 'POST',
+          body: JSON.stringify({ text: chunk, lang: ttsLang, voice: currentTTSVoice.value || undefined }),
+        }).then(res => {
+          if (res.ok) return res.blob();
+          throw new Error('TTS failed');
+        }).then(blob => {
+          const url = URL.createObjectURL(blob);
+          const audio = new Audio(url);
+          currentAudio.value = audio;
+          audio.onended = () => { URL.revokeObjectURL(url); playNextChunk(); };
+          audio.onerror = () => { URL.revokeObjectURL(url); playNextChunk(); };
+          audio.play().catch(() => { URL.revokeObjectURL(url); speakWithBrowser(chunk, msg); });
+        }).catch(() => {
+          playNextChunk();
+        });
+      }
+
+      playNextChunk();
     }
 
     function speakWithBrowser(text, msg) {
@@ -683,7 +721,7 @@ const app = createApp({
         await api(`/session/${id}`, { method: 'DELETE' });
         conversations.value = conversations.value.filter(c => c.id !== id);
         if (sessionId.value === id) {
-          sessionId.value = '';
+          sessionId.value = null;
           localStorage.removeItem('mp_session_id');
           messages.value = [];
         }
@@ -691,7 +729,7 @@ const app = createApp({
     }
 
     function newChat() {
-      sessionId.value = '';
+      sessionId.value = null;
       localStorage.removeItem('mp_session_id');
       messages.value = [];
       chatHistory = [];
@@ -794,10 +832,9 @@ const app = createApp({
 
     async function checkOnboarding() {
       try {
-        const res = await fetch('/api/chat', {
+        const res = await api('/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: ' ', sessionId: sessionId.value || undefined, userId: currentUserId.value, language: currentLang.value, personaId: currentPersonaId.value || undefined }),
+          body: JSON.stringify({ message: ' ', sessionId: sessionId.value || undefined, language: currentLang.value, personaId: currentPersonaId.value || undefined }),
         });
         if (res.ok) {
           const data = await res.json();
@@ -835,10 +872,9 @@ const app = createApp({
     async function submitOnboardingAnswer(answer) {
       if (!answer.trim()) return;
       try {
-        const res = await fetch('/api/chat', {
+        const res = await api('/chat', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ message: answer, sessionId: sessionId.value || undefined, userId: currentUserId.value, language: currentLang.value, personaId: currentPersonaId.value || undefined }),
+          body: JSON.stringify({ message: answer, sessionId: sessionId.value || undefined, language: currentLang.value, personaId: currentPersonaId.value || undefined }),
         });
         if (res.ok) {
           const data = await res.json();
@@ -903,17 +939,25 @@ const app = createApp({
       sendMessage();
     }
 
+    const dismissedFollowUps = new Set();
+
     async function checkFollowUp() {
       try {
         const res = await api(`/followups/pending?userId=${currentUserId.value}`);
         if (res.ok) {
           const data = await res.json();
-          if (data && data.id && data.question) {
+          if (data && data.id && data.question && !dismissedFollowUps.has(data.id)) {
             followUpData.value = data;
             showFollowUp.value = true;
           }
         }
       } catch {}
+    }
+
+    function dismissFollowUp() {
+      if (followUpData.value) dismissedFollowUps.add(followUpData.value.id);
+      showFollowUp.value = false;
+      followUpData.value = null;
     }
 
     async function answerFollowUp(response) {
@@ -923,6 +967,7 @@ const app = createApp({
           method: 'POST',
           body: JSON.stringify({ response }),
         });
+        dismissedFollowUps.add(followUpData.value.id);
         showFollowUp.value = false;
         followUpData.value = null;
       } catch {}
@@ -1227,7 +1272,7 @@ const app = createApp({
       speakText, formatMarkdown, loadConversations, loadSession, deleteSession, newChat,
       loadBlog, viewPost, doSearch, searchSource, loadBibleBooks,
       saveProfile, saveApiKey, removeApiKey, copyPix, formatDate, saveLang,
-      submitOnboardingAnswer, checkFollowUp, answerFollowUp,
+      submitOnboardingAnswer, checkFollowUp, answerFollowUp, dismissFollowUp,
       sendQuickAction, loadQuickActions, loadContextualWelcome,
       // Quiz functions
       loadQuizzes, startQuiz, selectQuizAnswer, toggleQuizAnswer, nextQuizQuestion, prevQuizQuestion, submitQuiz, closeQuiz,

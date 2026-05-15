@@ -17,19 +17,53 @@ class KeyManager {
   async load() {
     try {
       const [rows] = await pool.execute(
-        'SELECT id, api_key, provider, base_url, model, label, priority, is_active FROM api_keys WHERE is_active = 1 ORDER BY priority ASC, id ASC'
+        'SELECT id, api_key, service_type as provider, base_url, model, label, priority, is_active FROM api_keys WHERE is_active = 1 ORDER BY priority ASC, id ASC'
       );
 
-      const envKey = process.env.OLLAMA_API_KEY;
       const envUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
-      const envModel = process.env.CHAT_MODEL || 'glm-5.1';
+      const envModel = process.env.OLLAMA_MODEL || 'glm-5.1';
 
       this.keys = [];
 
-      if (envKey) {
+      // Auto-detect multiple keys from .env (OLLAMA_API_KEY_1, _2, _3, etc.)
+      const envKeys = Object.entries(process.env)
+        .filter(([k]) => k.startsWith('OLLAMA_API_KEY_') && !k.includes('BASE_URL'))
+        .sort(([a], [b]) => {
+          const aNum = parseInt(a.split('_').pop());
+          const bNum = parseInt(b.split('_').pop());
+          return aNum - bNum;
+        });
+
+      if (envKeys.length > 0) {
+        for (const [key, value] of envKeys) {
+          const keyNum = key.split('_').pop();
+          this.keys.push({
+            id: `env_key_${keyNum}`,
+            key: value,
+            provider: 'ollama',
+            baseUrl: process.env[`OLLAMA_BASE_URL_${keyNum}`] || envUrl,
+            model: process.env[`OLLAMA_MODEL_${keyNum}`] || process.env.OLLAMA_MODEL || process.env[`CHAT_MODEL_${keyNum}`] || envModel,
+            label: `Key ${keyNum} (env)`,
+            priority: parseInt(keyNum),
+            active: true,
+            healthy: true,
+            lastUsed: null,
+            lastError: null,
+            consecutiveFailures: 0,
+            lastHealthCheck: null,
+            rateLimitRemaining: null,
+            usageCount: 0,
+            source: 'env',
+          });
+        }
+        console.log(`[KeyManager] Loaded ${envKeys.length} keys from .env`);
+      }
+
+      // Fallback: single OLLAMA_API_KEY (backwards compatibility)
+      if (envKeys.length === 0 && process.env.OLLAMA_API_KEY) {
         this.keys.push({
           id: 'env_default',
-          key: envKey,
+          key: process.env.OLLAMA_API_KEY,
           provider: 'ollama',
           baseUrl: envUrl,
           model: envModel,
@@ -42,13 +76,16 @@ class KeyManager {
           consecutiveFailures: 0,
           lastHealthCheck: null,
           rateLimitRemaining: null,
+          usageCount: 0,
+          source: 'env',
         });
       }
 
+      // Load keys from DB
       for (const row of rows) {
         if (this.keys.some(k => k.key === row.api_key)) continue;
         this.keys.push({
-          id: row.id,
+          id: `db_${row.id}`,
           key: row.api_key,
           provider: row.provider || 'ollama',
           baseUrl: row.base_url || envUrl,
@@ -62,11 +99,13 @@ class KeyManager {
           consecutiveFailures: 0,
           lastHealthCheck: null,
           rateLimitRemaining: null,
+          usageCount: 0,
+          source: 'db',
         });
       }
 
       if (this.keys.length === 0) {
-        this.keys.push({
+      this.keys.push({
           id: 'free_tier',
           key: '',
           provider: 'ollama',
@@ -81,6 +120,8 @@ class KeyManager {
           consecutiveFailures: 0,
           lastHealthCheck: null,
           rateLimitRemaining: null,
+          usageCount: 0,
+          source: 'free',
         });
       }
 
@@ -105,14 +146,24 @@ class KeyManager {
   }
 
   _addFallbackFromEnv() {
-    const envKey = process.env.OLLAMA_API_KEY;
-    const envUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
-    const envModel = process.env.CHAT_MODEL || 'glm-5.1';
+  const envUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
+  const envModel = process.env.OLLAMA_MODEL || 'glm-5.1';
+
+    // Check for multi-key pattern
+    const envKeys = Object.entries(process.env)
+      .filter(([k]) => k.startsWith('OLLAMA_API_KEY_') && !k.includes('BASE_URL'))
+      .sort(([a], [b]) => {
+        const aNum = parseInt(a.split('_').pop());
+        const bNum = parseInt(b.split('_').pop());
+        return aNum - bNum;
+      });
+
+    if (envKeys.length > 0) return; // Keys already loaded
 
     if (!this.keys.some(k => k.id === 'env_default')) {
       this.keys.push({
         id: 'env_default',
-        key: envKey || '',
+        key: process.env.OLLAMA_API_KEY || '',
         provider: 'ollama',
         baseUrl: envUrl,
         model: envModel,
@@ -125,7 +176,61 @@ class KeyManager {
         consecutiveFailures: 0,
         lastHealthCheck: null,
         rateLimitRemaining: null,
+        usageCount: 0,
+        source: 'env',
       });
+    }
+  }
+
+  getStats() {
+    return this.keys.map(k => ({
+      id: k.id,
+      label: k.label,
+      healthy: k.healthy,
+      active: k.active,
+      usageCount: k.usageCount || 0,
+      lastUsed: k.lastUsed,
+      lastError: k.lastError,
+      consecutiveFailures: k.consecutiveFailures,
+      source: k.source,
+    }));
+  }
+
+  async testKey(keyId) {
+    const key = this.keys.find(k => k.id === keyId);
+    if (!key) return { success: false, error: 'Key not found' };
+
+    try {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 10000);
+
+      const response = await fetch(`${key.baseUrl}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(key.key ? { Authorization: `Bearer ${key.key}` } : {}),
+        },
+        body: JSON.stringify({
+          model: key.model,
+          messages: [{ role: 'user', content: 'Hi' }],
+          stream: false,
+          options: { num_predict: 1 },
+        }),
+        signal: controller.signal,
+      });
+
+      clearTimeout(timer);
+
+      if (response.ok) {
+        key.healthy = true;
+        key.consecutiveFailures = 0;
+        return { success: true, status: response.status };
+      } else {
+        const err = await response.text();
+        return { success: false, error: `HTTP ${response.status}: ${err.substring(0, 100)}` };
+      }
+    } catch (err) {
+      return { success: false, error: err.message };
     }
   }
 
@@ -142,7 +247,7 @@ class KeyManager {
             key: rows[0].ollama_api_key,
             provider: 'ollama',
             baseUrl: this.keys[0]?.baseUrl || process.env.OLLAMA_BASE_URL || 'https://ollama.com/api',
-            model: this.keys[0]?.model || process.env.CHAT_MODEL || 'glm-5.1',
+            model: this.keys[0]?.model || process.env.OLLAMA_MODEL || 'glm-5.1',
             label: `User ${userId} key`,
             priority: -1,
             active: true,
@@ -174,12 +279,23 @@ class KeyManager {
     candidates.sort((a, b) => a.priority - b.priority);
 
     const now = Date.now();
+    
+    // Load balancing: pick key with lowest usage count first
+    candidates.sort((a, b) => (a.usageCount || 0) - (b.usageCount || 0));
+    
     const roundRobin = candidates.filter(k => !k.lastUsed || now - k.lastUsed > 1000);
     if (roundRobin.length > 0) {
       const picked = roundRobin[0];
       picked.lastUsed = now;
+      picked.usageCount = (picked.usageCount || 0) + 1;
       return picked;
     }
+    
+    // All recently used - pick least used
+    const picked = candidates[0];
+    picked.lastUsed = now;
+    picked.usageCount = (picked.usageCount || 0) + 1;
+    return picked;
 
     return candidates[0];
   }
@@ -257,6 +373,29 @@ class KeyManager {
           console.warn(`[KeyManager] Key "${key.label}" rate limited (429), trying next...`);
           lastErr = new Error('Rate limit atingido. Tente novamente em alguns segundos.');
           continue;
+        }
+
+        // Handle 403 - subscription required (key needs paid plan)
+        if (response.status === 403) {
+          const errText = await response.text().catch(() => '');
+          key.consecutiveFailures++;
+          key.lastError = `403 Forbidden: ${errText.substring(0, 200)}`;
+          key.healthy = false;
+          
+          // Mark as permanently dead - don't retry this key for a long time (24 hours)
+          console.warn(`[KeyManager] Key "${key.label}" requires subscription (403) - marking as dead for 24h`);
+          
+          setTimeout(() => {
+            key.healthy = true;
+            key.consecutiveFailures = 0;
+            console.log(`[KeyManager] Key "${key.label}" re-enabled after 24h cooldown`);
+          }, 86400000); // 24 hours
+          
+          if (failover) {
+            lastErr = new Error(`Key "${key.label}" requer assinatura paid. Tentando próxima...`);
+            continue;
+          }
+          throw new Error(`403: Esta key requer assinatura do Ollama. Use uma key diferente.`);
         }
 
         if (!response.ok) {
@@ -453,7 +592,7 @@ class KeyManager {
     const {
       provider = 'ollama',
       baseUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api',
-      model = process.env.CHAT_MODEL || 'glm-5.1',
+      model = process.env.OLLAMA_MODEL || 'glm-5.1',
       label = null,
       priority = 100,
     } = opts;

@@ -13,18 +13,22 @@ async function getXp(userId, personaId) {
 }
 
 async function addXp(userId, personaId, amount, reason) {
-  const current = await getXp(userId, personaId);
-  const newXp = (current.xp || 0) + amount;
-  const newLevel = calculateLevel(newXp);
-  const leveledUp = newLevel > (current.level || 1);
-
   await pool.execute(
     `INSERT INTO user_xp (user_id, persona_id, xp, level, streak, best_streak, last_activity, badges)
-     VALUES (?, ?, ?, ?, ?, ?, NOW(), ?)
-     ON DUPLICATE KEY UPDATE xp=?, level=?, last_activity=NOW()`,
-    [userId, personaId, newXp, newLevel, current.streak || 0, current.best_streak || 0, JSON.stringify(current.badges || []),
-     newXp, newLevel]
+     VALUES (?, ?, ?, 1, 0, 0, NOW(), '[]')
+     ON DUPLICATE KEY UPDATE xp = xp + ?, last_activity = NOW()`,
+    [userId, personaId, amount, amount]
   );
+
+  const current = await getXp(userId, personaId);
+  const newLevel = calculateLevel(current.xp);
+  if (newLevel !== current.level) {
+    await pool.execute('UPDATE user_xp SET level = ? WHERE user_id = ? AND persona_id = ?', [newLevel, userId, personaId]);
+    current.level = newLevel;
+  }
+
+  const previousXp = current.xp - amount;
+  const leveledUp = newLevel > calculateLevel(previousXp);
 
   if (reason) {
     await pool.execute(

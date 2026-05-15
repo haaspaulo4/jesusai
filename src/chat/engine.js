@@ -3,6 +3,7 @@ const { getToolDefinitions, executeTool, formatToolResultToMessage } = require('
 const { executeTool: execExtTool, getToolDefinitions: getExtToolDefs, loadTools: loadExtTools } = require('../tools');
 const { extractContent } = require('../llm');
 const { buildSystemPrompt } = require('../persona/config');
+const { compressForLLM, compressContext } = require('../llm/tokenCompressor');
 const personaManager = require('../persona/manager');
 const metaRag = require('../persona/meta-rag');
 const { searchVerses, searchMultiSource } = require('../knowledge/store');
@@ -28,21 +29,57 @@ const progressModule = require('../progress');
 const cognitiveModule = require('../cognitive');
 const thoughtsModule = require('../thoughts');
 const realtime = require('../realtime');
+const agentModule = require('../agent');
 
 const MAX_TOOL_ROUNDS = 5;
+
+const silenceMap = new Map();
+
+function setSilence(sessionId, count = 0) {
+  if (count <= 0) {
+    silenceMap.delete(sessionId);
+    return { silenced: false, remaining: 0 };
+  }
+  silenceMap.set(sessionId, count);
+  return { silenced: true, remaining: count };
+}
+
+function decSilence(sessionId) {
+  const remaining = silenceMap.get(sessionId);
+  if (!remaining) return false;
+  if (remaining <= 1) {
+    silenceMap.delete(sessionId);
+    return false;
+  }
+  silenceMap.set(sessionId, remaining - 1);
+  return true;
+}
+
+function getSilenceStatus(sessionId) {
+  const remaining = silenceMap.get(sessionId);
+  return { silenced: !!remaining && remaining > 0, remaining: remaining || 0 };
+}
 
 function generateSessionId() {
   return 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
 }
 
-async function getPersonaForContext(sessionId, userId) {
-  let persona;
+async function getPersonaForContext(personaId, sessionId, userId) {
+  // Explicit personaId takes priority
+  if (personaId) {
+    try {
+      const p = await personaManager.getPersona(personaId);
+      if (p) return p;
+    } catch (err) { console.error('[ChatEngine] getPersona error:', err.message); }
+  }
+  // Then session
   if (sessionId) {
     try {
       persona = await personaManager.getSessionPersona(sessionId);
     } catch (err) { console.error('[ChatEngine] getSessionPersona error:', err.message); }
   }
-  if (!persona && userId) {
+  // Then user
+  if (userId) {
     try {
       persona = await personaManager.getUserPersona(userId);
     } catch (err) { console.error('[ChatEngine] getUserPersona error:', err.message); }
@@ -53,7 +90,7 @@ async function getPersonaForContext(sessionId, userId) {
 async function checkOnboarding(uid, lang, personaId) {
   let pid = personaId;
   if (!pid) {
-    const persona = await getPersonaForContext(null, uid);
+    const persona = await getPersonaForContext(null, null, uid);
     pid = persona ? persona.id : null;
   }
   return onboarding.shouldOnboard(uid, pid);
@@ -64,7 +101,7 @@ async function processOnboardingAnswer(uid, message, lang, personaId) {
     let pid = personaId;
     let persona = null;
     if (!pid) {
-      persona = await getPersonaForContext(null, uid);
+      persona = await getPersonaForContext(null, null, uid);
       pid = persona ? persona.id : null;
     } else {
       persona = await personaManager.getPersona(pid).catch(() => null);
@@ -99,9 +136,22 @@ async function processOnboardingAnswer(uid, message, lang, personaId) {
 async function processMessage({ message, sessionId, userId, language, isGroup, source, userName, personaId }) {
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
   const uid = userId || 'user_default';
-   const sid = sessionId || generateSessionId();
+  const sid = sessionId || generateSessionId();
 
-   if (uid && uid !== 'user_default' && !isGroup) {
+  if (message && message.trim().startsWith('/')) {
+    try {
+      const cmdResult = await handleChatCommand(message.trim(), uid, source || 'web', sid, personaId);
+      if (cmdResult) {
+        const responseText = typeof cmdResult === 'string' ? cmdResult : JSON.stringify(cmdResult);
+        console.log(`[ChatEngine] Command handled: ${message.trim().split(/\s+/)[0]}`);
+        return { response: responseText, sessionId: sid, sources: [], language: lang };
+      }
+    } catch (err) {
+      console.error('[ChatEngine] Command error:', err.message, err.stack);
+    }
+  }
+
+  if (uid && uid !== 'user_default' && !isGroup) {
      try {
        await onboarding.ensureUser(uid, userName || uid.replace(/^(wa_|tg_|user_)/, ''), source || 'web');
      } catch (err) { console.error('[ChatEngine] ensureUser error:', err.message); }
@@ -159,7 +209,17 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     }
   }
 
-  const persona = await getPersonaForContext(sid, uid);
+  const silence = getSilenceStatus(sid);
+  if (silence.silenced) {
+    const stillSilenced = decSilence(sid);
+    if (stillSilenced) {
+      const remain = silenceMap.get(sid) || 0;
+      return { response: `🔇 Modo silêncio ativo. Restam ${remain} mensagem(ões) em silêncio. Use /silence off para desativar.`, sessionId: sid, sources: [], language: lang, silenced: true };
+    }
+    return { response: '🔇 Modo silêncio encerrado. Estou de volta!', sessionId: sid, sources: [], language: lang, silenced: false };
+  }
+
+  const persona = await getPersonaForContext(personaId, sid, uid);
   const numVerses = parseInt(await getSetting('search_verses_count', '8')) || 8;
   const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
     ? persona.knowledgeSources
@@ -214,52 +274,33 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
          ? await searchMultiSource(message, personaSources, numVerses)
          : await searchVerses(message, numVerses);
        contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
-     }
-  } else {
+      }
+   } else {
     relevantVerses = personaSources
       ? await searchMultiSource(message, personaSources, numVerses)
       : await searchVerses(message, numVerses);
     contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
-  }
-
-  const [memoryStr, profileStr] = await Promise.all([
-    buildMemoryContext(sid),
-    buildProfileContext(uid),
-  ]);
-
-  let xpContext = '';
-  let xpData = null;
-  const contextPromises = [];
-  if (!goalContext) contextPromises.push(goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 10 }).then(g => { goalContext = goalsModule.formatGoalContext(g); }).catch(err => { console.error('[ChatEngine] goals context error:', err.message); }));
-  if (!orgContext) contextPromises.push(orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5).then(om => { orgContext = orgMemoryModule.getOrgMemoryContext(om); }).catch(err => { console.error('[ChatEngine] org memory context error:', err.message); }));
-  if (!stageContext) contextPromises.push(stagesModule.getUserStageContext(uid, persona.id).then(sc => { stageContext = sc; }).catch(err => { console.error('[ChatEngine] stage context error:', err.message); }));
-  contextPromises.push(gamificationModule.getXp(uid, persona.id).then(xp => { xpData = xp; xpContext = gamificationModule.formatXpContext(xp); return gamificationModule.updateStreak(uid, persona.id); }).then(() => { if (xpData) realtime.emitXpUpdate(uid, xpData); }).catch(err => { console.error('[ChatEngine] xp context error:', err.message); }));
-  if (!progressContext) contextPromises.push(progressModule.getProgressState(uid, persona.id).then(p => { progressContext = progressModule.formatProgressContext(p); }).catch(err => { console.error('[ChatEngine] progress context error:', err.message); }));
-  await Promise.allSettled(contextPromises);
-
-  const session = await getSession(sid);
-  const displayName = userName || session.userName || session.userContext?.name;
-
-  const useContextCompiler = await getSetting('context_compiler_enabled', 'true') === 'true';
-  let extraContext = [goalContext, orgContext, stageContext, xpContext, progressContext, cognitiveContext].filter(Boolean).join('\n\n');
-  let contextMeta = null;
-
-  if (useContextCompiler) {
-    try {
-      const { compileContext, buildContextLayers } = require('../context');
-      const layers = buildContextLayers({
-        goals: goalContext,
-        orgMemory: orgContext,
-        stage: stageContext,
-        xp: xpContext,
-        progress: progressContext,
-        cognitive: cognitiveContext,
-      });
-      const result = await compileContext(layers, { cognitiveState });
-      extraContext = result.prompt;
-       contextMeta = { utilization: result.utilization, dropped: result.droppedLayers, tokens: result.totalTokens };
-     } catch (err) { console.error('[ChatEngine] context compiler error:', err.message); }
    }
+
+   const [memoryStr, profileStr] = await Promise.all([
+     buildMemoryContext(sid),
+     buildProfileContext(uid),
+   ]);
+
+   let xpContext = '';
+   let xpData = null;
+   const contextPromises = [];
+   if (!goalContext) contextPromises.push(goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 10 }).then(g => { goalContext = goalsModule.formatGoalContext(g); }).catch(err => { console.error('[ChatEngine] goals context error:', err.message); }));
+   if (!orgContext) contextPromises.push(orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5).then(om => { orgContext = orgMemoryModule.getOrgMemoryContext(om); }).catch(err => { console.error('[ChatEngine] org memory context error:', err.message); }));
+   if (!stageContext) contextPromises.push(stagesModule.getUserStageContext(uid, persona.id).then(sc => { stageContext = sc; }).catch(err => { console.error('[ChatEngine] stage context error:', err.message); }));
+   contextPromises.push(gamificationModule.getXp(uid, persona.id).then(xp => { xpData = xp; xpContext = gamificationModule.formatXpContext(xp); return gamificationModule.updateStreak(uid, persona.id); }).then(() => { if (xpData) realtime.emitXpUpdate(uid, xpData); }).catch(err => { console.error('[ChatEngine] xp context error:', err.message); }));
+   if (!progressContext) contextPromises.push(progressModule.getProgressState(uid, persona.id).then(p => { progressContext = progressModule.formatProgressContext(p); }).catch(err => { console.error('[ChatEngine] progress context error:', err.message); }));
+   await Promise.allSettled(contextPromises);
+
+   const session = await getSession(sid);
+   const displayName = userName || session.userName || session.userContext?.name;
+
+   let extraContext = [goalContext, orgContext, stageContext, xpContext, progressContext, cognitiveContext].filter(Boolean).join('\n\n');
 
   let businessStr = '';
   try {
@@ -275,7 +316,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     systemPrompt += '\n\n' + extraContext;
   }
 
-  console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : 'bible'}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}, contextUtil=${contextMeta ? contextMeta.utilization + '%' : 'raw'}`);
+   console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : 'bible'}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}`);
 
   const toolsEnabled = await getSetting('tools_enabled', 'true') === 'true';
   const historyLimit = parseInt(await getSetting('history_limit', '10')) || 10;
@@ -286,8 +327,14 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   const messages = [
     { role: 'system', content: systemPrompt },
     ...history,
-    { role: 'user', content: message },
   ];
+
+  if (relevantVerses && relevantVerses.length > 0) {
+    const versesText = relevantVerses.slice(0, 8).map(v => `${v.reference}: "${v.text}"`).join('\n');
+    messages.push({ role: 'user', content: `[CONTEXTO BÍBLICO FORNECIDO - NÃO BUSCAR, USAR DIRETAMENTE]:\n${versesText}\n\nResponda DIRETAMENTE citando os versículos acima. NÃO diga que vai buscar.\n\nPergunta do usuário: ${message}` });
+  } else {
+    messages.push({ role: 'user', content: message });
+  }
 
   await addMessage(sid, 'user', message);
 
@@ -331,12 +378,16 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools'];
 
     let tools;
+    const hasContextVerses = relevantVerses && relevantVerses.length > 0;
     if (isMetaPersona) {
       tools = allTools;
     } else if (isAdmin) {
       tools = allTools;
     } else {
       tools = toolsEnabled ? allTools.filter(t => !metaPersonaOnlyTools.includes(t.function.name)) : null;
+    }
+    if (hasContextVerses && tools) {
+      tools = tools.filter(t => t.function?.name !== 'bible_lookup');
     }
 
     const result = await integrations.callLLM(messages, {
@@ -350,9 +401,42 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     });
 
     const toolCalls = result.tool_calls;
-    const content = extractContent(result) || '';
+    let content = extractContent(result) || '';
+    console.log(`[ChatEngine] LLM raw: contentLen=${(result?.message?.content||'').length}, thinkingLen=${(result?.message?.thinking||'').length}, hasToolCalls=${!!(toolCalls && toolCalls.length)}, extractedLen=${content.length}`);
+    if (!content) {
+      console.log(`[ChatEngine] CONTENT EMPTY — content field: "${(result?.message?.content||'').substring(0, 200)}"`);
+      console.log(`[ChatEngine] CONTENT EMPTY — thinking first 300: ${(result?.message?.thinking||'').substring(0, 300)}`);
+    }
 
     if (!toolCalls || toolCalls.length === 0) {
+      if (!content || content.trim().length < 5) {
+        console.log('[ChatEngine] Empty response, retrying with direct instruction...');
+        messages.push({ role: 'user', content: 'Responda AGORA em português usando os versículos do contexto. NÃO explique o que vai fazer, apenas RESPONDA diretamente.' });
+        try {
+          const retryResult = await integrations.callLLM(messages, {
+            userId: uid,
+            stream: false,
+            temperature: Math.max(0.3, temperature - 0.3),
+            numPredict: maxTokens,
+            retries: 1,
+            timeout: parseInt(await getSetting('llm_timeout', '30000')) || 30000,
+            tools: null,
+          });
+          const retryContent = extractContent(retryResult) || '';
+          console.log(`[ChatEngine] Retry result: contentLen=${(retryResult?.message?.content||'').length}, thinkingLen=${(retryResult?.message?.thinking||'').length}, extractedLen=${retryContent.length}`);
+          if (retryContent.trim().length >= 10) {
+            content = retryContent;
+          } else {
+            const retryThinking = (retryResult?.message?.thinking || '').trim();
+            if (retryThinking.length > 50 && /[\u00C0-\u00FF]/.test(retryThinking)) {
+              content = retryThinking;
+              console.log(`[ChatEngine] Retry thinking recovery: ${content.length} chars`);
+            }
+          }
+        } catch (retryErr) {
+          console.error('[ChatEngine] Retry failed:', retryErr.message);
+        }
+      }
       fullResponse = content;
       break;
     }
@@ -391,9 +475,53 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     fullResponse = messages.filter(m => m.role === 'assistant').pop()?.content || fullResponse;
   }
 
+  if (!fullResponse || fullResponse.trim().length < 5) {
+    const lastThinking = result?.message?.thinking || '';
+    if (lastThinking.trim().length > 20) {
+      const hasAccents = /[\u00C0-\u00FF]/.test(lastThinking);
+      const looksLikeEnglish = /^(The user|I should|I need|Let me|I will|This is|Based on|First,|Now,|Okay,)/i.test(lastThinking.trim());
+      if (hasAccents && !looksLikeEnglish) {
+        console.log(`[ChatEngine] Thinking recovery: ${lastThinking.length} chars (has Portuguese chars)`);
+        fullResponse = lastThinking.trim();
+      } else {
+        console.log(`[ChatEngine] Thinking recovery skipped — looks like reasoning, not response (${lastThinking.substring(0, 100)})`);
+      }
+    }
+  }
+
+  if (!fullResponse || fullResponse.trim().length < 5) {
+    fullResponse = persona.cjkFallback ? (persona.cjkFallback[lang] || persona.cjkFallback['pt-BR'] || '') : '';
+    if (!fullResponse) {
+      const fallbacks = {
+        'pt-BR': 'Perdoe-me, irmão. Não consegui formular uma resposta adequada agora. Poderia repetir a pergunta?',
+        'en-US': 'Forgive me, brother. I could not formulate a proper response right now. Could you repeat the question?',
+        'es-ES': 'Perdóname, hermano. No pude formular una respuesta adecuada ahora. ¿Podrías repetir la pregunta?',
+      };
+      fullResponse = fallbacks[lang] || fallbacks['pt-BR'];
+    }
+  }
+
   const hasCJK = /[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]/.test(fullResponse);
   if (hasCJK) {
     fullResponse = t('cjkFallback', lang);
+  }
+
+  if (relevantVerses && relevantVerses.length > 0) {
+    const searchPhrases = [
+      /\bdeixe-me buscar\b/gi, /\bvou procurar\b/gi, /\bvou buscar\b/gi,
+      /\bespere enquanto\b/gi, /\bperdoe-me pela demora\b/gi,
+      /\blet me search\b/gi, /\blet me look\b/gi, /\bi will search\b/gi,
+      /\bdéjame buscar\b/gi, /\bvoy a buscar\b/gi,
+      /\bnão encontrei\b/gi, /\bno encuentro\b/gi,
+    ];
+    const original = fullResponse;
+    for (const phrase of searchPhrases) {
+      fullResponse = fullResponse.replace(phrase, '');
+    }
+    fullResponse = fullResponse.replace(/\s{2,}/g, ' ').trim();
+    if (fullResponse.length < 20 && original.length >= 20) {
+      fullResponse = original;
+    }
   }
 
   await addMessage(sid, 'assistant', fullResponse);
@@ -405,8 +533,6 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   if (updatedSession.messages.length % summaryEvery === 0) {
     generateSummary(sid).catch(() => {});
   }
-
-  updateProfileFromMessage(uid, fullResponse);
 
   const profileEvery = parseInt(await getSetting('profile_summary_every', '15')) || 15;
   if (updatedSession.messages.length % profileEvery === 0) {
@@ -456,10 +582,23 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   const uid = userId || 'user_default';
   const sid = sessionId || generateSessionId();
 
+  if (message && message.trim().startsWith('/')) {
+    try {
+      const cmdResult = await handleChatCommand(message.trim(), uid, source || 'web', sid, personaId);
+      if (cmdResult) {
+        const responseText = typeof cmdResult === 'string' ? cmdResult : JSON.stringify(cmdResult);
+        if (onChunk) onChunk(responseText);
+        return { response: responseText, sessionId: sid, sources: [], language: lang };
+      }
+    } catch (err) {
+      console.error('[ChatEngine:Stream] Command error:', err.message, err.stack);
+    }
+  }
+
   if (uid && uid !== 'user_default' && !isGroup) {
     try {
       await onboarding.ensureUser(uid, userName || uid.replace(/^(wa_|tg_|user_)/, ''), source || 'web');
-    } catch {}
+    } catch (err) { console.error('[ChatEngine:Stream] ensureUser error:', err.message); }
   }
 
   if (uid && uid !== 'user_default') {
@@ -502,7 +641,21 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
     }
   }
 
-  const persona = await getPersonaForContext(sid, uid);
+  const silence = getSilenceStatus(sid);
+  if (silence.silenced) {
+    const stillSilenced = decSilence(sid);
+    if (stillSilenced) {
+      const remain = silenceMap.get(sid) || 0;
+      const msg = `🔇 Modo silêncio ativo. Restam ${remain} mensagem(ões) em silêncio.`;
+      if (onChunk) onChunk(msg);
+      return { response: msg, sessionId: sid, sources: [], language: lang, silenced: true };
+    }
+    const msg = '🔇 Modo silêncio encerrado. Estou de volta!';
+    if (onChunk) onChunk(msg);
+    return { response: msg, sessionId: sid, sources: [], language: lang, silenced: false };
+  }
+
+  const persona = await getPersonaForContext(personaId, sid, uid);
   const numVerses = parseInt(await getSetting('search_verses_count', '8')) || 8;
   const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
     ? persona.knowledgeSources
@@ -522,13 +675,14 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
         engagement: cognitiveState.engagement_score,
       });
     }
-  } catch {}
+  } catch (err) { console.error('[ChatEngine:Stream] cognitive state error:', err.message); }
 
   let contextStr = '';
   let orgContextStream = '';
   let goalContextStream = '';
   let stageContextStream = '';
   let progressContextStreamStream = '';
+  let streamSources = [];
 
   const useContextAware = await getSetting('context_aware_search', 'true') === 'true';
   if (useContextAware && cognitiveState) {
@@ -540,13 +694,16 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
       goalContextStream = ctxResult.goalContext;
       stageContextStream = ctxResult.stageContext;
       progressContextStreamStream = ctxResult.progressContext;
-    } catch {
+    } catch (err) {
+      console.error('[ChatEngine:Stream] context search error:', err.message);
       const relevantVerses = personaSources ? await searchMultiSource(message, personaSources, numVerses) : await searchVerses(message, numVerses);
       contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
+      streamSources = relevantVerses;
     }
   } else {
     const relevantVerses = personaSources ? await searchMultiSource(message, personaSources, numVerses) : await searchVerses(message, numVerses);
     contextStr = relevantVerses.map(v => `${v.reference}: "${v.text}"`).join('\n');
+    streamSources = relevantVerses;
   }
 
   const memoryStr = await buildMemoryContext(sid);
@@ -556,18 +713,18 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
     try {
       const goals = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 10 });
       goalContextStream = goalsModule.formatGoalContext(goals);
-    } catch {}
+    } catch (err) { console.error('[ChatEngine:Stream] goals context error:', err.message); }
   }
   if (!orgContextStream) {
     try {
       const orgMemories = await orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5);
       orgContextStream = orgMemoryModule.getOrgMemoryContext(orgMemories);
-    } catch {}
+    } catch (err) { console.error('[ChatEngine:Stream] org memory error:', err.message); }
   }
   if (!stageContextStream) {
     try {
       stageContextStream = await stagesModule.getUserStageContext(uid, persona.id);
-    } catch {}
+    } catch (err) { console.error('[ChatEngine:Stream] stage context error:', err.message); }
   }
   let xpContextStream = '';
   let xpData = null;
@@ -576,12 +733,12 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
     xpContextStream = gamificationModule.formatXpContext(xpData);
     await gamificationModule.updateStreak(uid, persona.id);
     realtime.emitXpUpdate(uid, xpData);
-  } catch {}
+  } catch (err) { console.error('[ChatEngine:Stream] XP context error:', err.message); }
   if (!progressContextStreamStream) {
     try {
       const progressData = await progressModule.getProgressState(uid, persona.id);
       progressContextStreamStream = progressModule.formatProgressContext(progressData);
-    } catch {}
+    } catch (err) { console.error('[ChatEngine:Stream] progress context error:', err.message); }
   }
 
   const session = await getSession(sid);
@@ -594,7 +751,7 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
     if (businessConfig && businessConfig.name) {
       businessStrStream = businessModule.formatBusinessContext(businessConfig);
     }
-  } catch {}
+  } catch (err) { console.error('[ChatEngine:Stream] business context error:', err.message); }
 
   const extraContextStream = [goalContextStream, orgContextStream, stageContextStream, xpContextStream, progressContextStreamStream, cognitiveContextStream].filter(Boolean).join('\n\n');
   let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources, businessStrStream);
@@ -605,11 +762,17 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   const historyLimit = parseInt(await getSetting('history_limit', '10')) || 10;
   const history = await getHistoryForLLM(sid, historyLimit);
 
-  const messages = [
+  const streamMessages = [
     { role: 'system', content: systemPrompt },
     ...history,
-    { role: 'user', content: message },
   ];
+
+  if (relevantVerses && relevantVerses.length > 0) {
+    const versesText = relevantVerses.slice(0, 8).map(v => `${v.reference}: "${v.text}"`).join('\n');
+    streamMessages.push({ role: 'user', content: `[CONTEXTO BÍBLICO FORNECIDO - NÃO BUSCAR, USAR DIRETAMENTE]:\n${versesText}\n\nResponda DIRETAMENTE citando os versículos acima. NÃO diga que vai buscar.\n\nPergunta do usuário: ${message}` });
+  } else {
+    streamMessages.push({ role: 'user', content: message });
+  }
 
   await addMessage(sid, 'user', message);
 
@@ -630,16 +793,18 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   const allTools = [...llmTools, ...extTools];
   const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools'];
   const streamTools = (isMetaPersona || isAdmin) ? allTools : (toolsEnabled ? allTools.filter(t => !metaPersonaOnlyTools.includes(t.function.name)) : null);
+  const hasContextVerses = relevantVerses && relevantVerses.length > 0;
+  const filteredStreamTools = (hasContextVerses && streamTools) ? streamTools.filter(t => t.function?.name !== 'bible_lookup') : streamTools;
 
   try {
-    const response = await integrations.callLLM(messages, {
+    const response = await integrations.callLLM(streamMessages, {
       userId: uid,
       stream: true,
       temperature,
       numPredict: maxTokens,
       retries: 2,
       timeout: parseInt(await getSetting('llm_timeout', '30000')) || 30000,
-      tools: streamTools,
+      tools: filteredStreamTools,
     });
 
     const { parseStream } = require('../llm');
@@ -667,8 +832,6 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
     if (updatedSession.messages.length % summaryEvery === 0) {
       generateSummary(sid).catch(() => {});
     }
-
-    updateProfileFromMessage(uid, fullResponse);
 
     const profileEvery = parseInt(await getSetting('profile_summary_every', '15')) || 15;
     if (updatedSession.messages.length % profileEvery === 0) {
@@ -699,7 +862,10 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
       decision: cognitiveState?.suggested_action || null,
     }).catch(() => {});
 
-    const sources = (contextStr ? [] : []).slice(0, 4);
+    const sources = streamSources.slice(0, 4).map(v => ({
+      reference: v.reference,
+      text: v.text.substring(0, 120) + (v.text.length > 120 ? '...' : ''),
+    }));
 
     return { response: fullResponse, sessionId: sid, sources, language: lang, personaId: persona.id, personaName: persona.name, ttsVoice: persona.ttsVoice, ttsLang: persona.ttsLang };
 
@@ -722,14 +888,14 @@ async function getUserRoleStr(userId) {
   return getUserRole(userId);
 }
 
-async function handleChatCommand(text, userId, source, sessionId) {
+async function handleChatCommand(text, userId, source, sessionId, personaIdParam) {
   const parts = text.trim().split(/\s+/);
   const cmd = parts[0].toLowerCase();
   const args = parts.slice(1).join(' ');
   const isAdmin = await isUserAdmin(userId);
   const uid = userId || 'unknown';
 
-  const persona = await getPersonaForContext(sessionId, uid);
+  const persona = await getPersonaForContext(personaIdParam, sessionId, uid);
 
   // Check custom commands first
   try {
@@ -749,6 +915,38 @@ async function handleChatCommand(text, userId, source, sessionId) {
   const cmdConfig = persona.commands;
 
   switch (cmd) {
+    case '/stop': {
+      return '🛑 Geração interrompida. Use /silence <N> para silenciar por N mensagens ou /silence off para reativar.';
+    }
+
+    case '/silence':
+    case '/silencio':
+    case '/mutar':
+    case '/mute': {
+      const silenceArg = parts[1]?.toLowerCase();
+      const silenceStatus = getSilenceStatus(sid);
+      if (!silenceArg || silenceArg === 'status') {
+        if (silenceStatus.silenced) {
+          return `🔇 Modo silêncio ATIVO. Restam ${silenceStatus.remaining} mensagem(ões). Use /silence off para desativar.`;
+        }
+        return '🔇 Modo silêncio DESATIVADO. Use:\n• /silence <N> — silenciar por N mensagens\n• /silence off — desativar silêncio\n• /silence infinite — silenciar indefinidamente';
+      }
+      if (silenceArg === 'off' || silenceArg === 'desativar' || silenceArg === 'stop') {
+        silenceMap.delete(sid);
+        return '🔊 Silêncio desativado! Estou de volta à conversa.';
+      }
+      if (silenceArg === 'infinite' || silenceArg === 'infinito' || silenceArg === 'sempre') {
+        silenceMap.set(sid, 999999);
+        return '🔇 Modo silêncio INFINITO ativado. A persona não vai responder até você usar /silence off.';
+      }
+      const count = parseInt(silenceArg);
+      if (isNaN(count) || count < 1) {
+        return '❌ Use: /silence <número> (ex: /silence 5), /silence infinite, ou /silence off';
+      }
+      silenceMap.set(sid, count);
+      return `🔇 Modo silêncio ativado por ${count} mensagem(ões). A persona não vai responder. Use /silence off para desativar.`;
+    }
+
     case '/stats': {
       const [sessionRows] = await require('../db').pool.execute('SELECT COUNT(*) as total FROM sessions WHERE user_id = ?', [uid]);
       const [msgRows] = await require('../db').pool.execute(
@@ -768,12 +966,33 @@ async function handleChatCommand(text, userId, source, sessionId) {
       return lines.join('\n') || 'Perfil vazio ainda. Converse mais comigo!';
     }
 
+    case '/personas':
+    case '/listarpersonas': {
+      const allPersonas = await metaRag.listAvailablePersonas();
+      const cur = persona;
+      const lines = allPersonas.map(p => {
+        const tag = cur && p.id === cur.id ? ' ◀' : '';
+        const meta = p.id === 'meta-persona' ? '🧙 ' : '';
+        return `${p.isActive ? '✅' : '❌'} ${meta}${p.name} → /persona ${p.id}${tag}`;
+      });
+      return `🎭 Personas (${allPersonas.length}):\n${lines.join('\n')}\n\nUse /persona <id> para trocar.`;
+    }
+
     case '/persona':
     case '/personagem': {
       if (!args) {
         const personas = await metaRag.listAvailablePersonas();
-        const lines = personas.map(p => `• ${p.name} (${p.id}) ${p.isActive ? '✅' : '❌'}`);
-        return `🎭 Personas disponíveis:\n${lines.join('\n')}\n\nUse: /persona <id> para trocar\nUse: /persona create <descrição> para criar (admin)`;
+        const currentPersona = persona;
+        const lines = personas.map(p => {
+          const isCurrent = currentPersona && p.id === currentPersona.id ? ' ◀ atual' : '';
+          const status = p.isActive ? '✅' : '❌';
+          const voice = p.ttsVoice ? `🔊${p.ttsVoice}` : '';
+          const lang = p.ttsLang === 'p' ? '🇧🇷' : p.ttsLang === 'a' ? '🇺🇸' : p.ttsLang === 'e' ? '🇪🇸' : '';
+          const meta = p.id === 'meta-persona' ? ' 🧙' : '';
+          return `${status} ${p.name}${meta} (${p.id}) ${voice}${lang}${isCurrent}`;
+        });
+        const metaLine = personas.some(p => p.id === 'meta-persona') ? '' : '\n💡 Dica: /meta para ativar a meta-persona';
+        return `🎭 Personas disponíveis (${personas.length}):\n${lines.join('\n')}${metaLine}\n\nComandos:\n/persona <id> - Trocar de persona\n/persona info <id> - Ver detalhes da persona\n/meta - Ativar meta-persona (admin)\n/persona reset - Voltar para padrão\n/persona create <desc> - Criar persona (admin)\n/persona edit <id> <campo> <valor> - Editar (admin)\n/persona delete <id> - Deletar (admin)`;
       }
 
       if (args === 'reset' || args === 'default') {
@@ -793,6 +1012,40 @@ async function handleChatCommand(text, userId, source, sessionId) {
         } catch (err) {
           return `❌ Erro ao criar persona: ${err.message}`;
         }
+      }
+
+      if (args.startsWith('info ')) {
+        const infoId = args.slice(5).trim().toLowerCase();
+        try {
+          const p = await personaManager.getPersona(infoId);
+          if (!p) return `❌ Persona "${infoId}" não encontrada.`;
+          const ident = p.identity;
+          let identPreview = '';
+          if (typeof ident === 'object' && ident !== null) {
+            const langs = Object.keys(ident);
+            identPreview = langs.map(l => {
+              const block = ident[l];
+              if (typeof block === 'string') return `  ${l}: "${block.substring(0, 80)}..."`;
+              if (block?.core) return `  ${l}: "${block.core.substring(0, 80)}..."`;
+              return `  ${l}: (objeto)`;
+            }).join('\n');
+          } else if (typeof ident === 'string') {
+            identPreview = `"${ident.substring(0, 100)}..."`;
+          }
+          const sources = p.knowledgeSources?.length ? p.knowledgeSources.join(', ') : 'nenhuma';
+          return [
+            `🎭 Detalhes da persona "${p.name}" (${p.id}):`,
+            `• Nome: ${p.name} / ${p.nameEn || '-'} / ${p.nameEs || '-'}`,
+            `• Ativa: ${p.isActive !== false ? '✅ Sim' : '❌ Não'}`,
+            `• Prioridade: ${p.priority || 100}`,
+            `• Voz TTS: ${p.ttsVoice || 'pm_alex'} (${p.ttsLang === 'p' ? 'pt-BR' : p.ttsLang === 'a' ? 'en-US' : p.ttsLang === 'e' ? 'es-ES' : p.ttsLang || 'pt-BR'})`,
+            `• Modelo: ${p.model || 'padrão'}`,
+            `• Fontes de conhecimento: ${sources}`,
+            `• Identidade:`,
+            identPreview || '  (não definida)',
+            `• Comandos: ${p.commands ? Object.keys(p.commands).join(', ') : 'nenhum'}`,
+          ].join('\n');
+        } catch (err) { return `❌ Erro: ${err.message}`; }
       }
 
       if (args.startsWith('edit ')) {
@@ -824,6 +1077,7 @@ async function handleChatCommand(text, userId, source, sessionId) {
         if (!isAdmin) return '⛔ Apenas administradores podem deletar personas.';
         const personaId = args.slice(7).trim();
         if (personaId === 'jesus') return '⛔ Não é possível deletar a persona padrão.';
+        if (personaId === 'meta-persona') return '⛔ Não é possível deletar a meta-persona.';
         try {
           await personaManager.deletePersona(personaId);
           return `🗑️ Persona "${personaId}" deletada.`;
@@ -839,6 +1093,17 @@ async function handleChatCommand(text, userId, source, sessionId) {
         return metaRag.formatPersonaSwitchMessage(freshPersona, 'pt-BR');
       } catch (err) {
         return `❌ Persona "${args}" não encontrada. Use /persona para listar.`;
+      }
+    }
+
+    case '/meta': {
+      if (!isAdmin) return '⛔ Apenas administradores podem usar a meta-persona.';
+      try {
+        const result = await metaRag.switchPersona(uid, sessionId, 'meta-persona');
+        const mp = await personaManager.getPersona('meta-persona');
+        return `🎭 Meta-persona ativada!\n\n📝 Eu sou a MetaPersona.AI — a orquestradora deste sistema. Posso:\n• Criar personas com qualquer nicho\n• Criar skills para personas\n• Gerenciar tarefas, contatos, automações\n• Adicionar conhecimento (RAG)\n• Gerar conteúdo visual e blog\n• Analisar dados cognitivos\n• Gerenciar goals, stages, org memory\n\nUse /help para todos os comandos.`;
+      } catch (err) {
+        return `❌ Erro ao ativar meta-persona: ${err.message}`;
       }
     }
 
@@ -1070,19 +1335,19 @@ async function handleChatCommand(text, userId, source, sessionId) {
       const taskFilters = {};
       if (args) {
         const parts = args.trim().split(/\s+/);
-        if (parts[0] === 'overdue') { const tasks = await agent.getOverdueTasks(uid); return `⚠️ Tarefas atrasadas (${tasks.length}):\n${tasks.map(t => `• [${t.priority}] ${t.title} - ${t.status} ${t.due_date ? '(Prazo: ' + t.due_date + ')' : ''}`).join('\n')}`; }
+        if (parts[0] === 'overdue') { const tasks = await agentModule.getOverdueTasks(uid); return `⚠️ Tarefas atrasadas (${tasks.length}):\n${tasks.map(t => `• [${t.priority}] ${t.title} - ${t.status} ${t.due_date ? '(Prazo: ' + t.due_date + ')' : ''}`).join('\n')}`; }
         if (['pending', 'in_progress', 'completed', 'cancelled'].includes(parts[0])) taskFilters.status = parts[0];
       }
       taskFilters.owner_id = uid;
       taskFilters.limit = 20;
-      const tasks = await agent.listTasks(taskFilters);
+      const tasks = await agentModule.listTasks(taskFilters);
       if (tasks.length === 0) return '📋 Nenhuma tarefa encontrada.';
       return `📋 Tarefas (${tasks.length}):\n${tasks.map(t => `• [${t.priority}] ${t.title} - ${t.status} ${t.due_date ? '(Prazo: ' + t.due_date + ')' : ''}`).join('\n')}`;
     }
 
     case '/calendar': {
       if (!args || args === 'upcoming' || args === 'semana') {
-        const events = await agent.getUpcomingEvents(uid, 7);
+        const events = await agentModule.getUpcomingEvents(uid, 7);
         if (events.length === 0) return '📅 Nenhum evento nos próximos 7 dias.';
         return `📅 Próximos eventos (${events.length}):\n${events.map(e => `• ${e.start_time}: ${e.title} (${e.event_type}) ${e.location ? '@ ' + e.location : ''}`).join('\n')}`;
       }
@@ -1098,19 +1363,19 @@ async function handleChatCommand(text, userId, source, sessionId) {
       }
       contactFilters.owner_id = uid;
       contactFilters.limit = 20;
-      const contacts = await agent.listContacts(contactFilters);
+      const contacts = await agentModule.listContacts(contactFilters);
       if (contacts.length === 0) return '👥 Nenhum contato encontrado.';
       return `👥 Contatos (${contacts.length}):\n${contacts.map(c => `• ${c.name} [${c.stage}] ${c.email || ''} ${c.company ? '@ ' + c.company : ''} ${c.tags ? '(' + (Array.isArray(c.tags) ? c.tags.join(',') : c.tags) + ')' : ''}`).join('\n')}`;
     }
 
     case '/automations': {
-      const automations = await agent.listAutomations({ owner_id: uid, limit: 20 });
+      const automations = await agentModule.listAutomations({ owner_id: uid, limit: 20 });
       if (automations.length === 0) return '🤖 Nenhuma automação configurada.';
       return `🤖 Automações (${automations.length}):\n${automations.map(a => `• ${a.name} [${a.trigger_type} → ${a.action_type}] ${a.is_active ? '✅' : '❌'}`).join('\n')}`;
     }
 
     case '/dashboard': {
-      const stats = await agent.getDashboardStats(uid);
+      const stats = await agentModule.getDashboardStats(uid);
       const goals2 = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 5 });
       return `📊 Dashboard:\n• Tarefas: ${stats.tasks.total} (${Object.entries(stats.tasks.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ')})\n• Eventos (7d): ${stats.upcomingEvents}\n• Contatos: ${stats.contacts.total} (${Object.entries(stats.contacts.byStage).map(([k, v]) => `${k}: ${v}`).join(', ')})\n• Automações ativas: ${stats.activeAutomations}\n• Personas: ${stats.activePersonas}\n• Skills: ${stats.activeSkills}${stats.goals ? '\n• Metas: ' + stats.goals.total + ' (' + Object.entries(stats.goals.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ') + ')' : ''}${stats.orgMemory && stats.orgMemory.total > 0 ? '\n• Memória Org: ' + stats.orgMemory.total + ' itens' : ''}${goals2.length > 0 ? '\n• Metas ativas: ' + goals2.map(g => g.title).join(', ') : ''}`;
     }
@@ -1388,6 +1653,483 @@ async function handleChatCommand(text, userId, source, sessionId) {
       }
     }
 
+    case '/cognitive':
+    case '/cognitivo': {
+      const cognitiveModule = require('../cognitive');
+      if (!args || args === 'me' || args === 'eu') {
+        const state = await cognitiveModule.getCognitiveState(uid, persona.id);
+        if (!state) return '🧠 Nenhum estado cognitivo registrado ainda.';
+        const emotionPct = Math.round((state.emotion_confidence || 0) * 100);
+        const intentPct = Math.round((state.intent_confidence || 0) * 100);
+        const churnPct = Math.round((state.churn_risk || 0) * 100);
+        const engagePct = Math.round((state.engagement_score || 0) * 100);
+        return `🧠 Estado Cognitivo:\n• Emoção: ${state.emotion || 'neutral'} (${emotionPct}%)\n• Intenção: ${state.intent || 'unknown'} (${intentPct}%)\n• Risco de churn: ${churnPct}%\n• Engajamento: ${engagePct}%\n• Ação sugerida: ${state.suggested_action || 'N/A'}`;
+      }
+      if (args === 'stats' || args === 'estatisticas') {
+        if (!isAdmin) return '⛔ Apenas administradores.';
+        const stats = await cognitiveModule.getCognitiveStats(persona.id, 7);
+        return `🧠 Estatísticas cognitivas (7d):\n• Total de análises: ${stats.totalMessages}\n• Emoções: ${Object.entries(stats.emotionDistribution || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}\n• Intenções: ${Object.entries(stats.intentDistribution || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}\n• Churn médio: ${stats.avgChurnRisk}\n• Conversão média: ${stats.avgConversionProbability}\n• Engajamento médio: ${stats.avgEngagement}`;
+      }
+      return '🧠 Comandos:\n/cognitive me - Seu estado cognitivo\n/cognitive stats - Estatísticas (admin)';
+    }
+
+    case '/override': {
+      if (!isAdmin) return '⛔ Apenas administradores.';
+      const overrideModule = require('../override');
+      if (!args || args === 'status') {
+        const overrides = await overrideModule.listOverrides({ is_active: true });
+        if (overrides.length === 0) return '🛡️ Nenhuma override ativa.';
+        const lines = overrides.map(o => `• Sessão ${o.session_id}: ${o.override_type} ${o.human_message ? '- "' + o.human_message.substring(0, 40) + '..."' : ''} (${o.is_active ? '✅' : '❌'})`);
+        return `🛡️ Overrides ativas:\n${lines.join('\n')}\n\nComandos:\n/override activate <sessionId> <tipo> [mensagem]\n/override deactivate <sessionId>\nTipos: full, approval, observation`;
+      }
+      if (args.startsWith('activate ')) {
+        const parts = args.slice(9).trim().split(/\s+/);
+        const sessionId = parts[0];
+        const type = parts[1] || 'full';
+        const message = parts.slice(2).join(' ') || '';
+        if (!sessionId) return 'Uso: /override activate <sessionId> <tipo> [mensagem]';
+        try {
+          await overrideModule.setOverride(sessionId, { is_active: true, override_type: type, human_message: message });
+          return `✅ Override ativada para sessão ${sessionId} (tipo: ${type})`;
+        } catch (err) { return `❌ Erro: ${err.message}`; }
+      }
+      if (args.startsWith('deactivate ')) {
+        const sessionId = args.slice(11).trim();
+        try {
+          await overrideModule.clearOverride(sessionId);
+          return `✅ Override desativada para sessão ${sessionId}`;
+        } catch (err) { return `❌ Erro: ${err.message}`; }
+      }
+      return '🛡️ Comandos:\n/override status - Listar overrides\n/override activate <sessionId> <tipo> [msg]\n/override deactivate <sessionId>';
+    }
+
+    case '/thoughts':
+    case '/pensamentos': {
+      if (!isAdmin) return '⛔ Apenas administradores.';
+      const thoughtsModule = require('../thoughts');
+      if (!args || args === 'recent' || args === 'recentes') {
+        const thoughts = await thoughtsModule.getThoughts({ limit: 10 });
+        if (thoughts.length === 0) return '💭 Nenhum pensamento registrado.';
+        const lines = thoughts.map(t => `• [${new Date(t.created_at).toLocaleString()}] ${t.persona_id}: ${t.reasoning || 'N/A'} → ${t.decision || 'N/A'} (${t.tools_used?.join(',') || 'none'})`);
+        return `💭 Últimos pensamentos:\n${lines.join('\n')}`;
+      }
+      if (args === 'stats' || args === 'estatisticas') {
+        const stats = await thoughtsModule.getThoughtStats(persona.id, 7);
+        return `💭 Estatísticas (7d):\n• Total: ${stats.totalThoughts}\n• Tempo médio de resposta: ${stats.avgResponseTime}ms\n• Tokens médios: ${stats.avgTokens}\n• Ferramentas mais usadas: ${Object.entries(stats.toolUsage || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `${k} (${v})`).join(', ')}`;
+      }
+      return '💭 Comandos:\n/thoughts recent - Últimos pensamentos\n/thoughts stats - Estatísticas';
+    }
+
+    case '/suggestions':
+    case '/sugestoes': {
+      if (!isAdmin) return '⛔ Apenas administradores.';
+      const optModule = require('../optimization');
+      const days = args && parseInt(args) > 0 ? parseInt(args) : 7;
+      try {
+        const result = await optModule.generateSuggestions(persona.id, days);
+        if (!result.suggestions || result.suggestions.length === 0) return '💡 Nenhuma sugestão no momento. Continue usando a persona para gerar dados.';
+        const lines = result.suggestions.map(s => `• [${s.priority}] ${s.title}: ${s.description}`);
+        return `💡 Sugestões de otimização (${days}d, ${result.totalMessages} msgs):\n${lines.join('\n')}`;
+      } catch (err) { return `❌ Erro: ${err.message}`; }
+    }
+
+    case '/help':
+    case '/ajuda':
+    case '/comandos': {
+      const cmds = [
+        '📊 /stats - Suas estatísticas',
+        '📋 /myprofile - Seu perfil',
+        '🎭 /persona - Listar/trocar/criar personas',
+        '🧙 /meta - Ativar meta-persona (admin god)',
+        '🔊 /voice - Listar/trocar vozes TTS',
+        '',
+        '─ Ações ─',
+        '📋 /tasks - Listar/criar tarefas',
+        '📅 /calendar - Próximos eventos',
+        '👥 /contacts - Contatos CRM',
+        '🤖 /automations - Automações',
+        '🎯 /goals - Metas e objetivos',
+        '🔄 /stages - Estágios de conversa',
+        '🧠 /orgmem - Memória organizacional',
+        '🏟️ /skills - Skills disponíveis',
+        '',
+        '─ Progresso ─',
+        '🏆 /xp - Gamificação (XP, nível, streak, leaderboard)',
+        '📈 /progress - Seu progresso pessoal',
+        '🧠 /cognitive - Estado cognitivo (emoção, intenção)',
+        '',
+        '─ Templates ─',
+        '🏗️ /blueprints - Templates de persona',
+        '',
+        '─ Utilitários ─',
+        '🛑 /stop - Interromper resposta',
+        '🔇 /silence <N> - Silenciar por N mensagens (/silence off = desativar)',
+        '📋 /survey - Pesquisas',
+        '⭐ /ratings - Avaliações',
+        '📬 /followups - Follow-ups',
+        '🎨 /creative - Gerar conteúdo visual',
+        '📝 /blog - Posts do blog',
+        '📧 /email - Enviar email',
+        '🔍 /search - Busca no conhecimento',
+        '🎬 /media - Mídia',
+        '',
+        '─ Admin ─',
+        '👑 /admin - Painel admin',
+        '🔑 /keys, /addkey - Integrações',
+        '⚙️ /settings, /set - Configurações',
+        '👥 /users, /promote, /ban - Usuários',
+        '🛡️ /override - Controle humano',
+        '💭 /thoughts - Pensamentos do agente',
+        '💡 /suggestions - Sugestões de otimização',
+        '📊 /dashboard - Dashboard geral',
+        '',
+        '─ Avançado ─',
+        '🧩 /context - Contexto da conversa',
+        '🪞 /reflect - Auto-reflexão da persona',
+        '📊 /quiz - Quiz interativo',
+        '🏢 /workspace - Workspaces (admin)',
+        '💳 /billing - Planos e uso (admin)',
+        '🌍 /lang - Trocar idioma',
+        '📋 /plan - Planejador de execução',
+        '📜 /history - Histórico da sessão',
+        '📤 /export - Exportar dados (admin)',
+        '📊 /stats2 - Estatísticas globais',
+        '⚙️ /config - Configurações rápidas (admin)',
+      ];
+      return cmds.join('\n');
+    }
+
+    case '/creative': {
+      const creativeModule = require('../creative');
+      if (!args || args === 'list' || args === 'lista') {
+        const templates = creativeModule.getAvailableTemplates();
+        let templateList;
+        if (Array.isArray(templates)) {
+          templateList = templates;
+        } else if (typeof templates === 'object') {
+          templateList = Object.entries(templates).map(([id, t]) => ({ id, name: t.name || id, type: t.type || 'content' }));
+        } else {
+          templateList = [{ id: 'quote_post', name: 'Quote Post', type: 'content' }, { id: 'announcement_post', name: 'Announcement', type: 'content' }, { id: 'carousel_slide', name: 'Carousel Slide', type: 'content' }, { id: 'minimal_blog', name: 'Minimal Blog', type: 'content' }];
+        }
+        return `🎨 Templates de conteúdo:\n${templateList.map(t => `• ${t.id}: ${t.name} (${t.type})`).join('\n')}\n\nUse: /creative <template_id> <tema>\nEx: /creative quote_post "fé e esperança"`;
+      }
+      const creativeParts = args.trim().split(/\s+/);
+      const templateId = creativeParts[0];
+      const topic = creativeParts.slice(1).join(' ');
+      if (!templateId || !topic) return 'Uso: /creative <template_id> <tema>\nTemplates: quote_post, announcement_post, carousel_slide, minimal_blog';
+      try {
+        const personaContext = persona.identity?.pt || persona.identity || '';
+        const result = await creativeModule.generateWithLLM(personaContext, topic, templateId);
+        if (result && result.html) {
+          const saved = await creativeModule.saveCreative(persona.id, uid, 'image', templateId, { topic }, result.html);
+          return `🎨 Conteúdo gerado com template "${templateId}"!\n📝 Tema: ${topic}\n💾 Salvo com ID: ${saved.id}\n\nAcesse em /api/admin/creatives/${saved.id}/html`;
+        }
+        return `🎨 Conteúdo gerado para "${topic}" com template "${templateId}".`;
+      } catch (err) { return `❌ Erro: ${err.message}`; }
+    }
+
+    case '/blog': {
+      if (!isAdmin) return '⛔ Apenas administradores.';
+      const blogModule = require('../blog');
+      if (!args || args === 'list' || args === 'lista') {
+        const posts = await blogModule.getAllPosts({ limit: 5 });
+        if (!posts || posts.length === 0) return '📝 Nenhum post encontrado.';
+        return `📝 Últimos posts:\n${posts.map(p => `• ${p.title} (${p.topic || 'sem tema'}) - ${new Date(p.published_at || p.created_at).toLocaleDateString()}`).join('\n')}`;
+      }
+      if (args.startsWith('generate ') || args.startsWith('gerar ')) {
+        const topic = args.replace(/^(generate|gerar)\s+/i, '').trim();
+        try {
+          const post = await blogModule.generatePost(persona.id, topic);
+          return `📝 Post gerado: "${post.title}"\n• Tema: ${post.topic || 'N/A'}\n• Slug: ${post.slug}\n\nAcesse em /blog/${post.slug}`;
+        } catch (err) { return `❌ Erro: ${err.message}`; }
+      }
+      return '📝 Comandos:\n/blog list - Listar posts\n/blog generate <tema> - Gerar post';
+    }
+
+    case '/email': {
+      if (!isAdmin) return '⛔ Apenas administrados.';
+      const emailParts = args.trim().split('|');
+      if (emailParts.length < 2) return 'Uso: /email <destinatário> | <assunto> | <mensagem>';
+      const to = emailParts[0].trim();
+      const subject = emailParts[1]?.trim() || 'Sem assunto';
+      const body = emailParts[2]?.trim() || emailParts[1]?.trim() || '';
+      try {
+        const { sendEmail } = require('../email');
+        await sendEmail({ to, subject, html: body });
+        return `📧 Email enviado para ${to}: "${subject}"`;
+      } catch (err) { return `❌ Erro ao enviar: ${err.message}`; }
+    }
+
+    case '/search':
+    case '/buscar': {
+      if (!args) return 'Uso: /search <termo>';
+      const { searchMultiSource } = require('../knowledge/store');
+      const sources = persona?.knowledge_sources || [];
+      try {
+        const results = await searchMultiSource(args, sources.length > 0 ? sources : undefined, 5);
+        if (!results || results.length === 0) return `🔍 Nenhum resultado para "${args}".`;
+        const lines = results.map(r => `• [${r.source}] ${r.text?.substring(0, 100)}... (score: ${r.score?.toFixed(2) || 'N/A'})`);
+        return `🔍 Resultados para "${args}":\n${lines.join('\n')}`;
+      } catch (err) { return `❌ Erro na busca: ${err.message}`; }
+    }
+
+    case '/quiz': {
+      const quizModule = require('../quiz');
+      if (!args || args === 'list') {
+        const quizzes = await quizModule.listQuizzes({ activeOnly: true });
+        if (!quizzes || quizzes.length === 0) return '🎮 Nenhum quiz ativo no momento.';
+        return `🎮 Quizzes disponíveis:\n${quizzes.map(q => `• ${q.id}: ${q.title} (${q.questions?.length || 0} perguntas)`).join('\n')}`;
+      }
+      try {
+        const quizId = parseInt(args);
+        if (isNaN(quizId)) {
+          const quiz = await quizModule.createQuiz({ title: args, questions: [{ question: 'Pergunta 1', options: ['A', 'B', 'C', 'D'], correct: 0 }], active: true });
+          return `🎮 Quiz "${quiz.title}" criado! (ID: ${quiz.id})`;
+        }
+        const quiz = await quizModule.getQuiz(quizId);
+        if (!quiz) return '❌ Quiz não encontrado.';
+        return `🎮 ${quiz.title}\n${quiz.questions.map((q, i) => `${i + 1}. ${q.question}\n   ${q.options?.map((o, oi) => `${String.fromCharCode(65 + oi)}) ${o}`).join('\n   ')}`).join('\n')}`;
+      } catch (err) { return `❌ Erro: ${err.message}`; }
+    }
+
+    case '/context': {
+      const contextModule = require('../context');
+      const contextData = contextModule.buildContextLayers({ userId: uid, personaId: persona.id, sessionId: sessionId }, {}, 5);
+      if (!contextData || contextData.length === 0) return '🧩 Nenhum contexto recente.';
+      const lines = contextData.map(c => `• [${c.type || 'ctx'}] ${String(c.content || c).substring(0, 80)}`);
+      return `🧩 Contexto recente:\n${lines.join('\n')}`;
+    }
+
+    case '/reflect':
+    case '/refletir': {
+      const reflectionModule = require('../reflection');
+      try {
+        const result = await reflectionModule.generateReflection(persona.id);
+        if (!result) return '🪞 Não há dados suficientes para reflexão.';
+        const lines = [];
+        if (result.strengths) lines.push(`💪 Pontos fortes: ${Array.isArray(result.strengths) ? result.strengths.join(', ') : result.strengths}`);
+        if (result.weaknesses) lines.push(`⚠️ Pontos a melhorar: ${Array.isArray(result.weaknesses) ? result.weaknesses.join(', ') : result.weaknesses}`);
+        if (result.recommendations) lines.push(`💡 Recomendações: ${Array.isArray(result.recommendations) ? result.recommendations.join(', ') : result.recommendations}`);
+        if (result.adjustments) lines.push(`🔧 Ajustes: ${Array.isArray(result.adjustments) ? result.adjustments.join(', ') : result.adjustments}`);
+        return `🪞 Auto-reflexão (${persona.name}):\n${lines.join('\n') || JSON.stringify(result).substring(0, 300)}`;
+      } catch (err) { return `❌ Erro: ${err.message}`; }
+    }
+
+    case '/events':
+    case '/eventos': {
+      const eventsModule = require('../events');
+      if (!args || args === 'recent') {
+        const events = await eventsModule.getEventLog({ limit: 10 });
+        if (!events || events.length === 0) return '📅 Nenhum evento registrado.';
+        const lines = events.map(e => `• [${e.event_type}] ${e.data ? JSON.stringify(e.data).substring(0, 60) : ''} (${new Date(e.created_at).toLocaleString()})`);
+        return `📅 Últimos eventos:\n${lines.join('\n')}`;
+      }
+      if (args === 'stats') {
+        const stats = await eventsModule.getEventStats({ persona_id: persona.id, days: 7 });
+        if (!stats || stats.length === 0) return '📅 Sem estatísticas.';
+        return `📅 Estatísticas (7d):\n${stats.map(s => `• ${s.event_type}: ${s.count}`).join('\n')}`;
+      }
+      return '📅 Comandos:\n/events recent - Últimos eventos\n/events stats - Estatísticas';
+    }
+
+    case '/media': {
+      if (!isAdmin) return '⛔ Apenas administradores.';
+      const mediaModule = require('../media');
+      if (!args || args === 'list') {
+        const media = await mediaModule.listMedia({ limit: 10 });
+        if (!media || media.length === 0) return '🎬 Nenhuma mídia encontrada.';
+        return `🎬 Mídias (${media.length}):\n${media.map(m => `• ${m.original_name || m.filename} (${m.type || m.mime_type})`).join('\n')}`;
+      }
+      return '🎬 Comandos:\n/media list - Listar mídias';
+    }
+
+    case '/workspace':
+    case '/ws': {
+      if (!isAdmin) return '⛔ Apenas administradores.';
+      const { workspaceManager, ruleEngine } = require('../workspace');
+      if (!args || args === 'info') {
+        let workspaces = [];
+        try {
+          workspaces = await workspaceManager.getUserWorkspaces(uid) || [];
+        } catch {}
+        if (workspaces.length === 0) {
+          const [wsRows] = await require('../db').pool.execute('SELECT id, name, slug, plan FROM workspaces ORDER BY created_at DESC LIMIT 10');
+          workspaces = wsRows || [];
+        }
+        if (workspaces.length === 0) return '🏢 Nenhum workspace encontrado. Use /workspace create <nome> para criar.';
+        return `🏢 Workspaces:\n${workspaces.map(w => `• ${w.name} (${w.slug || w.id}) - Plano: ${w.plan || 'free'}`).join('\n')}`;
+      }
+      if (args.startsWith('create ')) {
+        const name = args.replace(/^create\s+/i, '').trim();
+        try {
+          const ws = await workspaceManager.createWorkspace({ name, ownerId: uid });
+          return `🏢 Workspace "${name}" criado! ID: ${ws.id}`;
+        } catch (err) { return `❌ Erro: ${err.message}`; }
+      }
+      if (args.startsWith('usage ')) {
+        const wsId = args.replace(/^usage\s+/i, '').trim();
+        try {
+          const usage = await workspaceManager.getWorkspaceUsage(wsId);
+          return `📊 Uso do workspace ${wsId}:\n• Personas: ${usage.personas}\n• Contatos: ${usage.contacts}\n• Mensagens: ${usage.messages}`;
+        } catch (err) { return `❌ Erro: ${err.message}`; }
+      }
+      if (args.startsWith('rules ')) {
+        const wsId = args.replace(/^rules\s+/i, '').trim();
+        try {
+          const rules = await ruleEngine.listRules(wsId);
+          if (!rules || rules.length === 0) return `📋 Sem regras no workspace ${wsId}.`;
+          return `📋 Regras (${rules.length}):\n${rules.map(r => `• ${r.name} (${r.rule_type}) - Prioridade: ${r.priority}`).join('\n')}`;
+        } catch (err) { return `❌ Erro: ${err.message}`; }
+      }
+      return '🏢 Comandos:\n/workspace info - Listar workspaces\n/workspace create <nome> - Criar\n/workspace usage <id> - Uso\n/workspace rules <id> - Regras de negócio';
+    }
+
+    case '/billing': {
+      const { billingManager, PLANS } = require('../billing');
+      if (!args || args === 'plans' || args === 'planos') {
+        const plans = billingManager.getAllPlans();
+        return `💳 Planos disponíveis:\n${plans.map(p => `• ${p.id.toUpperCase()}: ${p.name} - R$${p.price}/mês\n  Personas: ${p.limits.personas === 'unlimited' ? '∞' : p.limits.personas}, Msgs/dia: ${p.limits.messages_per_day === 'unlimited' ? '∞' : p.limits.messages_per_day}, Contatos: ${p.limits.contacts === 'unlimited' ? '∞' : p.limits.contacts}`).join('\n')}`;
+      }
+      if (args.startsWith('usage ')) {
+        const wsId = args.replace(/^usage\s+/i, '').trim();
+        try {
+          const report = await billingManager.getUsageReport(wsId);
+          const lines = Object.entries(report.usage).map(([resource, data]) => {
+            const limit = data.limit === 'unlimited' ? '∞' : data.limit;
+            return `• ${resource}: ${data.current}/${limit} ${data.allowed ? '✅' : '⛔'}`;
+          });
+          return `💳 Uso (${report.plan}):\n${lines.join('\n')}`;
+        } catch (err) { return `❌ Erro: ${err.message}`; }
+      }
+      return '💳 Comandos:\n/billing plans - Ver planos\n/billing usage <workspace_id> - Ver uso';
+    }
+
+    case '/lang':
+    case '/idioma': {
+      const i18n = require('../i18n');
+      const langMap = { 'pt': 'pt-BR', 'pt-br': 'pt-BR', 'br': 'pt-BR', 'en': 'en-US', 'en-us': 'en-US', 'us': 'en-US', 'es': 'es-ES', 'es-es': 'es-ES' };
+      if (!args) return '🌍 Idiomas: pt-BR, en-US, es-ES\nUse: /lang <idioma>\nEx: /lang en-US';
+      const lang = langMap[args.toLowerCase()] || args;
+      const translations = i18n.translations?.[lang];
+      if (!translations) return `❌ Idioma "${args}" não disponível. Use: pt-BR, en-US, es-ES`;
+      try {
+        await require('../db').pool.execute('UPDATE sessions SET user_context = JSON_SET(COALESCE(user_context, "{}"), "$.language", ?) WHERE id = ?', [lang, sessionId]);
+        await require('../db').pool.execute('UPDATE profiles SET topics = JSON_SET(COALESCE(topics, "[]"), "$.language", ?) WHERE user_id = ?', [lang, uid]);
+      } catch (err) { console.error('[ChatEngine] Lang save error:', err.message); }
+      return `🌍 Idioma definido: ${lang}\n✅ ${translations.welcomeTitle || 'OK'}`;
+    }
+
+    case '/plan':
+    case '/planejar':
+    case '/planner': {
+      const plannerModule = require('../planner');
+      if (!args) return '📋 Use: /plan <mensagem> — O planejador irá analisar e criar um plano de execução.\nEx: /plan criar campanha de marketing para fitness';
+      try {
+        const plan = await plannerModule.planExecution(args, persona?.id, uid, [], {});
+        if (!plan) return '📋 Planejador desabilitado. Ative com /set planner_enabled true';
+        return `📋 Plano de execução:\n• Intenção: ${plan.intent}\n• Precisa de tools: ${plan.needsTools ? 'Sim' : 'Não'}\n• Estratégia: ${plan.responseStrategy}\n• Risco: ${plan.riskLevel}\n• Rounds estimados: ${plan.estimatedRounds}${plan.toolPlan?.length ? '\n\n🔧 Ferramentas:\n' + plan.toolPlan.map(t => `  ${t.priority}. ${t.tool}: ${t.reason}`).join('\n') : ''}${plan.notes ? '\n\n📝 ' + plan.notes : ''}`;
+      } catch (err) { return `❌ Erro: ${err.message}`; }
+    }
+
+    case '/history':
+    case '/historico': {
+      if (!sessionId) return '📜 Envie esta mensagem em uma sessão ativa para ver o histórico.';
+      const historyLimit = parseInt(args) || 10;
+      const limit = Math.min(historyLimit, 50);
+      const [msgs] = await require('../db').pool.execute(
+        'SELECT role, content, created_at FROM persona_messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?',
+        [sessionId, limit]
+      );
+      if (!msgs || msgs.length === 0) return '📜 Nenhuma mensagem no histórico.';
+      const lines = msgs.reverse().map(m => {
+        const icon = m.role === 'user' ? '👤' : m.role === 'assistant' ? '🤖' : m.role === 'system' ? '⚙️' : '🔧';
+        const time = new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        return `${icon} [${time}] ${m.content.substring(0, 80)}`;
+      });
+      return `📜 Histórico (${msgs.length} mensagens):\n${lines.join('\n')}`;
+    }
+
+    case '/export': {
+      if (!isAdmin) return '⛔ Apenas administradores.';
+      if (!args) return '📤 Use: /export <tipo>\nTipos: personas, skills, goals, contacts, automations, orgmem, stages, blueprints';
+      try {
+        const type = args.toLowerCase().trim();
+        let data;
+        switch (type) {
+          case 'personas': { const [rows] = await require('../db').pool.execute('SELECT * FROM personas'); data = rows; break; }
+          case 'skills': { const [rows] = await require('../db').pool.execute('SELECT * FROM persona_skills'); data = rows; break; }
+          case 'goals': { const [rows] = await require('../db').pool.execute('SELECT * FROM persona_goals'); data = rows; break; }
+          case 'contacts': { const [rows] = await require('../db').pool.execute('SELECT * FROM persona_contacts'); data = rows; break; }
+          case 'automations': { const [rows] = await require('../db').pool.execute('SELECT * FROM persona_automations'); data = rows; break; }
+          case 'orgmem': { const [rows] = await require('../db').pool.execute('SELECT * FROM persona_org_memory'); data = rows; break; }
+          case 'stages': { const [rows] = await require('../db').pool.execute('SELECT * FROM persona_conversation_stages'); data = rows; break; }
+          case 'blueprints': { const [rows] = await require('../db').pool.execute('SELECT * FROM persona_blueprints'); data = rows; break; }
+          default: return `❌ Tipo "${type}" desconhecido. Use: personas, skills, goals, contacts, automations, orgmem, stages, blueprints`;
+        }
+        const json = JSON.stringify(data, null, 2);
+        if (json.length > 4000) return `📤 ${type}: ${data.length} registros (muito grande para exibir — use a API /api/admin/${type})`;
+        return `📤 Exportação de ${type} (${data.length} registros):\n\`\`\`json\n${json}\n\`\`\``;
+      } catch (err) { return `❌ Erro: ${err.message}`; }
+    }
+
+    case '/stats2':
+    case '/estatisticas': {
+      const db = require('../db').pool;
+      const [msgCount] = await db.execute('SELECT COUNT(*) as cnt FROM persona_messages');
+      const [userCount] = await db.execute('SELECT COUNT(*) as cnt FROM users');
+      const [sessionCount] = await db.execute('SELECT COUNT(*) as cnt FROM sessions');
+      const [personaCount] = await db.execute('SELECT COUNT(*) as cnt FROM personas WHERE is_active = 1');
+      const [goalCount] = await db.execute('SELECT COUNT(*) as cnt FROM persona_goals WHERE status = ?', ['active']);
+      const [taskCount] = await db.execute('SELECT COUNT(*) as cnt FROM persona_tasks WHERE status != ?', ['completed']);
+      const [contactCount] = await db.execute('SELECT COUNT(*) as cnt FROM persona_contacts');
+      const [automationCount] = await db.execute('SELECT COUNT(*) as cnt FROM persona_automations WHERE is_active = 1');
+
+      const [cogEmotions] = await db.execute(
+        'SELECT emotion, COUNT(*) as cnt FROM cognitive_states GROUP BY emotion ORDER BY cnt DESC LIMIT 5'
+      );
+      const [cogIntents] = await db.execute(
+        'SELECT intent, COUNT(*) as cnt FROM cognitive_states GROUP BY intent ORDER BY cnt DESC LIMIT 5'
+      );
+
+      let result = `📊 Estatísticas Globais:\n\n`;
+      result += `💬 Mensagens: ${msgCount[0].cnt}\n`;
+      result += `👥 Usuários: ${userCount[0].cnt}\n`;
+      result += `📝 Sessões: ${sessionCount[0].cnt}\n`;
+      result += `🎭 Personas ativas: ${personaCount[0].cnt}\n`;
+      result += `🎯 Metas ativas: ${goalCount[0].cnt}\n`;
+      result += `📋 Tarefas pendentes: ${taskCount[0].cnt}\n`;
+      result += `👥 Contatos: ${contactCount[0].cnt}\n`;
+      result += `🤖 Automações ativas: ${automationCount[0].cnt}\n`;
+
+      if (cogEmotions?.length) {
+        result += `\n😊 Emoções (top 5):\n${cogEmotions.map(e => `  • ${e.emotion}: ${e.cnt}`).join('\n')}`;
+      }
+      if (cogIntents?.length) {
+        result += `\n🎯 Intenções (top 5):\n${cogIntents.map(i => `  • ${i.intent}: ${i.cnt}`).join('\n')}`;
+      }
+
+      return result;
+    }
+
+    case '/config': {
+      if (!isAdmin) return '⛔ Apenas administradores.';
+      const { getSettings, getSetting } = require('../settings');
+      if (!args) {
+        const settings = await getSettings();
+        const lines = Object.entries(settings).map(([k, v]) => `• ${k}: ${String(v).substring(0, 50)}`);
+        return `⚙️ Configurações:\n${lines.join('\n')}`;
+      }
+      if (args.includes('=')) {
+        const [key, ...valParts] = args.split('=');
+        const value = valParts.join('=').trim();
+        const { setSetting } = require('../settings');
+        await setSetting(key.trim(), value);
+        return `⚙️ Configuração salva: ${key.trim()} = ${value}`;
+      }
+      const val = await getSetting(args.trim());
+      return `⚙️ ${args.trim()}: ${val || '(não definido)'}`;
+    }
+
     default:
       return null;
   }
@@ -1403,4 +2145,6 @@ module.exports = {
   getContextualWelcome,
   getQuickActions,
   generateSessionId,
+  setSilence,
+  getSilenceStatus,
 };

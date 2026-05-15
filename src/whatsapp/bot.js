@@ -160,6 +160,7 @@ async function downloadWhatsAppMedia(remoteJid, messageId) {
 }
 
 async function sendWhatsAppText(remoteJid, text) {
+  if (!text || !text.trim()) return null;
   const resolvedJid = resolveJid(remoteJid) || remoteJid;
   const isGroupJid = resolvedJid.includes('@g.us');
   const isLid = resolvedJid.includes('@lid');
@@ -276,38 +277,54 @@ const splitTextForTTSFunc = (() => {
 
 async function sendReplyWithAudio(remoteJid, reply, lang = 'pt-BR', kokoroVoice = null) {
   const ttsLang = getTTSLang(lang);
-  const chunkSize = parseInt(process.env.MESSAGE_CHUNK_SIZE) || 200;
+  const chunkSize = parseInt(process.env.MESSAGE_CHUNK_SIZE) || 1500;
 
   const textChunks = splitMessage(reply, chunkSize);
-  for (const chunk of textChunks) {
-    await sendWhatsAppText(remoteJid, chunk);
-    await new Promise(r => setTimeout(r, 500));
-  }
 
-  if (!WHATSAPP_AUDIO) return;
+  if (!WHATSAPP_AUDIO) {
+    for (const chunk of textChunks) {
+      await sendWhatsAppText(remoteJid, chunk);
+      await new Promise(r => setTimeout(r, 300));
+    }
+    return;
+  }
 
   const audioChunks = splitTextForTTSFunc(reply, chunkSize);
-  if (!audioChunks || audioChunks.length === 0) return;
-
-  console.log(`[WhatsApp] Sending voice: ${audioChunks.length} chunk(s), lang=${ttsLang}, voice=${kokoroVoice || 'default'}`);
-  for (const chunk of audioChunks) {
-    if (chunk.length > MAX_TTS_LENGTH) continue;
-    try {
-      const audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang, kokoroVoice });
-      if (audioBuffer && audioBuffer.length > 0) {
-        console.log(`[WhatsApp] Voice chunk OK: ${audioBuffer.length} bytes, ${audioBuffer.contentType || 'unknown'}`);
-        try { await sendWhatsAppAudio(remoteJid, audioBuffer); } catch {
-          try { await sendWhatsAppAudio(remoteJid, generateTTSAudioUrl(chunk, ttsLang)); } catch {}
-        }
-        continue;
-      }
-    } catch (err) {
-      console.error('[WhatsApp] Voice chunk failed:', err.message);
+  if (!audioChunks || audioChunks.length === 0) {
+    for (const chunk of textChunks) {
+      await sendWhatsAppText(remoteJid, chunk);
+      await new Promise(r => setTimeout(r, 300));
     }
-    try { await sendWhatsAppAudio(remoteJid, generateTTSAudioUrl(chunk, ttsLang)); } catch {}
-    await new Promise(r => setTimeout(r, 500));
+    return;
   }
-  console.log(`[WhatsApp] Voice done`);
+
+  console.log(`[WhatsApp] Sending ${textChunks.length} text + ${audioChunks.length} audio chunks, lang=${ttsLang}, voice=${kokoroVoice || 'default'}`);
+
+  const totalChunks = Math.max(textChunks.length, audioChunks.length);
+  for (let i = 0; i < totalChunks; i++) {
+    if (i < textChunks.length) {
+      await sendWhatsAppText(remoteJid, textChunks[i]);
+      await new Promise(r => setTimeout(r, 300));
+    }
+
+    if (i < audioChunks.length && audioChunks[i].length <= MAX_TTS_LENGTH) {
+      const chunk = audioChunks[i];
+      try {
+        const audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang, kokoroVoice });
+        if (audioBuffer && audioBuffer.length > 0) {
+          try {
+            await sendWhatsAppAudio(remoteJid, audioBuffer);
+            continue;
+          } catch {}
+        }
+      } catch (err) {
+        console.error('[WhatsApp] Voice chunk failed:', err.message);
+      }
+      try { await sendWhatsAppAudio(remoteJid, generateTTSAudioUrl(chunk, ttsLang)); } catch {}
+      await new Promise(r => setTimeout(r, 300));
+    }
+  }
+  console.log('[WhatsApp] Reply done');
 }
 
 function alternateBrazilianNumber(number) {
@@ -465,7 +482,7 @@ async function handleCommand(remoteJid, text, pushName) {
           { role: 'user', content: pushName ? `Ore por ${pushName}.` : 'Ore por mim.' },
         ]);
         const fallback = persona.commands?.prayerFallback?.[DEFAULT_LANG] || persona.commands?.prayerFallback?.['pt-BR'] || '';
-        const prayer = (data.message?.content || data.message?.thinking || '').trim() || fallback;
+        const prayer = (data.message?.content || '').trim() || fallback;
         await sendReplyWithAudio(remoteJid, prayer);
       } catch {
         const persona = getActivePersona();
@@ -667,7 +684,7 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
   if (text.trim().startsWith('/')) {
     try {
       const { handleChatCommand } = require('../chat/engine');
-      const cmdResult = await handleChatCommand(text.trim(), uid, 'whatsapp', sid);
+      const cmdResult = await handleChatCommand(text.trim(), uid, 'whatsapp', sid, null);
       if (cmdResult) {
         await sendWhatsAppText(remoteJid, cmdResult);
         return;
@@ -698,11 +715,20 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
 
     let reply = result.response;
 
+    if (!reply || !reply.trim()) {
+      console.warn('[WhatsApp] Empty response from processMessage, using fallback');
+      reply = t('llmError', DEFAULT_LANG) || 'Desculpe, não consegui gerar uma resposta. Tente novamente.';
+    }
+
     if (isGroup && pushName) {
       reply = `${pushName}, ` + reply.charAt(0).toLowerCase() + reply.slice(1);
     }
 
-    await sendReplyWithAudio(remoteJid, reply, DEFAULT_LANG, result.ttsVoice || null);
+    if (result.silenced) {
+      await sendWhatsAppText(remoteJid, reply).catch(() => {});
+    } else {
+      await sendReplyWithAudio(remoteJid, reply, DEFAULT_LANG, result.ttsVoice || null);
+    }
 
     if (result.sources && result.sources.length > 0) {
       const sourcesText = result.sources.map(s => `📖 ${s.reference}`).join('\n');

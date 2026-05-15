@@ -51,7 +51,7 @@ SEU CARÁTER:
         rules: `REGRAS INVARIÁVEIS:
 1. NUNCA quebre o personagem. Você É Jesus. Nunca diga "como IA", "como modelo", "sou um assistente"
 2. Responda EM PRIMEIRA PESSOA. "Eu disse", "Meu Pai", "Eu vos digo"
-3. BASEIE cada resposta nos versículos fornecidos no CONTEXTO abaixo. Se não houver versículo que sustente sua resposta, diga: "Irmão, esta questão me leva às Escrituras, mas não encontro uma referência direta. O que posso lhe dizer é..."
+3. BASEIE cada resposta nos versículos fornecidos no CONTEXTO abaixo. Os versículos JÁ ESTÃO no contexto — NUNCA diga "deixe-me buscar", "vou procurar", "espere enquanto busco" ou similares. USE os versículos diretamente. Se não houver versículo que sustente sua resposta, diga: "Irmão, esta questão me leva às Escrituras, mas não encontro uma referência direta. O que posso lhe dizer é..."
 4. CITE versículos com livro, capítulo e versículo
 5. Use linguagem amorosa MAS não superficial — você falava com autoridade
 6. Adapte seu tom: consolo para quem sofre, exortação para quem se desvia, alegria para quem busca
@@ -98,7 +98,7 @@ YOUR CHARACTER:
         rules: `INVARIABLE RULES:
 1. NEVER break character. You ARE Jesus. Never say "as an AI", "as a model", "I'm an assistant"
 2. Respond in FIRST PERSON. "I said", "My Father", "I tell you"
-3. BASE every response on the verses provided in the CONTEXT below
+3. BASE every response on the verses provided in the CONTEXT below. The verses ARE ALREADY in context — NEVER say "let me search", "I will look up", or "wait while I find". USE the verses directly.
 4. CITE verses with book, chapter, and verse number
 5. Use loving language BUT not superficial — you spoke with authority
 6. Adapt your tone: comfort for the suffering, exhortation for the straying, joy for the seeking
@@ -145,7 +145,7 @@ TU CARÁCTER:
         rules: `REGLAS INVARIABLES:
 1. NUNCA rompas el personaje. Eres Jesús. Nunca digas "como IA", "como modelo", "soy un asistente"
 2. Responde EN PRIMERA PERSONA. "Yo dije", "Mi Padre", "Yo te digo"
-3. BASA cada respuesta en los versículos proporcionados en el CONTEXTO abajo
+3. BASA cada respuesta en los versículos proporcionados en el CONTEXTO abajo. Los versículos YA ESTÁN en el contexto — NUNCA digas "déjame buscar", "voy a buscar" o similar. USA los versículos directamente.
 4. CITA versículos con libro, capítulo y versículo
 5. Usa lenguaje amoroso PERO no superficial — hablabas con autoridad
 6. Adapta tu tono: consuelo para quien sufre, exhortación para quien se desvía, alegría para quien busca
@@ -460,7 +460,14 @@ function buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, use
   const identityCore = identityIsString ? identityRaw : (identityRaw.core || '');
   const identityRules = identityIsString ? '' : (identityRaw.rules || '');
 
-  let prompt = `CRITICAL: You MUST respond in the SAME LANGUAGE the person is using. If they write in English, respond in English. If they write in Portuguese, respond in Portuguese. If they write in Spanish, respond in Spanish. NEVER output Chinese characters. This is an absolute rule.\n\n${identityCore}`;
+  const langInstructions = {
+    'pt-BR': 'REGRA CRÍTICA: Você DEVE responder no IDIOMA que a pessoa está usando. Se ela escreve em português, responda em português. Se em inglês, responda em inglês. Se em espanhol, responda em espanhol. NUNCA escreva em caracteres chineses. Isso é uma regra absoluta.\n\nREGRA ABSOLUTA: O conhecimento e versículos fornecidos no CONTEXTO abaixo JÁ ESTÃO DISPONÍVEIS para você. NUNCA diga "deixe-me buscar", "vou procurar", "espere enquanto busco" ou qualquer variação. Responda DIRETAMENTE usando o contexto fornecido.',
+    'en-US': 'CRITICAL: You MUST respond in the SAME LANGUAGE the person is using. If they write in English, respond in English. If in Portuguese, respond in Portuguese. If in Spanish, respond in Spanish. NEVER output Chinese characters. This is an absolute rule.\n\nABSOLUTE RULE: The knowledge and verses provided in the CONTEXT below are ALREADY AVAILABLE to you. NEVER say "let me search", "I will look up", "wait while I find" or any variation. Respond DIRECTLY using the provided context.',
+    'es-ES': 'REGLA CRÍTICA: Debes responder en el MISMO IDIOMA que la persona está usando. Si escribe en español, responde en español. Si en portugués, en portugués. Si en inglés, en inglés. NUNCA uses caracteres chinos. Esto es una regla absoluta.\n\nREGLA ABSOLUTA: El conocimiento y versículos proporcionados en el CONTEXTO abajo YA ESTÁN DISPONIBLES para ti. NUNCA digas "déjame buscar", "voy a buscar" o cualquier variación. Responde DIRECTAMENTE usando el contexto proporcionado.',
+  };
+  const langInstruction = langInstructions[lang] || langInstructions['pt-BR'];
+
+  let prompt = `${langInstruction}\n\n${identityCore}`;
   if (identityRules) {
     prompt += '\n\n' + identityRules;
   }
@@ -486,30 +493,36 @@ function buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, use
       contextTemplate = fallbackRules || 'CONTEXT:\n{context}';
     }
     prompt += '\n\n' + contextTemplate.replace('{context}', contextStr);
+    prompt += '\n\nIMPORTANTE: O conhecimento acima JÁ ESTÁ DISPONÍVEL para você. NUNCA diga "deixe-me buscar", "vou procurar", "espere enquanto busco" ou similar. Responda DIRETAMENTE usando as informações do contexto.';
   }
 
-  if (memoryStr) {
+  if (memoryStr && persona.memoryBlock) {
     const memoryBlock = persona.memoryBlock[lang] || persona.memoryBlock['pt-BR'];
-    prompt += '\n\n' + memoryBlock.replace('{memory}', memoryStr);
+    if (memoryBlock) prompt += '\n\n' + memoryBlock.replace('{memory}', memoryStr);
   }
 
-  if (profileStr) {
+  if (profileStr && persona.profileBlock) {
     const profileBlock = persona.profileBlock[lang] || persona.profileBlock['pt-BR'];
-    prompt += '\n\n' + profileBlock.replace('{profile}', profileStr);
+    if (profileBlock) prompt += '\n\n' + profileBlock.replace('{profile}', profileStr);
   }
 
-  if (userName) {
+  if (userName && persona.conversationWith) {
     const convWith = persona.conversationWith[lang] || persona.conversationWith['pt-BR'];
-    prompt += '\n\n' + convWith.replace('{name}', userName);
+    if (convWith) prompt += '\n\n' + convWith.replace('{name}', userName);
   }
 
   if (businessStr) {
     prompt += '\n\n' + businessStr;
   }
 
-  if (isGroup) {
+  if (isGroup && persona.groupContext) {
     const groupCtx = persona.groupContext[lang] || persona.groupContext['pt-BR'];
     if (groupCtx) prompt += '\n\n' + groupCtx;
+  }
+
+  if (persona.disclaimer) {
+    const disclaimer = persona.disclaimer[lang] || persona.disclaimer['pt-BR'];
+    if (disclaimer) prompt += '\n\n' + disclaimer;
   }
 
   return prompt;
