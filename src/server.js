@@ -517,6 +517,18 @@ async function seedDefaultBlueprints(bm) {
       generateDailyPostForPersonas().catch(err => console.error('[Blog] Persona posts error:', err.message));
       scheduleDailyPost();
     });
+
+    setInterval(async () => {
+      try {
+        const { cleanupOldStates } = require('./cognitive');
+        const deleted = await cleanupOldStates(90);
+        if (deleted > 0) console.log(`[Cleanup] Removed ${deleted} old cognitive states (>90 days)`);
+        const [thoughts] = await require('./db').pool.execute('DELETE FROM agent_thoughts WHERE created_at < DATE_SUB(NOW(), INTERVAL 90 DAY)');
+        if (thoughts.affectedRows > 0) console.log(`[Cleanup] Removed ${thoughts.affectedRows} old agent thoughts (>90 days)`);
+      } catch (err) {
+        console.error('[Cleanup] Error:', err.message);
+      }
+    }, 24 * 60 * 60 * 1000);
   });
 }
 

@@ -257,8 +257,16 @@ function formatCognitiveState(row) {
   };
 }
 
+async function cleanupOldStates(daysToKeep = 90) {
+  const [result] = await pool.execute(
+    'DELETE FROM cognitive_states WHERE created_at < DATE_SUB(NOW(), INTERVAL ? DAY)',
+    [daysToKeep]
+  );
+  return result.affectedRows;
+}
+
 module.exports = {
   saveCognitiveState, getCognitiveState, getLatestCognitiveState,
   getCognitiveHistory, getCognitiveStats, analyzeCognitiveState,
-  formatCognitiveContext,
+  formatCognitiveContext, cleanupOldStates,
 };

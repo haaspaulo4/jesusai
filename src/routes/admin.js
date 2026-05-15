@@ -20,6 +20,12 @@ const eventsModule = require('../events');
 
 const router = express.Router();
 
+function paginated(req, maxLimit = 500) {
+  const limit = Math.min(Math.max(parseInt(req.query.limit) || 100, 1), maxLimit);
+  const offset = Math.max(parseInt(req.query.offset) || 0, 0);
+  return { limit, offset };
+}
+
 function adminMiddleware(req, res, next) {
   if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
   if (req.userRole !== 'admin') return res.status(403).json({ error: 'Admin access required' });
@@ -846,9 +852,12 @@ router.delete('/calendar/:id', authMiddleware, premiumMiddleware, async (req, re
 // ===== Contacts (CRM) =====
 router.get('/contacts', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const filters = { owner_id: req.userId, ...req.query };
+    const { limit, offset } = paginated(req);
+    const { limit: _l, offset: _o, ...filters } = req.query;
+    filters.owner_id = req.userId;
+    filters.limit = limit + offset;
     const contacts = await agentModule.listContacts(filters);
-    res.json({ contacts, total: contacts.length });
+    res.json({ contacts: contacts.slice(offset), total: contacts.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -885,7 +894,10 @@ router.delete('/contacts/:id', authMiddleware, premiumMiddleware, async (req, re
 // ===== Automations =====
 router.get('/automations', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const filters = { owner_id: req.userId, ...req.query };
+    const { limit, offset } = paginated(req);
+    const { limit: _l, offset: _o, ...filters } = req.query;
+    filters.owner_id = req.userId;
+    filters.limit = limit + offset;
     const automations = await agentModule.listAutomations(filters);
     res.json({ automations, total: automations.length });
   } catch (err) {
@@ -934,9 +946,12 @@ router.get('/dashboard', authMiddleware, premiumMiddleware, async (req, res) => 
 // ===== Goals =====
 router.get('/goals', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const filters = { owner_id: req.userId, ...req.query };
+    const { limit, offset } = paginated(req);
+    const { limit: _l, offset: _o, ...filters } = req.query;
+    filters.owner_id = req.userId;
+    filters.limit = limit + offset;
     const goals = await goalsModule.listGoals(filters);
-    res.json({ goals, total: goals.length });
+    res.json({ goals: goals.slice(offset), total: goals.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -1444,13 +1459,14 @@ router.post('/blueprints/from-persona/:personaId', authMiddleware, adminMiddlewa
 // ===== Events =====
 router.get('/events/log', authMiddleware, adminMiddleware, async (req, res) => {
   try {
+    const { limit, offset } = paginated(req, 1000);
     const filters = {};
     if (req.query.event_type) filters.event_type = req.query.event_type;
     if (req.query.user_id) filters.user_id = req.query.user_id;
     if (req.query.persona_id) filters.persona_id = req.query.persona_id;
-    if (req.query.limit) filters.limit = parseInt(req.query.limit);
+    filters.limit = limit + offset;
     const events = await eventsModule.getEventLog(filters);
-    res.json({ events, total: events.length });
+    res.json({ events: events.slice(offset), total: events.length });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

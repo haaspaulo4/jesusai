@@ -126,9 +126,9 @@ router.post('/chat', optionalAuth, async (req, res) => {
     res.status(500).json({ error: 'Failed to generate response' });
   }
 });
-router.get('/sessions', async (req, res) => {
+router.get('/sessions', authMiddleware, async (req, res) => {
   try {
-    const userId = req.query.userId || null;
+    const userId = req.userId || req.query.userId;
     const sessions = await listSessions(userId);
     res.json(sessions);
   } catch (err) {
@@ -137,7 +137,7 @@ router.get('/sessions', async (req, res) => {
   }
 });
 
-router.get('/session/:id', async (req, res) => {
+router.get('/session/:id', authMiddleware, async (req, res) => {
   try {
     const session = await getSession(req.params.id);
     res.json({
@@ -445,9 +445,10 @@ router.get('/personas', async (req, res) => {
   }
 });
 
-router.post('/persona/switch', async (req, res) => {
+router.post('/persona/switch', optionalAuth, async (req, res) => {
   try {
-    const { personaId, sessionId, userId } = req.body;
+    const { personaId, sessionId } = req.body;
+    const userId = req.userId || req.body.userId || 'user_default';
     if (!personaId) return res.status(400).json({ error: 'personaId is required' });
 
     const result = await metaRag.switchPersona(userId || 'user_default', sessionId, personaId);
@@ -496,9 +497,10 @@ router.post('/persona/create', authMiddleware, async (req, res) => {
   }
 });
 
-router.get('/persona/current', async (req, res) => {
+router.get('/persona/current', optionalAuth, async (req, res) => {
   try {
     const { sessionId, userId } = req.query;
+    const uid = req.userId || userId;
     const persona = await require('../chat/engine').getPersonaForContext(sessionId, userId);
     res.json({
       id: persona.id,
