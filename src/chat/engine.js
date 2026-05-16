@@ -976,6 +976,78 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       }
     }
 
+    case '/cadastrar':
+    case '/register':
+    case '/criarconta': {
+      const emailReg = parts[1];
+      const passwordReg = parts[2];
+      const nameReg = parts.slice(3).join(' ') || userName || uid.replace(/^(wa_|tg_)/, '');
+      if (!emailReg || !passwordReg) {
+        return '📝 Para criar sua conta web e poder acessar pelo site:\n\n/cadastrar email senha [nome]\n\nExemplo:\n/cadastrar joao@email.com minhasenha123 João Silva\n\n• Senha mínima: 6 caracteres\n• Após criar, você pode acessar pelo site com o mesmo email/senha\n• Seus dados daqui já ficam sincronizados\n\nJá tem conta no site? Use /entrar';
+      }
+      if (passwordReg.length < 6) {
+        return '❌ A senha deve ter no mínimo 6 caracteres.';
+      }
+      try {
+        const { register, generateToken: genToken, pool: authPool } = require('../auth');
+        let userId;
+        const existingBotUser = uid.startsWith('wa_') || uid.startsWith('tg_');
+        if (existingBotUser) {
+          const [existing] = await authPool.execute('SELECT id FROM users WHERE id = ?', [uid]);
+          if (existing.length > 0) {
+            await authPool.execute('UPDATE users SET email = ?, password = ?, name = ? WHERE id = ?', [emailReg, await require('bcryptjs').hash(passwordReg, 10), nameReg, uid]);
+            userId = uid;
+          } else {
+            const user = await register(emailReg, passwordReg, nameReg);
+            userId = user.id;
+          }
+          const col = uid.startsWith('wa_') ? 'whatsapp_id' : 'telegram_id';
+          await authPool.execute(`UPDATE users SET ${col} = ? WHERE id = ?`, [uid, userId]);
+          if (userId !== uid) {
+            const [delRows] = await authPool.execute('SELECT id FROM users WHERE id = ?', [uid]);
+            if (delRows.length > 0) {
+              await authPool.execute('DELETE FROM users WHERE id = ?', [uid]);
+            }
+          }
+        } else {
+          const user = await register(emailReg, passwordReg, nameReg);
+          userId = user.id;
+        }
+        return `✅ Conta criada com sucesso!\n\n📧 ${emailReg}\n👤 ${nameReg}\n\n🔗 Sua conta deste dispositivo já está vinculada.\n\nAgora você pode acessar pelo site:\n${process.env.SERVER_URL || 'http://localhost:3000'}\n\nEmail: ${emailReg}\nSenha: a que você escolheu`;
+      } catch (err) {
+        if (err.message.includes('já cadastrado') || err.message.includes('already')) {
+          return `❌ Este email já está cadastrado.\n\nSe é sua conta, use /entrar ${emailReg} suaSenha`;
+        }
+        return `❌ Erro ao criar conta: ${err.message}`;
+      }
+    }
+
+    case '/entrar':
+    case '/login': {
+      const emailLogin = parts[1];
+      const passwordLogin = parts[2];
+      if (!emailLogin || !passwordLogin) {
+        return '🔑 Para fazer login com sua conta web:\n\n/entrar email senha\n\nExemplo:\n/entrar joao@email.com minhasenha123\n\nNão tem conta ainda? Use /cadastrar';
+      }
+      try {
+        const { login, generateToken: genToken, pool: authPool } = require('../auth');
+        const user = await login(emailLogin, passwordLogin);
+        const fullUser = await getUserWithRole(user.id);
+        if ((uid.startsWith('wa_') || uid.startsWith('tg_'))) {
+          const col = uid.startsWith('wa_') ? 'whatsapp_id' : 'telegram_id';
+          await authPool.execute(`UPDATE users SET ${col} = ? WHERE id = ?`, [uid, fullUser.id]);
+          const [delRows] = await authPool.execute('SELECT id FROM users WHERE id = ?', [uid]);
+          if (delRows.length > 0 && uid !== fullUser.id) {
+            await authPool.execute('DELETE FROM users WHERE id = ?', [uid]);
+          }
+          return `✅ Login realizado! Conta vinculada.\n\n📧 ${fullUser.email}\n👤 ${fullUser.name}\n\nSeus dados daqui estão sincronizados com o site.`;
+        }
+        return `✅ Login realizado!\n\n📧 ${fullUser.email}\n👤 ${fullUser.name}\n👑 ${fullUser.role}`;
+      } catch (err) {
+        return `❌ Erro no login: ${err.message}`;
+      }
+    }
+
     case '/silence':
     case '/silencio':
     case '/mutar':
@@ -1013,7 +1085,8 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       return `📊 Suas estatísticas:\n• Sessões: ${sessionRows[0].total}\n• Mensagens: ${msgRows[0].total}`;
     }
 
-    case '/myprofile': {
+    case '/myprofile':
+    case '/perfil': {
       const profile = await getProfile(uid);
       const lines = ['📋 Seu perfil:'];
       if (profile.name) lines.push(`• Nome: ${profile.name}`);

@@ -569,6 +569,8 @@ Integration: Chat engine emits events on message save, XP update, cognitive stat
 | `/mute` | anyone | Alias for /silence |
 | `/vincular [CODE]` | bot | Link WhatsApp/Telegram to web account (no code = instructions, with code = link) |
 | `/desvincular` | bot | Unlink WhatsApp/Telegram from web account |
+| `/cadastrar email senha [nome]` | bot | Create web account from bot, links automatically |
+| `/entrar email senha` | bot | Login to existing web account from bot, links automatically |
 | `/stats` | user | Your stats |
 | `/myprofile` | user | Your profile |
 | `/persona` | anyone | List personas |
