@@ -293,8 +293,7 @@ const app = createApp({
     }
 
     function skipAuth() {
-      showAuthModal.value = false;
-      enterApp();
+      showAuth('login');
     }
 
     async function doAuth() {
@@ -322,6 +321,26 @@ const app = createApp({
       }
     }
 
+    async function doGoogleAuth() {
+      authLoading.value = true;
+      authError.value = '';
+      try {
+        const res = await api('/auth/google', {
+          method: 'POST',
+          body: JSON.stringify({ googleId: 'web_' + Date.now(), name: '', email: '' }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          window.location.href = '/auth/google';
+          return;
+        }
+      } catch (err) {
+        authError.value = err.message;
+      } finally {
+        authLoading.value = false;
+      }
+    }
+
     function logout() {
       localStorage.removeItem('mp_token');
       localStorage.removeItem('mp_user_id');
@@ -335,11 +354,16 @@ const app = createApp({
     }
 
     function enterApp() {
+      if (!authToken.value) {
+        showAuth('login');
+        return;
+      }
       view.value = 'chat';
       loadPersonas();
       loadBrandSettings();
       loadConversations();
       loadProfile();
+      loadLinkStatus();
       loadBibleBooks();
       loadDonateData();
       connectSocketIO();
@@ -507,6 +531,12 @@ const app = createApp({
           }),
         });
 
+        if (res.status === 401) {
+          messages.value[botIdx].content = '🔒 Você precisa fazer login para conversar.';
+          streaming.value = false;
+          showAuth('login');
+          return;
+        }
         if (res.status === 403) {
           messages.value[botIdx].content = '\u26D4 Conta suspensa. Entre em contato com o suporte.';
           streaming.value = false;
@@ -754,6 +784,37 @@ const app = createApp({
           method: 'PUT',
           body: JSON.stringify({ name: profileName.value }),
         });
+      } catch {}
+    }
+
+    const linkCode = ref('');
+    const linkCodeExpiry = ref('');
+    const linkStatus = ref({ whatsappLinked: false, telegramLinked: false, whatsappId: null, telegramId: null });
+    const showLinkCode = ref(false);
+
+    async function loadLinkStatus() {
+      try {
+        const res = await api('/auth/link-status');
+        if (res.ok) linkStatus.value = await res.json();
+      } catch {}
+    }
+
+    async function generateLinkCode() {
+      try {
+        const res = await api('/auth/link-code', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          linkCode.value = data.code;
+          linkCodeExpiry.value = new Date(data.expires).toLocaleTimeString();
+          showLinkCode.value = true;
+        }
+      } catch {}
+    }
+
+    async function unlinkAccount(source) {
+      try {
+        await api('/auth/unlink', { method: 'POST', body: JSON.stringify({ source }) });
+        await loadLinkStatus();
       } catch {}
     }
 
@@ -1267,7 +1328,9 @@ const app = createApp({
       mediaGallery, mediaFilter, mediaViewerItem, mediaLoading, mediaFolders,
       showMediaUpload, mediaUploading, mediaUploadProgress, mediaUploadFiles,
 
-      showAuth, skipAuth, doAuth, logout, enterApp,
+      showAuth, skipAuth, doAuth, doGoogleAuth, logout, enterApp,
+      linkCode, linkCodeExpiry, linkStatus, showLinkCode,
+      generateLinkCode, loadLinkStatus, unlinkAccount,
       switchPersona, getPersonaEmoji, getPersonaName, sendMessage, scrollToBottom, autoResize,
       speakText, formatMarkdown, loadConversations, loadSession, deleteSession, newChat,
       loadBlog, viewPost, doSearch, searchSource, loadBibleBooks,

@@ -28,6 +28,11 @@ function rowToUser(row) {
     avatar: row.avatar,
     ollamaApiKey: row.ollama_api_key,
     telegramChatId: row.telegram_chat_id,
+    whatsappId: row.whatsapp_id || null,
+    telegramId: row.telegram_id || null,
+    phone: row.phone || null,
+    linkCode: row.link_code || null,
+    linkCodeExpires: row.link_code_expires || null,
     role: row.role || 'user',
     personaId: row.persona_id || null,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
@@ -190,6 +195,69 @@ async function getUserWithRole(userId) {
   return safe;
 }
 
+async function generateLinkCode(userId) {
+  const code = Math.random().toString(36).substring(2, 8).toUpperCase();
+  const expires = new Date(Date.now() + 15 * 60 * 1000);
+  await pool.execute(
+    'UPDATE users SET link_code = ?, link_code_expires = ? WHERE id = ?',
+    [code, expires, userId]
+  );
+  return { code, expires };
+}
+
+async function linkAccount(linkCode, botUserId, source) {
+  const [rows] = await pool.execute(
+    'SELECT * FROM users WHERE link_code = ? AND link_code_expires > NOW()',
+    [linkCode]
+  );
+  if (rows.length === 0) {
+    throw new Error('Código inválido ou expirado');
+  }
+
+  const webUser = rowToUser(rows[0]);
+
+  const col = source === 'whatsapp' ? 'whatsapp_id' : 'telegram_id';
+  const [existing] = await pool.execute(
+    `SELECT id FROM users WHERE ${col} = ? AND id != ?`,
+    [botUserId, webUser.id]
+  );
+  if (existing.length > 0) {
+    throw new Error('Esta conta do bot já está vinculada a outro perfil');
+  }
+
+  if (source === 'whatsapp') {
+    await pool.execute(
+      'UPDATE users SET whatsapp_id = ?, link_code = NULL, link_code_expires = NULL WHERE id = ?',
+      [botUserId, webUser.id]
+    );
+  } else {
+    await pool.execute(
+      'UPDATE users SET telegram_id = ?, link_code = NULL, link_code_expires = NULL WHERE id = ?',
+      [botUserId, webUser.id]
+    );
+  }
+
+  const [botRows] = await pool.execute('SELECT id FROM users WHERE id = ?', [botUserId]);
+  if (botRows.length > 0) {
+    await pool.execute(
+      'DELETE FROM users WHERE id = ?',
+      [botUserId]
+    );
+  }
+
+  return { webUserId: webUser.id, linked: true };
+}
+
+async function findLinkedUser(botUserId, source) {
+  const col = source === 'whatsapp' ? 'whatsapp_id' : 'telegram_id';
+  const [rows] = await pool.execute(
+    `SELECT * FROM users WHERE ${col} = ?`,
+    [botUserId]
+  );
+  if (rows.length === 0) return null;
+  return rowToUser(rows[0]);
+}
+
 module.exports = {
   register,
   login,
@@ -204,6 +272,9 @@ module.exports = {
   findOrCreateFromGoogle,
   getUserByGoogleId,
   pool,
+  generateLinkCode,
+  linkAccount,
+  findLinkedUser,
   createUser: async function(id, name, role = 'user') {
     const [existing] = await pool.execute('SELECT id FROM users WHERE id = ?', [id]);
     if (existing.length > 0) return existing[0].id;

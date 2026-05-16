@@ -1,5 +1,5 @@
 const express = require('express');
-const { generateToken, authMiddleware, getUser, updateUser, getUserWithRole, findOrCreateFromGoogle } = require('../auth');
+const { generateToken, authMiddleware, getUser, updateUser, getUserWithRole, findOrCreateFromGoogle, generateLinkCode, linkAccount, findLinkedUser, pool } = require('../auth');
 const { register, login } = require('../auth/index');
 
 const router = express.Router();
@@ -85,6 +85,59 @@ router.put('/me', authMiddleware, async (req, res) => {
     return res.status(404).json({ error: 'Usuário não encontrado' });
   }
   res.json(updated);
+});
+
+router.post('/link-code', authMiddleware, async (req, res) => {
+  try {
+    const result = await generateLinkCode(req.userId);
+    res.json({ code: result.code, expires: result.expires });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/link-status', authMiddleware, async (req, res) => {
+  try {
+    const user = await getUserWithRole(req.userId);
+    res.json({
+      whatsappLinked: !!user.whatsappId,
+      telegramLinked: !!user.telegramId,
+      whatsappId: user.whatsappId || null,
+      telegramId: user.telegramId || null,
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/link', async (req, res) => {
+  try {
+    const { code, botUserId, source } = req.body;
+    if (!code || !botUserId || !source) {
+      return res.status(400).json({ error: 'Código, botUserId e source são obrigatórios' });
+    }
+    if (!['whatsapp', 'telegram'].includes(source)) {
+      return res.status(400).json({ error: 'Source deve ser whatsapp ou telegram' });
+    }
+    const result = await linkAccount(code, botUserId, source);
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/unlink', authMiddleware, async (req, res) => {
+  try {
+    const { source } = req.body;
+    if (!['whatsapp', 'telegram'].includes(source)) {
+      return res.status(400).json({ error: 'Source deve ser whatsapp ou telegram' });
+    }
+    const col = source === 'whatsapp' ? 'whatsapp_id' : 'telegram_id';
+    await pool.execute(`UPDATE users SET ${col} = NULL WHERE id = ?`, [req.userId]);
+    res.json({ success: true, unlinked: source });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 module.exports = router;

@@ -436,6 +436,16 @@ Role middleware: authMiddleware → sets req.userId + req.userRole
 roleMiddleware('admin') → 403 if not admin
 Login/register/Google returns role in response
 Onboarding: auto-creates user for bot users (ensureUser)
+Web chat REQUIRES auth (authMiddleware) — no anonymous access
+Bot users (WhatsApp/Telegram) auto-created with wa_*/tg_* IDs
+
+Account Linking:
+- Web user generates 6-digit code (expires in 15 min) via POST /api/auth/link-code
+- Bot user sends /vincular CODE on WhatsApp/Telegram
+- linkAccount() maps whatsapp_id/telegram_id to web user, deletes bot user record
+- processMessage resolves linked bot user to web user ID automatically
+- Linked users share: profile, XP, goals, org memory, conversation stages, contacts
+- /desvincular unlinks bot account
 ```
 
 ### Hybrid Vector Search (Embeddings)
@@ -557,6 +567,8 @@ Integration: Chat engine emits events on message save, XP update, cognitive stat
 | `/stop` | anyone | Interrupt response (info about silence mode) |
 | `/silence <N>` | anyone | Silence persona for N messages, /silence off to disable, /silence infinite for indefinite |
 | `/mute` | anyone | Alias for /silence |
+| `/vincular [CODE]` | bot | Link WhatsApp/Telegram to web account (no code = instructions, with code = link) |
+| `/desvincular` | bot | Unlink WhatsApp/Telegram from web account |
 | `/stats` | user | Your stats |
 | `/myprofile` | user | Your profile |
 | `/persona` | anyone | List personas |
@@ -751,10 +763,14 @@ Integration: Chat engine emits events on message save, XP update, cognitive stat
 | POST | `/api/auth/register` | Register |
 | POST | `/api/auth/login` | Login |
 | POST | `/api/auth/google` | Google OAuth |
+| POST | `/api/auth/link-code` | Generate link code (auth required) |
+| GET | `/api/auth/link-status` | Check linked accounts (auth required) |
+| POST | `/api/auth/link` | Link bot account to web account |
+| POST | `/api/auth/unlink` | Unlink bot account (auth required) |
 | GET | `/api/auth/me` | Current user (with role) |
 
 ## Database Schema
-- **users** — id, email, password, name, google_id, avatar, ollama_api_key, telegram_chat_id, role (guest/user/premium/admin/banned), persona_id
+- **users** — id, email, password, name, google_id, avatar, ollama_api_key, telegram_chat_id, role (guest/user/premium/admin/banned), persona_id, link_code (VARCHAR 10), link_code_expires (TIMESTAMP), whatsapp_id (VARCHAR 100), telegram_id (VARCHAR 100), phone (VARCHAR 50)
 - **sessions** — id, user_id, user_name, user_context (JSON), summary, persona_id, timestamps
 - **messages** — id, session_id, role, content, timestamp
 - **profiles** — id, name, story, topics (JSON), emotions (JSON), spiritual_journey, prayer_requests (JSON)

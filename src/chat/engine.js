@@ -135,8 +135,23 @@ async function processOnboardingAnswer(uid, message, lang, personaId) {
 
 async function processMessage({ message, sessionId, userId, language, isGroup, source, userName, personaId }) {
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
-  const uid = userId || 'user_default';
+  let uid = userId;
+  if (!uid) {
+    console.warn('[ChatEngine] WARNING: No userId provided — requires auth for web, bot users always have ID');
+    uid = 'user_default';
+  }
   const sid = sessionId || generateSessionId();
+
+  if (uid && uid !== 'user_default' && !isGroup && (uid.startsWith('wa_') || uid.startsWith('tg_'))) {
+    try {
+      const { findLinkedUser } = require('../auth');
+      const linkedUser = await findLinkedUser(uid, uid.startsWith('wa_') ? 'whatsapp' : 'telegram');
+      if (linkedUser) {
+        console.log(`[ChatEngine] Linked bot user ${uid} -> web user ${linkedUser.id}`);
+        uid = linkedUser.id;
+      }
+    } catch (err) { console.error('[ChatEngine] Link lookup error:', err.message); }
+  }
 
   if (message && message.trim().startsWith('/')) {
     try {
@@ -917,6 +932,48 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
   switch (cmd) {
     case '/stop': {
       return '🛑 Geração interrompida. Use /silence <N> para silenciar por N mensagens ou /silence off para reativar.';
+    }
+
+    case '/vincular':
+    case '/link': {
+      if (!uid.startsWith('wa_') && !uid.startsWith('tg_')) {
+        return '🔗 Este comando é para uso no WhatsApp ou Telegram.\n\nNo site, acesse Configurações → Vincular Conta para gerar um código.';
+      }
+      const linkCode = parts[1];
+      if (!linkCode) {
+        const { findLinkedUser } = require('../auth');
+        const linked = await findLinkedUser(uid, uid.startsWith('wa_') ? 'whatsapp' : 'telegram');
+        if (linked) {
+          return `✅ Sua conta já está vinculada a ${linked.email} (${linked.name || 'sem nome'}).\n\nUse /desvincular para desvincular.`;
+        }
+        return '🔗 Para vincular sua conta:\n\n1. Acesse o site e faça login\n2. Clique em Configurações → Vincular Conta\n3. Copie o código de 6 dígitos\n4. Envie /vincular SEUCODIGO aqui\n\nExemplo: /vincular ABC123';
+      }
+      try {
+        const { linkAccount } = require('../auth');
+        const result = await linkAccount(linkCode.toUpperCase(), uid, uid.startsWith('wa_') ? 'whatsapp' : 'telegram');
+        return `✅ Conta vinculada com sucesso! Agora suas conversas aqui estão conectadas à sua conta web.\n\nSeus dados, histórico e perfil foram unificados.`;
+      } catch (err) {
+        return `❌ Erro ao vincular: ${err.message}`;
+      }
+    }
+
+    case '/desvincular':
+    case '/unlink': {
+      if (!uid.startsWith('wa_') && !uid.startsWith('tg_')) {
+        return '🔗 Este comando é para uso no WhatsApp ou Telegram.';
+      }
+      try {
+        const { findLinkedUser, pool } = require('../auth');
+        const linked = await findLinkedUser(uid, uid.startsWith('wa_') ? 'whatsapp' : 'telegram');
+        if (!linked) {
+          return '❌ Sua conta não está vinculada a nenhuma conta web.';
+        }
+        const col = uid.startsWith('wa_') ? 'whatsapp_id' : 'telegram_id';
+        await pool.execute(`UPDATE users SET ${col} = NULL WHERE id = ?`, [linked.id]);
+        return '✅ Conta desvinculada. Suas conversas agora usam uma conta separada do bot.';
+      } catch (err) {
+        return `❌ Erro ao desvincular: ${err.message}`;
+      }
     }
 
     case '/silence':

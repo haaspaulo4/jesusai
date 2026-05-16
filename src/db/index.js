@@ -917,6 +917,16 @@ async function initDatabase() {
       KEY idx_media_folder (folder)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
 
+  // Account linking columns
+  try { await pool.execute("ALTER TABLE users ADD COLUMN link_code VARCHAR(10) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD COLUMN link_code_expires TIMESTAMP NULL DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD COLUMN whatsapp_id VARCHAR(100) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD COLUMN telegram_id VARCHAR(100) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD COLUMN phone VARCHAR(50) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD UNIQUE KEY idx_users_link_code (link_code)"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD UNIQUE KEY idx_users_whatsapp_id (whatsapp_id)"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD UNIQUE KEY idx_users_telegram_id (telegram_id)"); } catch {}
+
   console.log('Database schema initialized (with migrations)');
 }
 

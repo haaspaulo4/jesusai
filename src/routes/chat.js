@@ -73,7 +73,7 @@ router.post('/stt', upload.single('audio'), async (req, res) => {
   }
 });
 
-router.post('/chat', optionalAuth, async (req, res) => {
+router.post('/chat', authMiddleware, async (req, res) => {
   const { message, sessionId, language, personaId } = req.body;
 
   if (typeof message !== 'string') {
@@ -85,7 +85,8 @@ router.post('/chat', optionalAuth, async (req, res) => {
   }
 
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
-  const uid = (req.userId || 'user_default').toString().slice(0, 60);
+  const uid = req.userId;
+
   const sid = sessionId || generateSessionId();
 
   try {
