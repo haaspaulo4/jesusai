@@ -1093,6 +1093,21 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (profile.topics?.length) lines.push(`• Temas: ${profile.topics.join(', ')}`);
       if (profile.emotions?.length) lines.push(`• Emoções: ${profile.emotions.join(', ')}`);
       if (profile.spiritualJourney) lines.push(`• Jornada: ${profile.spiritualJourney}`);
+      try {
+        const { pool: authPool } = require('../auth');
+        const [userRows] = await authPool.execute('SELECT email, role, whatsapp_id, telegram_id FROM users WHERE id = ?', [uid]);
+        if (userRows.length > 0) {
+          const u = userRows[0];
+          lines.push('');
+          lines.push(`📧 Email: ${u.email}`);
+          lines.push(`👑 Cargo: ${u.role}`);
+          if (u.whatsapp_id) lines.push('🔗 WhatsApp: vinculado');
+          if (u.telegram_id) lines.push('🔗 Telegram: vinculado');
+          if (!u.whatsapp_id && !u.telegram_id && !u.email.includes('.bot')) {
+            lines.push('📱 Dispositivo não vinculado — use /vincular');
+          }
+        }
+      } catch {}
       return lines.join('\n') || 'Perfil vazio ainda. Converse mais comigo!';
     }
 
