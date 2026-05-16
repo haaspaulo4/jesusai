@@ -351,7 +351,10 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     messages.push({ role: 'user', content: message });
   }
 
-  await addMessage(sid, 'user', message);
+  const sensitiveCmd = /^\s*\/(cadastrar|entrar|register|login|criarconta)\s/i.test(message);
+  const safeMessage = sensitiveCmd ? message.replace(/(\S+@\S+\s+)(\S+)/, '$1••••••') : message;
+
+  await addMessage(sid, 'user', safeMessage);
 
   if (uid && userId) {
     session.userId = uid;
@@ -789,7 +792,8 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
     streamMessages.push({ role: 'user', content: message });
   }
 
-  await addMessage(sid, 'user', message);
+  const streamSensitiveCmd = /^\s*\/(cadastrar|entrar|register|login|criarconta)\s/i.test(message);
+  await addMessage(sid, 'user', streamSensitiveCmd ? message.replace(/(\S+@\S+\s+)(\S+)/, '$1••••••') : message);
 
   if (uid && userId) {
     session.userId = uid;
@@ -989,35 +993,31 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         return '❌ A senha deve ter no mínimo 6 caracteres.';
       }
       try {
-        const { register, generateToken: genToken, pool: authPool } = require('../auth');
-        let userId;
+        const { register, pool: authPool } = require('../auth');
+        const bcryptjs = require('bcryptjs');
         const existingBotUser = uid.startsWith('wa_') || uid.startsWith('tg_');
-        if (existingBotUser) {
-          const [existing] = await authPool.execute('SELECT id FROM users WHERE id = ?', [uid]);
-          if (existing.length > 0) {
-            await authPool.execute('UPDATE users SET email = ?, password = ?, name = ? WHERE id = ?', [emailReg, await require('bcryptjs').hash(passwordReg, 10), nameReg, uid]);
-            userId = uid;
-          } else {
-            const user = await register(emailReg, passwordReg, nameReg);
-            userId = user.id;
-          }
-          const col = uid.startsWith('wa_') ? 'whatsapp_id' : 'telegram_id';
-          await authPool.execute(`UPDATE users SET ${col} = ? WHERE id = ?`, [uid, userId]);
-          if (userId !== uid) {
-            const [delRows] = await authPool.execute('SELECT id FROM users WHERE id = ?', [uid]);
-            if (delRows.length > 0) {
-              await authPool.execute('DELETE FROM users WHERE id = ?', [uid]);
-            }
-          }
-        } else {
+        let userId;
+        try {
           const user = await register(emailReg, passwordReg, nameReg);
           userId = user.id;
+        } catch (regErr) {
+          if (regErr.message.includes('já cadastrado') || regErr.message.includes('already')) {
+            return `❌ Este email já está cadastrado.\n\nSe é sua conta, use /entrar ${emailReg} suaSenha`;
+          }
+          throw regErr;
         }
-        return `✅ Conta criada com sucesso!\n\n📧 ${emailReg}\n👤 ${nameReg}\n\n🔗 Sua conta deste dispositivo já está vinculada.\n\nAgora você pode acessar pelo site:\n${process.env.SERVER_URL || 'http://localhost:3000'}\n\nEmail: ${emailReg}\nSenha: a que você escolheu`;
+        if (existingBotUser) {
+          const col = uid.startsWith('wa_') ? 'whatsapp_id' : 'telegram_id';
+          await authPool.execute(`UPDATE users SET ${col} = ? WHERE id = ?`, [uid, userId]);
+          const [delRows] = await authPool.execute('SELECT id FROM users WHERE id = ?', [uid]);
+          if (delRows.length > 0 && uid !== userId) {
+            await authPool.execute('DELETE FROM messages WHERE session_id IN (SELECT id FROM sessions WHERE user_id = ?)', [uid]).catch(() => {});
+            await authPool.execute('DELETE FROM sessions WHERE user_id = ?', [uid]).catch(() => {});
+            await authPool.execute('DELETE FROM users WHERE id = ?', [uid]).catch(() => {});
+          }
+        }
+        return `✅ Conta criada com sucesso!\n\n📧 ${emailReg}\n👤 ${nameReg}\n\n🔗 Sua conta deste dispositivo já está vinculada.\n\nAgora você pode acessar pelo site:\n${process.env.SERVER_URL || 'http://localhost:3000'}\n\nUse o mesmo email e senha para entrar no site.`;
       } catch (err) {
-        if (err.message.includes('já cadastrado') || err.message.includes('already')) {
-          return `❌ Este email já está cadastrado.\n\nSe é sua conta, use /entrar ${emailReg} suaSenha`;
-        }
         return `❌ Erro ao criar conta: ${err.message}`;
       }
     }

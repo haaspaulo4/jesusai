@@ -59,7 +59,7 @@ async function register(email, password, name) {
 async function login(email, password) {
   const [rows] = await pool.execute('SELECT * FROM users WHERE email = ?', [email]);
   if (rows.length === 0) {
-    throw new Error('Email não encontrado');
+    throw new Error('Email ou senha incorretos');
   }
 
   const user = rowToUser(rows[0]);
@@ -70,7 +70,7 @@ async function login(email, password) {
 
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) {
-    throw new Error('Senha incorreta');
+    throw new Error('Email ou senha incorretos');
   }
 
   return { id: user.id, email: user.email, name: user.name };

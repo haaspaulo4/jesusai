@@ -142,6 +142,9 @@ router.get('/sessions', authMiddleware, async (req, res) => {
 router.get('/session/:id', authMiddleware, async (req, res) => {
   try {
     const session = await getSession(req.params.id);
+    if (session.userId && session.userId !== req.userId && req.userRole !== 'admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
     res.json({
       id: session.id,
       userId: session.userId,
@@ -159,6 +162,10 @@ router.get('/session/:id', authMiddleware, async (req, res) => {
 
 router.delete('/session/:id', authMiddleware, async (req, res) => {
   try {
+    const session = await getSession(req.params.id);
+    if (session.userId && session.userId !== req.userId && req.userRole !== 'admin') {
+      return res.status(403).json({ error: 'Access denied' });
+    }
     await deleteSession(req.params.id);
     res.json({ ok: true });
   } catch (err) {
@@ -219,8 +226,8 @@ router.get('/donate', (req, res) => {
   });
 });
 
-router.post('/feedback', async (req, res) => {
-  const { type, message, userId, sessionId } = req.body;
+router.post('/feedback', authMiddleware, async (req, res) => {
+  const { type, message, sessionId } = req.body;
 
   if (!type || !message) {
     return res.status(400).json({ error: 'Tipo e mensagem são obrigatórios' });
@@ -230,7 +237,7 @@ router.post('/feedback', async (req, res) => {
     id: 'fb_' + Date.now().toString(36),
     type,
     message: message.substring(0, 2000),
-    userId: userId || 'anonymous',
+    userId: req.userId,
     sessionId: sessionId || '',
   };
 
@@ -303,13 +310,14 @@ router.get('/config', async (req, res) => {
 
 router.get('/onboarding/steps', async (req, res) => {
   try {
-    const { personaId, userId, lang } = req.query;
+    const { personaId, lang } = req.query;
     const l = lang || 'pt-BR';
     const onboarding = require('../onboarding');
     const steps = await onboarding.getOnboardingSteps(personaId || null);
     const formattedSteps = steps.map(s => onboarding.formatOnboardingStepUI(s, l));
 
     let status = null;
+    const userId = req.userId || req.query.userId;
     if (userId) {
       status = await onboarding.getUserOnboardingStatus(userId, personaId || null);
     }
@@ -332,7 +340,8 @@ router.get('/onboarding/steps', async (req, res) => {
 
 router.post('/onboarding/answer', async (req, res) => {
   try {
-    const { userId, stepKey, answer, personaId } = req.body;
+    const { stepKey, answer, personaId } = req.body;
+    const userId = req.userId || req.body.userId;
     if (!userId || !stepKey) return res.status(400).json({ error: 'userId and stepKey required' });
 
     const onboarding = require('../onboarding');
@@ -444,7 +453,7 @@ router.get('/personas', async (req, res) => {
   }
 });
 
-router.post('/persona/switch', optionalAuth, async (req, res) => {
+router.post('/persona/switch', authMiddleware, async (req, res) => {
   try {
     const { personaId, sessionId } = req.body;
     const userId = req.userId || 'user_default';
@@ -559,15 +568,15 @@ router.get('/persona/:id/public', async (req, res) => {
 
 // ========== RATINGS ==========
 
-router.post('/rating', async (req, res) => {
+router.post('/rating', authMiddleware, async (req, res) => {
   try {
-    const { userId, sessionId, messageId, rating, feedback, category, source } = req.body;
+    const { sessionId, messageId, rating, feedback, category, source } = req.body;
     if (!rating || rating < 1 || rating > 5) {
       return res.status(400).json({ error: 'Rating must be between 1 and 5' });
     }
 
     await surveyEngine.createRating({
-      userId: userId || 'anonymous',
+      userId: req.userId,
       sessionId,
       messageId,
       rating,
@@ -584,24 +593,23 @@ router.post('/rating', async (req, res) => {
 
 // ========== SURVEYS ==========
 
-router.get('/surveys/active', async (req, res) => {
+router.get('/surveys/active', authMiddleware, async (req, res) => {
   try {
-    const { userId } = req.query;
-    const survey = userId ? await surveyEngine.shouldTriggerSurvey(userId, req.query.sessionId) : null;
+    const survey = await surveyEngine.shouldTriggerSurvey(req.userId, req.query.sessionId);
     res.json(survey || null);
   } catch (err) {
     res.status(500).json({ error: 'Failed to check surveys' });
   }
 });
 
-router.post('/surveys/:id/respond', async (req, res) => {
+router.post('/surveys/:id/respond', authMiddleware, async (req, res) => {
   try {
-    const { userId, sessionId, answers } = req.body;
+    const { sessionId, answers } = req.body;
     if (!answers) return res.status(400).json({ error: 'answers is required' });
 
     await surveyEngine.submitSurveyResponse({
       surveyId: req.params.id,
-      userId: userId || 'anonymous',
+      userId: req.userId,
       sessionId,
       answers,
     });
@@ -614,19 +622,16 @@ router.post('/surveys/:id/respond', async (req, res) => {
 
 // ========== FOLLOW-UPS ==========
 
-router.get('/followups/pending', async (req, res) => {
+router.get('/followups/pending', authMiddleware, async (req, res) => {
   try {
-    const { userId } = req.query;
-    if (!userId) return res.json([]);
-
-    const followUp = await surveyEngine.shouldTriggerFollowUp(userId, req.query.sessionId);
+    const followUp = await surveyEngine.shouldTriggerFollowUp(req.userId, req.query.sessionId);
     res.json(followUp || null);
   } catch (err) {
     res.status(500).json({ error: 'Failed to check follow-ups' });
   }
 });
 
-router.post('/followups/:id/respond', async (req, res) => {
+router.post('/followups/:id/respond', authMiddleware, async (req, res) => {
   try {
     const { response } = req.body;
     if (!response) return res.status(400).json({ error: 'response is required' });
