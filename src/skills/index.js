@@ -1,4 +1,6 @@
 const { pool } = require('../db');
+const crypto = require('crypto');
+function genId(prefix) { return prefix + '_' + crypto.randomBytes(8).toString('hex'); }
 
 async function createSkill(data) {
   const id = data.id || 'skill_' + Date.now().toString(36);
@@ -92,6 +94,11 @@ function formatSkill(row) {
   };
 }
 
+function sanitizeForPrompt(str) {
+  if (typeof str !== 'string') return '';
+  return str.replace(/<(\/?\w+[^>]*)>/g, '').replace(/\{([^}]*)\}/g, '($1)').replace(/\b(system|assistant|user|tool|function)\b/gi, '');
+}
+
 async function invokeSkill(skillId, input, context = {}) {
   const skill = await getSkill(skillId);
   if (!skill) throw new Error(`Skill "${skillId}" not found`);
@@ -100,15 +107,17 @@ async function invokeSkill(skillId, input, context = {}) {
   const integrations = require('../llm/integrationManager');
   const { getSetting } = require('../settings');
 
-  const systemPrompt = skill.prompt.replace(/\{input\}/g, input || '').replace(/\{context\}/g, JSON.stringify(context) || '{}');
+  const safeInput = sanitizeForPrompt(input || '');
+  const safeContext = sanitizeForPrompt(JSON.stringify(context));
+  const systemPrompt = skill.prompt.replace(/\{input\}/g, safeInput).replace(/\{context\}/g, safeContext || '{}');
   const maxTokens = parseInt(await getSetting('max_tokens', '4096')) || 4096;
 
   const result = await integrations.callLLM(
     [
       { role: 'system', content: systemPrompt },
-      { role: 'user', content: input || 'Execute this skill.' },
+      { role: 'user', content: safeInput || 'Execute this skill.' },
     ],
-    { stream: false, temperature: 0.7, numPredict: maxTokens, retries: 1, timeout: 60000 }
+    { stream: false, temperature: 0.7, numPredict: Math.min(maxTokens, 2000), retries: 1, timeout: 60000 }
   );
 
   const content = result.content || result.choices?.[0]?.message?.content || '';

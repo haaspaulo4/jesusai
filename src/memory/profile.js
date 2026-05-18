@@ -167,34 +167,21 @@ async function buildProfileContext(userId) {
 
 async function generateProfileSummary(userId) {
   const profile = await getProfile(userId);
-  const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
-  const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY;
-  const CHAT_MODEL = process.env.CHAT_MODEL || 'glm-5.1';
-
   if (!profile.topics || profile.topics.length === 0) return profile;
 
-  try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(OLLAMA_API_KEY ? { Authorization: `Bearer ${OLLAMA_API_KEY}` } : {}),
-      },
-      body: JSON.stringify({
-        model: CHAT_MODEL,
-        messages: [
-          { role: 'system', content: 'Você é um assistente que resume perfis de usuários. Com base nas informações fornecidas, crie um breve resumo (2-3 frases) sobre quem é essa pessoa, sua jornada espiritual e o que ela busca. Em português.' },
-          { role: 'user', content: `Nome: ${profile.name || 'Não informado'}\nTemas: ${profile.topics.join(', ')}\nEmoções: ${profile.emotions.join(', ')}\nJornada espiritual anterior: ${profile.spiritualJourney || 'Não informada'}\nHistórico: ${profile.story || 'Nenhum'}` },
-        ],
-        stream: false,
-        options: { temperature: 0.3 },
-      }),
-    });
+  const integrations = require('../llm/integrationManager');
 
-    if (!response.ok) throw new Error(`API error ${response.status}`);
-    const data = await response.json();
-    profile.story = data.message?.content?.trim() || profile.story;
-    await saveProfile(profile);
+  try {
+    const result = await integrations.callLLM([
+      { role: 'system', content: 'Você é um assistente que resume perfis de usuários. Com base nas informações fornecidas, crie um breve resumo (2-3 frases) sobre quem é essa pessoa, sua jornada espiritual e o que ela busca. Em português.' },
+      { role: 'user', content: `Nome: ${profile.name || 'Não informado'}\nTemas: ${profile.topics.join(', ')}\nEmoções: ${profile.emotions.join(', ')}\nJornada espiritual anterior: ${profile.spiritualJourney || 'Não informada'}\nHistórico: ${profile.story || 'Nenhum'}` },
+    ], { temperature: 0.3, numPredict: 512, stream: false });
+
+    const summary = result?.message?.content || result?.content || result?.choices?.[0]?.message?.content;
+    if (summary) {
+      profile.story = summary.trim();
+      await saveProfile(profile);
+    }
   } catch {}
 
   return profile;

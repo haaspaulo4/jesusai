@@ -1,6 +1,7 @@
 const express = require('express');
-const { generateToken, authMiddleware, getUser, updateUser, getUserWithRole, findOrCreateFromGoogle, generateLinkCode, linkAccount, findLinkedUser, pool } = require('../auth');
+const { generateToken, generateRefreshToken, authMiddleware, getUser, updateUser, getUserWithRole, findOrCreateFromGoogle, generateLinkCode, linkAccount, findLinkedUser, pool, verifyToken } = require('../auth');
 const { register, login } = require('../auth/index');
+const bcrypt = require('bcryptjs');
 
 const router = express.Router();
 
@@ -11,14 +12,31 @@ router.post('/register', async (req, res) => {
     if (!email || !password) {
       return res.status(400).json({ error: 'Email e senha são obrigatórios' });
     }
-    if (password.length < 6) {
-      return res.status(400).json({ error: 'Senha deve ter no mínimo 6 caracteres' });
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+    if (!emailRegex.test(email)) {
+      return res.status(400).json({ error: 'Email inválido' });
+    }
+    if (email.length > 255 || /[<>"';&]/.test(email)) {
+      return res.status(400).json({ error: 'Email contém caracteres inválidos' });
+    }
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Senha deve ter no mínimo 8 caracteres' });
+    }
+    if (!/[A-Z]/.test(password)) {
+      return res.status(400).json({ error: 'Senha deve conter pelo menos uma letra maiúscula' });
+    }
+    if (!/[0-9]/.test(password)) {
+      return res.status(400).json({ error: 'Senha deve conter pelo menos um número' });
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
+      return res.status(400).json({ error: 'Senha deve conter pelo menos um caractere especial' });
     }
 
     const user = await register(email, password, name);
     const token = generateToken(user);
+    const refreshToken = generateRefreshToken(user);
 
-    res.json({ user: { id: user.id, email: user.email, name: user.name, role: 'user' }, token });
+    res.json({ user: { id: user.id, email: user.email, name: user.name, role: 'user' }, token, refreshToken });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
@@ -35,8 +53,9 @@ router.post('/login', async (req, res) => {
     const { id, email: userEmail, name } = await login(email, password);
     const fullUser = await getUserWithRole(id);
     const token = generateToken(fullUser);
+    const refreshToken = generateRefreshToken(fullUser);
 
-    res.json({ user: { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, avatar: fullUser.avatar }, token });
+    res.json({ user: { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, avatar: fullUser.avatar }, token, refreshToken });
   } catch (err) {
     res.status(401).json({ error: err.message });
   }
@@ -46,27 +65,94 @@ router.post('/google', async (req, res) => {
   try {
     const { idToken, email, name, googleId, avatar } = req.body;
 
-    if (!email || !googleId) {
+    if (!idToken || !email || !googleId) {
       return res.status(400).json({ error: 'Dados do Google incompletos' });
     }
 
+    if (!email.includes('@') || email.length > 255 || /[<>"';&]/.test(email)) {
+      return res.status(400).json({ error: 'Email inválido' });
+    }
+
+    let verifiedEmail = email;
+    let verifiedGoogleId = googleId;
+    if (process.env.GOOGLE_CLIENT_ID) {
+      try {
+        const https = require('https');
+        const tokenInfo = await new Promise((resolve, reject) => {
+          https.get(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+              try { resolve(JSON.parse(data)); } catch (e) { reject(e); }
+            });
+          }).on('error', reject);
+        });
+        if (tokenInfo.aud !== process.env.GOOGLE_CLIENT_ID) {
+          return res.status(401).json({ error: 'Token inválido' });
+        }
+        if (tokenInfo.email !== email) {
+          return res.status(401).json({ error: 'Email não confere com o token' });
+        }
+        if (tokenInfo.sub !== googleId) {
+          return res.status(401).json({ error: 'Google ID não confere com o token' });
+        }
+        verifiedEmail = tokenInfo.email;
+        verifiedGoogleId = tokenInfo.sub;
+      } catch (verifyErr) {
+        console.error('[Auth] Google token verification failed:', verifyErr.message);
+        return res.status(401).json({ error: 'Falha na verificação do token Google' });
+      }
+    }
+
     const user = await findOrCreateFromGoogle({
-      email,
-      name: name || email.split('@')[0],
-      googleId,
+      email: verifiedEmail,
+      name: name || verifiedEmail.split('@')[0],
+      googleId: verifiedGoogleId,
       avatar: avatar || null,
     });
 
     const fullUser = await getUserWithRole(user.id);
     const token = generateToken(fullUser);
+    const refreshToken = generateRefreshToken(fullUser);
 
     res.json({
       user: { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role, avatar: fullUser.avatar },
       token,
+      refreshToken,
     });
   } catch (err) {
     console.error('Google auth error:', err);
     res.status(500).json({ error: 'Erro no login com Google' });
+  }
+});
+
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+    if (!refreshToken) {
+      return res.status(401).json({ error: 'Refresh token obrigatório' });
+    }
+    const decoded = verifyToken(refreshToken);
+    if (!decoded || decoded.type !== 'refresh') {
+      return res.status(401).json({ error: 'Refresh token inválido' });
+    }
+    const [rows] = await pool.execute('SELECT id, email, role, token_version FROM users WHERE id = ?', [decoded.id]);
+    if (rows.length === 0) {
+      return res.status(401).json({ error: 'Usuário não encontrado' });
+    }
+    const user = rows[0];
+    if (user.role === 'banned') {
+      return res.status(403).json({ error: 'Conta suspensa' });
+    }
+    if (decoded.tv !== undefined && decoded.tv !== user.token_version) {
+      return res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' });
+    }
+    const fullUser = await getUserWithRole(user.id);
+    const newToken = generateToken(fullUser);
+    const newRefreshToken = generateRefreshToken(fullUser);
+    res.json({ token: newToken, refreshToken: newRefreshToken, user: { id: fullUser.id, email: fullUser.email, name: fullUser.name, role: fullUser.role } });
+  } catch (err) {
+    res.status(401).json({ error: 'Refresh token inválido ou expirado' });
   }
 });
 
@@ -136,6 +222,39 @@ router.post('/unlink', authMiddleware, async (req, res) => {
     await pool.execute(`UPDATE users SET ${col} = NULL WHERE id = ?`, [req.userId]);
     res.json({ success: true, unlinked: source });
   } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/change-password', authMiddleware, async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias' });
+    }
+    if (newPassword.length < 8) {
+      return res.status(400).json({ error: 'Nova senha deve ter no mínimo 8 caracteres' });
+    }
+    if (!/[A-Z]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Nova senha deve conter pelo menos uma letra maiúscula' });
+    }
+    if (!/[0-9]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Nova senha deve conter pelo menos um número' });
+    }
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Nova senha deve conter pelo menos um caractere especial' });
+    }
+    const user = await getUserWithRole(req.userId);
+    if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
+    const valid = await bcrypt.compare(currentPassword, user.password);
+    if (!valid) return res.status(401).json({ error: 'Senha atual incorreta' });
+    const hashed = await bcrypt.hash(newPassword, 12);
+    await pool.execute('UPDATE users SET password = ?, token_version = token_version + 1 WHERE id = ?', [hashed, req.userId]);
+    const newToken = generateToken(req.userId, user.email, user.role);
+    const newRefresh = generateRefreshToken(req.userId);
+    res.json({ success: true, message: 'Senha alterada com sucesso', token: newToken, refreshToken: newRefresh });
+  } catch (err) {
+    console.error('[Auth] Change password error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

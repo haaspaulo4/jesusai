@@ -45,6 +45,7 @@
       <a href="#" data-page="followups" class="nav-link">Follow-ups</a>
       <a href="#" data-page="events" class="nav-link">Eventos</a>
       <a href="#" data-page="thoughts" class="nav-link">Pensamentos IA</a>
+      <a href="#" data-page="overrides" class="nav-link">Overrides</a>
       <a href="#" data-page="workspace" class="nav-link">Workspace</a>
       <a href="#" data-page="billing" class="nav-link">Planos</a>
       <a href="#" data-page="bots" class="nav-link">Bots</a>
@@ -315,8 +316,22 @@
           </div>
         </div>
         <button id="savePlatformStyleBtn" class="btn btn-primary">Salvar Estilo</button>
-      </div>
-    </section>
+       </div>
+       <div class="card" style="margin-top:2rem">
+         <h3>Alterar Senha</h3>
+         <div class="form-row">
+           <div class="form-group">
+             <label>Senha Atual</label>
+             <input type="password" id="currentPassword" class="input" placeholder="Senha atual">
+           </div>
+           <div class="form-group">
+             <label>Nova Senha</label>
+             <input type="password" id="newPassword" class="input" placeholder="Nova senha (8+ chars, maiuscula, numero, especial)">
+           </div>
+         </div>
+         <button class="btn btn-primary" onclick="changeAdminPassword()">Alterar Senha</button>
+       </div>
+     </section>
 
     <!-- Commands -->
     <section id="page-commands" class="page">
@@ -518,6 +533,25 @@
       </div>
       <div id="thoughtsStats" class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr))"></div>
       <div id="thoughtsTable" class="table-wrap" style="margin-top:1rem"></div>
+    </section>
+
+    <!-- Overrides -->
+    <section id="page-overrides" class="page">
+      <h1>Human Override</h1>
+      <p style="color:var(--muted)">Controle manual sobre sessoes: modo completa (humano responde), aprovacao (humano aprova) ou observacao (humano assiste).</p>
+      <div class="card" style="margin-top:1rem">
+        <h3>Ativar Override</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr auto;gap:0.5rem;align-items:end">
+          <div><label class="label">Session ID</label><input type="text" id="overrideSessionId" class="input" placeholder="Session ID"></div>
+          <div><label class="label">Tipo</label><select id="overrideType" class="input"><option value="full">Completo (humano responde)</option><option value="approval">Aprovacao (humano aprova)</option><option value="observation">Observacao (humido assiste)</option></select></div>
+          <div><label class="label">Mensagem humana (opcional)</label><input type="text" id="overrideMessage" class="input" placeholder="Mensagem alternativa"></div>
+          <button class="btn btn-primary" onclick="activateOverride()">Ativar</button>
+        </div>
+      </div>
+      <div class="card" style="margin-top:1rem">
+        <h3>Overrides Ativos</h3>
+        <div id="overridesTable" class="table-wrap"></div>
+      </div>
     </section>
 
     <!-- Workspace -->

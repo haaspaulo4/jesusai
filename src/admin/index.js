@@ -90,11 +90,26 @@ async function getUser(userId) {
 async function setUserRole(userId, role) {
   const validRoles = ['guest', 'user', 'premium', 'admin', 'banned'];
   if (!validRoles.includes(role)) throw new Error(`Invalid role: ${role}. Valid: ${validRoles.join(', ')}`);
-  await pool.execute('UPDATE users SET role = ? WHERE id = ?', [role, userId]);
+  await pool.execute('UPDATE users SET role = ?, token_version = token_version + 1 WHERE id = ?', [role, userId]);
   return { userId, role };
 }
 
 async function deleteUser(userId) {
+  const tables = ['persona_messages', 'sessions', 'messages', 'user_xp_log', 'user_xp', 'user_progress', 'user_onboarding', 'cognitive_states', 'agent_thoughts', 'follow_ups', 'ratings', 'profiles'];
+  for (const table of tables) {
+    try {
+      const hasCol = await pool.execute(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = ? AND COLUMN_NAME = 'user_id'`, [table]);
+      if (hasCol[0].length > 0) {
+        await pool.execute(`DELETE FROM ${table} WHERE user_id = ?`, [userId]);
+      }
+    } catch {}
+  }
+  try {
+    const hasSessionUser = await pool.execute(`SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME = 'sessions' AND COLUMN_NAME IN ('user_id', 'user_name')`);
+    if (hasSessionUser[0].length > 0) {
+      await pool.execute('DELETE FROM sessions WHERE user_id = ?', [userId]);
+    }
+  } catch {}
   await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
 }
 

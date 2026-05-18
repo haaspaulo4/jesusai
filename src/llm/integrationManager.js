@@ -87,10 +87,14 @@ class IntegrationManager {
         const envUrl = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
         const envModel = process.env.OLLAMA_MODEL || 'glm-5.1';
 
-        // Load multiple keys from .env (OLLAMA_API_KEY_1, _2, etc.)
+        // Load multiple keys from .env (OLLAMA_API_KEY_1, _2, etc.) - exclude unnumbered OLLAMA_API_KEY
         const envKeys = Object.entries(process.env)
-          .filter(([k]) => k.startsWith('OLLAMA_API_KEY_') && !k.includes('BASE_URL'))
-          .sort(([a], [b]) => parseInt(a.split('_').pop()) - parseInt(b.split('_').pop()));
+          .filter(([k]) => /^OLLAMA_API_KEY_\d+$/.test(k))
+          .sort(([a], [b]) => {
+            const pa = parseInt(process.env[`OLLAMA_PRIORITY_${a.split('_').pop()}`] || a.split('_').pop());
+            const pb = parseInt(process.env[`OLLAMA_PRIORITY_${b.split('_').pop()}`] || b.split('_').pop());
+            return pa - pb;
+          });
 
         if (envKeys.length > 0) {
           for (const [key, value] of envKeys) {
@@ -100,7 +104,7 @@ class IntegrationManager {
               type, key: value,
               baseUrl: process.env[`OLLAMA_BASE_URL_${keyNum}`] || envUrl,
               model: process.env[`OLLAMA_MODEL_${keyNum}`] || envModel,
-              label: `Key ${keyNum} (env)`, priority: parseInt(keyNum), active: true,
+              label: `Key ${keyNum} (env)`, priority: parseInt(process.env[`OLLAMA_PRIORITY_${keyNum}`] || keyNum), active: true,
               healthy: true, lastUsed: null, lastError: null, consecutiveFailures: 0,
               lastHealthCheck: null, rateLimitRemaining: null, extraConfig: {},
             });
@@ -223,14 +227,8 @@ class IntegrationManager {
     }
 
     const list = this.integrations[serviceType] || [];
-    const candidates = list.filter(k => k.active && k.healthy);
+    const candidates = list.filter(k => k.active);
     if (candidates.length === 0) {
-      for (const k of list) {
-        k.consecutiveFailures = 0;
-        k.healthy = true;
-      }
-      const reset = list.filter(k => k.active);
-      if (reset.length > 0) return reset[0];
       return list[0] || null;
     }
 
@@ -276,10 +274,10 @@ class IntegrationManager {
         integ.consecutiveFailures++;
         integ.lastError = err.message;
 
-        if (err.message?.includes('429') || err.message?.includes('rate limit')) {
+        if (err.message?.includes('429') || err.message?.includes('rate limit') || err.message?.includes('403') || err.message?.includes('subscription')) {
           integ.healthy = false;
-          setTimeout(() => { integ.healthy = true; integ.consecutiveFailures = 0; }, 60000);
-          console.warn(`[Integrations] ${integ.label} rate limited, trying next...`);
+          setTimeout(() => { integ.healthy = true; integ.consecutiveFailures = 0; }, 30000);
+          console.warn(`[Integrations] ${integ.label} rate/subscription error, trying next...`);
           lastErr = err;
           continue;
         }
@@ -366,10 +364,11 @@ class IntegrationManager {
       if (stream) return response;
 
       const data = await response.json();
-      if (data.tool_calls?.length > 0) {
-        return { message: data.message, tool_calls: data.tool_calls, done: data.done };
+      const normalized = normalizeLLMResponse(data);
+      if (normalized.tool_calls?.length > 0) {
+        return { message: normalized.message, tool_calls: normalized.tool_calls, done: normalized.done };
       }
-      return data;
+      return normalized;
 
     }, options);
   }
@@ -691,6 +690,34 @@ class IntegrationManager {
       this.healthInterval = null;
     }
   }
+}
+
+function normalizeLLMResponse(data) {
+  if (!data) return data;
+  if (data.message && typeof data.message === 'object') return data;
+
+  if (data.choices?.[0]?.message) {
+    const msg = data.choices[0].message;
+    return {
+      message: {
+        role: msg.role || 'assistant',
+        content: msg.content || '',
+        thinking: msg.thinking || msg.reasoning_content || msg.thought || '',
+      },
+      tool_calls: msg.tool_calls || data.tool_calls || null,
+      done: data.done ?? true,
+    };
+  }
+
+  if (data.content !== undefined && !data.message) {
+    return {
+      message: { role: 'assistant', content: data.content || '', thinking: '' },
+      tool_calls: null,
+      done: true,
+    };
+  }
+
+  return data;
 }
 
 const integrations = new IntegrationManager();

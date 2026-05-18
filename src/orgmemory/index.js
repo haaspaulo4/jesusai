@@ -1,9 +1,11 @@
 const { pool } = require('../db');
+const crypto = require('crypto');
+function genId(prefix) { return prefix + '_' + crypto.randomBytes(8).toString('hex'); }
 
 const ORG_CATEGORIES = ['products', 'services', 'pricing', 'team', 'policies', 'faq', 'processes', 'brand', 'market', 'custom'];
 
 async function createOrgMemory(data) {
-  const id = data.id || 'org_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+  const id = data.id || genId('org');
   const persona_id = data.persona_id || null;
   const owner_id = data.owner_id || 'system';
   const category = data.category || 'custom';
@@ -54,16 +56,16 @@ async function getOrgMemory(id) {
 }
 
 async function listOrgMemory(filters = {}) {
-  let sql = 'SELECT * FROM persona_org_memory WHERE 1=1';
+  let sql = 'SELECT * FROM persona_org_memory WHERE (expires_at IS NULL OR expires_at > NOW())';
   const values = [];
   if (filters.owner_id) { sql += ' AND owner_id = ?'; values.push(filters.owner_id); }
   if (filters.persona_id) { sql += ' AND persona_id = ?'; values.push(filters.persona_id); }
   if (filters.category) { sql += ' AND category = ?'; values.push(filters.category); }
   if (filters.is_active !== undefined) { sql += ' AND is_active = ?'; values.push(filters.is_active ? 1 : 0); }
   if (filters.search) {
-    sql += ' AND (title LIKE ? OR content LIKE ?)';
+    sql += ' AND (title LIKE ? OR content LIKE ? OR JSON_CONTAINS(tags, ?) OR category LIKE ?)';
     const s = `%${filters.search}%`;
-    values.push(s, s);
+    values.push(s, s, JSON.stringify(filters.search), filters.search);
   }
   sql += ' ORDER BY CASE priority WHEN "urgent" THEN 1 WHEN "high" THEN 2 WHEN "medium" THEN 3 WHEN "low" THEN 4 END, created_at DESC';
   if (filters.limit) { sql += ` LIMIT ${Number(filters.limit)}`; }
@@ -73,17 +75,18 @@ async function listOrgMemory(filters = {}) {
 
 async function searchOrgMemory(query, ownerId, personaId, limit = 5) {
   if (!query || query.trim().length === 0) return [];
-  const terms = query.split(/\s+/).filter(t => t.length > 2).map(t => `%${t}%`);
+  const terms = query.split(/\s+/).filter(t => t.length > 1).map(t => `%${t}%`);
   if (terms.length === 0) return [];
 
-  let sql = 'SELECT * FROM persona_org_memory WHERE is_active = 1 AND owner_id = ?';
+  let sql = 'SELECT * FROM persona_org_memory WHERE is_active = 1 AND (expires_at IS NULL OR expires_at > NOW()) AND owner_id = ?';
   const values = [ownerId];
   if (personaId) { sql += ' AND (persona_id = ? OR persona_id IS NULL)'; values.push(personaId); }
 
-  const conditions = terms.map(() => '(title LIKE ? OR content LIKE ? OR tags LIKE ?)');
+  const conditions = terms.map(() => '(title LIKE ? OR content LIKE ? OR JSON_CONTAINS(tags, ?) OR category LIKE ?)');
   sql += ' AND (' + conditions.join(' OR ') + ')';
   for (const term of terms) {
-    values.push(term, term, term);
+    const jsonTerm = term.replace(/^%|%$/g, '');
+    values.push(term, term, JSON.stringify(jsonTerm), jsonTerm);
   }
 
   sql += ' ORDER BY CASE priority WHEN "urgent" THEN 1 WHEN "high" THEN 2 WHEN "medium" THEN 3 WHEN "low" THEN 4 END, created_at DESC';

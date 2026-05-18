@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { Server } = require('socket.io');
+const { verifyToken } = require('../auth');
 
 const connectedUsers = new Map();
 const sessionRooms = new Map();
@@ -21,17 +22,28 @@ function initializeSocketIO(httpServer) {
     pingTimeout: 20000,
   });
 
+  io.use((socket, next) => {
+    const token = socket.handshake.auth?.token || socket.handshake.query?.token;
+    if (!token) {
+      return next(new Error('Authentication required'));
+    }
+    const decoded = verifyToken(token);
+    if (!decoded) {
+      return next(new Error('Invalid token'));
+    }
+    socket.userId = decoded.id;
+    socket.userRole = decoded.role || 'user';
+    next();
+  });
+
   io.on('connection', (socket) => {
-    console.log(`[SocketIO] Client connected: ${socket.id}`);
+    console.log(`[SocketIO] Client connected: ${socket.id} (user: ${socket.userId})`);
+
+    connectedUsers.set(socket.userId, socket.id);
+    socket.join(`user:${socket.userId}`);
 
     socket.on('auth', (data) => {
-      if (data.userId) {
-        connectedUsers.set(data.userId, socket.id);
-        socket.userId = data.userId;
-        socket.join(`user:${data.userId}`);
-        console.log(`[SocketIO] User ${data.userId} authenticated`);
-      }
-      if (data.sessionId) {
+      if (data.sessionId && typeof data.sessionId === 'string' && data.sessionId.length < 100) {
         socket.join(`session:${data.sessionId}`);
         sessionRooms.set(socket.id, data.sessionId);
         console.log(`[SocketIO] Socket ${socket.id} joined session ${data.sessionId}`);
@@ -39,6 +51,7 @@ function initializeSocketIO(httpServer) {
     });
 
     socket.on('join_session', (sessionId) => {
+      if (!sessionId || typeof sessionId !== 'string' || sessionId.length > 100) return;
       socket.join(`session:${sessionId}`);
       sessionRooms.set(socket.id, sessionId);
     });
@@ -49,12 +62,11 @@ function initializeSocketIO(httpServer) {
     });
 
     socket.on('typing', (data) => {
-      if (data.sessionId) {
-        socket.to(`session:${data.sessionId}`).emit('typing', {
-          userId: socket.userId,
-          isTyping: data.isTyping,
-        });
-      }
+      if (!data || !data.sessionId) return;
+      socket.to(`session:${data.sessionId}`).emit('typing', {
+        userId: socket.userId,
+        isTyping: !!data.isTyping,
+      });
     });
 
     socket.on('disconnect', () => {
@@ -66,16 +78,13 @@ function initializeSocketIO(httpServer) {
     });
   });
 
-  console.log('[SocketIO] Server initialized');
+  console.log('[SocketIO] Server initialized with auth middleware');
   return io;
 }
 
 function emitToUser(userId, event, data) {
-  const socketId = connectedUsers.get(userId);
-  if (socketId) {
-    const io = getIO();
-    if (io) io.to(`user:${userId}`).emit(event, data);
-  }
+  const io = getIO();
+  if (io) io.to(`user:${userId}`).emit(event, data);
 }
 
 function emitToSession(sessionId, event, data) {
@@ -104,7 +113,7 @@ function emitBadgeEarned(userId, badge) {
 }
 
 function emitStageAdvance(userId, personaId, stageData) {
-  emitToUser(userId, 'stage_advance', { personaId, ...stageData });
+  emitToUser(userId, 'stage_update', { personaId, ...stageData });
 }
 
 function emitGoalUpdate(userId, goal) {

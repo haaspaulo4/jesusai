@@ -58,9 +58,9 @@
           <span class="text-sm text-brand-400">{{ currentLang === 'en-US' ? 'AI Agent Infrastructure' : currentLang === 'es-ES' ? 'Infraestructura de Agentes IA' : 'Infraestrutura de Agentes IA' }}</span>
         </div>
         <h1 class="text-4xl sm:text-5xl font-bold mb-6 leading-tight">
-          {{ currentLang === 'en-US' ? 'Create AI agents that' : currentLang === 'es-ES' ? 'Crea agentes IA que' : 'Crie agentes IA que' }} <span class="text-brand-400">{{ currentLang === 'en-US' ? 'learn, work and evolve.' : currentLang === 'es-ES' ? 'aprenden, trabajan y evolucionan.' : 'aprendem, trabalham e evoluem.' }}</span>
+          {{ currentLang === 'en-US' ? 'AI agents that' : currentLang === 'es-ES' ? 'Agentes IA que' : 'Agentes IA que' }} <span class="text-brand-400">{{ currentLang === 'en-US' ? 'teach, sell, coach and evolve.' : currentLang === 'es-ES' ? 'enseñan, venden, orientan y evolucionan.' : 'ensinam, vendem, orientam e evoluem.' }}</span>
         </h1>
-        <p class="text-lg text-gray-400 mb-8 max-w-2xl mx-auto">{{ currentLang === 'en-US' ? 'Transform knowledge into intelligent personas with memory, goals, gamification and autonomy. Not a chatbot — cognitive workforce.' : currentLang === 'es-ES' ? 'Transforma conocimiento en personas inteligentes con memoria, objetivos, gamificación y autonomía. No es chatbot — es fuerza de trabajo cognitiva.' : 'Transforme conhecimento em personas inteligentes com memória, objetivos, gamificação e autonomia. Não é chatbot — é força de trabalho cognitiva.' }}</p>
+        <p class="text-lg text-gray-400 mb-8 max-w-2xl mx-auto">{{ currentLang === 'en-US' ? 'Language tutors, sales coaches, therapists, exam prep — cognitive agents with memory, goals, skills and autonomy. Not chatbots.' : currentLang === 'es-ES' ? 'Tutores de idiomas, coaches de ventas, terapeutas, preparación de exámenes — agentes cognitivos con memoria, objetivos, skills y autonomía. No chatbots.' : 'Tutores de idiomas, coaches de vendas, terapeutas, preparação para provas — agentes cognitivos com memória, objetivos, skills e autonomia. Não chatbots.' }}</p>
         <div class="flex flex-col sm:flex-row gap-3 justify-center">
           <button @click="showAuth('register')" class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
             {{ t('startFree') }}
@@ -528,6 +528,8 @@
               <div v-if="msg.sources && msg.sources.length" class="mt-2 pt-2 border-t border-white/5">
                 <div v-for="s in msg.sources" :key="s.reference" class="text-xs text-gray-500">
                   <span class="text-brand-400">{{ s.reference }}</span> — {{ s.text?.substring(0,100) }}{{ s.text?.length>100?'...':'' }}
+                  <a v-if="s.image_url" :href="s.image_url" target="_blank" class="ml-1 text-blue-400 underline hover:text-blue-300">🖼</a>
+                  <a v-if="s.url" :href="s.url" target="_blank" class="ml-1 text-blue-400 underline hover:text-blue-300">🔗</a>
                 </div>
               </div>
               <button @click="speakText(msg.content,i)" :class="['mt-1 text-xs text-gray-500 hover:text-brand-400 transition', msg.speaking?'text-brand-400':'']">
@@ -560,11 +562,15 @@
             <span class="text-gray-500">{{ sourcesCollapsed ? t('show') : t('hide') }}</span>
           </div>
           <div v-if="!sourcesCollapsed" class="space-y-1 max-h-32 overflow-y-auto">
-            <div v-for="s in sourcesPanel" :key="s.reference" class="text-gray-400"><span class="text-brand-400">{{ s.reference }}</span> — {{ s.text?.substring(0,120) }}</div>
+            <div v-for="s in sourcesPanel" :key="s.reference" class="text-gray-400"><span class="text-brand-400">{{ s.reference }}</span> — {{ s.text?.substring(0,120) }}<a v-if="s.image_url" :href="s.image_url" target="_blank" class="ml-1 text-blue-400 underline hover:text-blue-300">🖼</a><a v-if="s.url" :href="s.url" target="_blank" class="ml-1 text-blue-400 underline hover:text-blue-300">🔗</a></div>
           </div>
         </div>
-        <form @submit.prevent="sendMessage(inputMsg)" class="flex gap-2">
-          <textarea v-model="inputMsg" @keydown.enter.exact.prevent="sendMessage(inputMsg)" @input="autoResize" ref="inputEl" rows="1" :placeholder="inputPlaceholder" class="flex-1 bg-surface-700 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-brand-500 resize-none max-h-32"></textarea>
+        <form @submit.prevent="sendMessage(inputMsg)" class="flex gap-2 items-end">
+          <button type="button" @click="toggleMic" :class="isRecording ? 'bg-red-500 animate-pulse' : 'bg-surface-600 hover:bg-surface-500'" class="text-white p-2.5 rounded-xl transition relative" :title="isRecording ? t('stopRecording') : t('startRecording')" :disabled="streaming">
+            <svg v-if="!isRecording" class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            <svg v-else class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+          </button>
+          <textarea v-model="inputMsg" @keydown.enter.exact.prevent="sendMessage(inputMsg)" @input="autoResize" ref="inputEl" rows="1" :placeholder="isRecording ? t('listening') : inputPlaceholder" class="flex-1 bg-surface-700 border border-white/10 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:border-brand-500 resize-none max-h-32" :class="isRecording ? 'border-red-500/50 animate-pulse' : ''"></textarea>
           <button type="submit" :disabled="!inputMsg.trim()||streaming" class="bg-brand-500 hover:bg-brand-600 disabled:opacity-30 text-white p-2.5 rounded-xl transition">
             <svg class="w-5 h-5" viewBox="0 0 24 24"><path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/></svg>
           </button>

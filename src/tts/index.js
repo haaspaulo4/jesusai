@@ -72,10 +72,281 @@ const MAX_EDGE_TTS_CHUNK = 5000;
 const MAX_KOKORO_CHUNK = 200;
 const SUPPORTED_TTS_LANGS = ['pt-BR', 'en-US', 'es-ES'];
 
-function cleanTextForTTS(text) {
+function normalizeTextForTTS(text, lang = 'pt-BR') {
+  let t = text;
+
+  const isPT = lang === 'pt-BR';
+  const isES = lang === 'es-ES';
+  const isEN = lang === 'en-US';
+
+  t = t.replace(/R\$\s*(\d)/gi, (m, d) => isPT ? `reais ${d}` : isES ? `reales ${d}` : `reals ${d}`);
+  t = t.replace(/US\$\s*(\d)/gi, (m, d) => isPT ? `dólares ${d}` : isES ? `dólares ${d}` : `dollars ${d}`);
+  t = t.replace(/€\s*(\d)/g, (m, d) => isPT ? `euros ${d}` : isES ? `euros ${d}` : `euros ${d}`);
+  t = t.replace(/£\s*(\d)/g, (m, d) => isPT ? `libras ${d}` : isES ? `libras ${d}` : `pounds ${d}`);
+  t = t.replace(/¥\s*(\d)/g, (m, d) => isPT ? `ienes ${d}` : isES ? `yenes ${d}` : `yen ${d}`);
+  t = t.replace(/BTC\s*(\d)/gi, (m, d) => `bitcoin ${d}`);
+  t = t.replace(/ETH\s*(\d)/gi, (m, d) => `ethereum ${d}`);
+
+  t = t.replace(/\b(\d{1,2})\s*[\/\-]\s*(\d{1,2})\s*[\/\-]\s*(\d{2,4})\b/g, (m, d, mo, y) => {
+    const monthsPT = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+    const monthsES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+    const monthsEN = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+    const monthIdx = parseInt(mo) - 1;
+    if (monthIdx < 0 || monthIdx > 11) return m;
+    const yr = y.length === 2 ? '20' + y : y;
+    if (isES) return `${parseInt(d)} de ${monthsES[monthIdx]} de ${yr}`;
+    if (isEN) return `${monthsEN[monthIdx]} ${parseInt(d)}, ${yr}`;
+    return `${parseInt(d)} de ${monthsPT[monthIdx]} de ${yr}`;
+  });
+
+  t = t.replace(/\b(\d{1,2})\s*:\s*(\d{2})\s*(h|hrs?|horas?)?\b/gi, (m, h, min) => {
+    const hour = parseInt(h);
+    const minute = parseInt(min);
+    if (isPT) return minute === 0 ? `${hour} horas` : `${hour} horas e ${minute}`;
+    if (isES) return minute === 0 ? `${hour} horas` : `${hour} horas y ${minute}`;
+    return minute === 0 ? `${hour} o'clock` : `${hour}:${minute}`;
+  });
+
+  t = t.replace(/\b(\d+)\s*[hH]\b/g, (m, n) => isPT ? `${n} horas` : isES ? `${n} horas` : `${n} hours`);
+
+  t = t.replace(/\b(\d{1,3})(\.\d{3})*,(\d{1,2})\b/g, (m, intPart, decimals) => {
+    const num = m.replace(/\./g, '').replace(',', '.');
+    const parsed = parseFloat(num);
+    return numberToWords(parsed, lang);
+  });
+
+  t = t.replace(/\b(\d{1,3})(,\d{3})+\b/g, (m) => {
+    return numberToWords(parseInt(m.replace(/,/g, '')), lang);
+  });
+
+  t = t.replace(/\b(\d+),(\d{1,2})\b/g, (m, int, dec) => {
+    if (dec.length === 2) {
+      if (isPT) return `${numberToWords(parseInt(int), lang)} vírgula ${decimalDigits(dec, lang)}`;
+      if (isES) return `${numberToWords(parseInt(int), lang)} coma ${decimalDigits(dec, lang)}`;
+      return `${numberToWords(parseInt(int), lang)} point ${decimalDigits(dec, lang)}`;
+    }
+    return m;
+  });
+
+  t = t.replace(/(?<!\w)(\d+(?:\.\d+)?)(?!\w*[a-zA-Z])/g, (m) => {
+    const num = parseFloat(m);
+    if (isNaN(num)) return m;
+    if (m.includes('.') && m.split('.')[1].length > 0) {
+      const intPart = Math.floor(num);
+      const decPart = m.split('.')[1];
+      if (isPT) return `${numberToWords(intPart, lang)} ponto ${decimalDigits(decPart, lang)}`;
+      if (isES) return `${numberToWords(intPart, lang)} punto ${decimalDigits(decPart, lang)}`;
+      return `${numberToWords(intPart, lang)} point ${decimalDigits(decPart, lang)}`;
+    }
+    return numberToWords(num, lang);
+  });
+
+  t = t.replace(/\b(\d+)º\b/g, (m, n) => isPT ? `${n} grau${n !== '1' ? 's' : ''}` : isES ? `${n} grado${n !== '1' ? 's' : ''}` : `${n} degree${n !== '1' ? 's' : ''}`);
+  t = t.replace(/\b(\d+)ª\b/g, (m, n) => isPT ? `${numberToWords(parseInt(n), lang)}ª` : isES ? `${numberToWords(parseInt(n), lang)}ª` : `${numberToWords(parseInt(n), lang)}th`);
+
+  t = t.replace(/(\d+)\s*%\s*/g, (m, n) => isPT ? `${numberToWords(parseInt(n), lang)} por cento` : isES ? `${numberToWords(parseInt(n), lang)} por ciento` : `${numberToWords(parseInt(n), lang)} percent`);
+
+  t = t.replace(/#[\dA-Fa-f]{3,8}\b/g, '');
+
+  t = t.replace(/&amp;/gi, isPT ? 'e' : 'and');
+  t = t.replace(/&lt;/gi, 'menor que');
+  t = t.replace(/&gt;/gi, 'maior que');
+
+  const ABBREVS_PT = {
+    'VCÊ': 'você', 'VC': 'você', 'VCS': 'vocês', 'TB': 'também', 'TBM': 'também',
+    'PQ': 'porque', 'Q': 'que', 'QD': 'quando', 'QNT': 'quanto', 'QNTO': 'quanto',
+    'NRG': 'energia', 'NRGS': 'energias', 'MSG': 'mensagem', 'MSGS': 'mensagens',
+    'DTB': 'deus te abençoe', 'PFX': 'pix', 'CPF': 'cé pê éfe', 'CNPJ': 'cê enquê pê jota',
+    'RG': 'érgê jê', 'TV': 'teve', 'DVD': 'dê vê dê', 'CD': 'cê dê', 'LED': 'lêd',
+    'FAQ': 'perguntas frequentes', 'IA': 'inteligência artificial', 'AI': 'inteligência artificial',
+    'CEO': 'cê eô', 'CRM': 'cê erreême', 'URL': 'ur élé', 'API': 'ê pê i',
+    'APP': 'aplicativo', 'GPS': 'gê pê ésse', 'VIP': 'você pé',
+    'RS': 'rê ésse', 'AV': 'avenida', 'TVS': 'tvs', 'SR': 'senhor', 'SRA': 'senhora',
+    'DR': 'doutor', 'DRA': 'doutora', ' prof': ' professor', ' profa': ' professora',
+    'etc': 'etcetera', ' vs ': ' versus ', ' vs. ': ' versus ',
+    'kg': 'quilos', 'mg': 'miligramas', 'g': 'gramas', 'km': 'quilômetros',
+    'm²': 'metros quadrados', 'cm': 'centímetros', 'mm': 'milímetros',
+    'lt': 'litros', 'ml': 'mililitros', 'kb': 'quilobytes', 'mb': 'megabytes',
+    'gb': 'gigabytes', 'tb': 'terabytes',
+  };
+  const ABBREVS_EN = {
+    'U': 'you', 'UR': 'your', 'R': 'are', 'N': 'and', 'W/': 'with', 'W/O': 'without',
+    'B/C': 'because', 'THO': 'though', 'THRU': 'through', 'NITE': 'night',
+    'ASAP': 'as soon as possible', 'FYI': 'for your information', 'BTW': 'by the way',
+    'IMO': 'in my opinion', 'IMHO': 'in my humble opinion', 'ATM': 'at the moment',
+    'CEO': 'C E O', 'CRM': 'C R M', 'API': 'A P I', 'FAQ': 'frequently asked questions',
+    'IA': 'artificial intelligence', 'AI': 'artificial intelligence',
+    'APP': 'application', 'GPS': 'G P S', 'VIP': 'very important person',
+    'RS': 'résumé', 'etc': 'etcetera', ' vs ': ' versus ', ' vs. ': ' versus ',
+    'kg': 'kilograms', 'mg': 'milligrams', 'g': 'grams', 'km': 'kilometers',
+    'cm': 'centimeters', 'mm': 'millimeters', 'lb': 'pounds', 'oz': 'ounces',
+    'ft': 'feet', 'in': 'inches', 'mph': 'miles per hour',
+    'kb': 'kilobytes', 'mb': 'megabytes', 'gb': 'gigabytes', 'tb': 'terabytes',
+  };
+  const ABBREVS_ES = {
+    'UD': 'usted', 'MÑO': 'año', 'TB': 'también', 'PQ': 'porque',
+    'Q': 'que', 'QD': 'cuándo', 'FAQ': 'preguntas frecuentes',
+    'IA': 'inteligencia artificial', 'AI': 'inteligencia artificial',
+    'CEO': 'cé eo', 'CRM': 'cé erre eme', 'API': 'a pe i',
+    'APP': 'aplicación', 'GPS': 'gé pe ese', 'VIP': 'vé í pé',
+    'etc': 'etcétera', ' vs ': ' versus ', ' vs. ': ' versus ',
+    'kg': 'kilos', 'mg': 'miligramos', 'g': 'gramos', 'km': 'kilómetros',
+    'cm': 'centímetros', 'mm': 'milímetros', 'lt': 'litros', 'ml': 'mililitros',
+    'kb': 'kilobytes', 'mb': 'megabytes', 'gb': 'gigabytes', 'tb': 'terabytes',
+  };
+
+  const abbrevs = isEN ? ABBREVS_EN : isES ? ABBREVS_ES : ABBREVS_PT;
+  for (const [abbr, expansion] of Object.entries(abbrevs)) {
+    const re = new RegExp(`\\b${abbr.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
+    t = t.replace(re, expansion);
+  }
+
+  t = t.replace(/[\u00B0\u00BA\u00AA]/g, '');
+
+  t = t.replace(/\s*(\.{3,}|…)\s*/g, isPT ? ' ... ' : isES ? ' ... ' : ' ... ');
+
+  t = t.replace(/\s*—\s*/g, ' — ');
+  t = t.replace(/\s*–\s*/g, ' — ');
+
+  t = t.replace(/([.!?])\s*\.{2,}/g, '$1');
+  t = t.replace(/\.{2,}/g, '.');
+
+  t = t.replace(/[;]/g, isPT ? '.' : isES ? '.' : '.');
+
+  t = t.replace(/\s*=\s*/g, isPT ? ' igual a ' : isES ? ' igual a ' : ' equals ');
+
+  t = t.replace(/(?<=[a-zA-Z])\s*\/\s*(?=[a-zA-Z])/g, isPT ? ' ou ' : isES ? ' o ' : ' or ');
+
+  t = t.replace(/[()]/g, ' ');
+
+  t = t.replace(/[{}[\]<>]/g, '');
+
+  t = t.replace(/[@#\$]/g, (m) => {
+    if (m === '@') return isPT ? 'arroba' : isES ? 'arroba' : 'at';
+    if (m === '#') return '';
+    if (m === '$') return isPT ? 'dólares' : isES ? 'dólares' : 'dollars';
+    return '';
+  });
+
+  t = t.replace(/\*\*/g, '');
+  t = t.replace(/\*/g, '');
+  t = t.replace(/_{2,}/g, '');
+  t = t.replace(/_/g, ' ');
+
+  t = t.replace(/\s{2,}/g, ' ');
+
+  return t.trim();
+}
+
+function numberToWords(n, lang = 'pt-BR') {
+  if (n === 0) return isLang(lang, 'zero', 'zero', 'cero');
+  if (n < 0) return isLang(lang, 'menos', 'menos', 'minus') + ' ' + numberToWords(Math.abs(n), lang);
+
+  const intPart = Math.floor(n);
+  const words = integerToWords(intPart, lang);
+  return words;
+}
+
+function decimalDigits(digits, lang) {
+  const isPT = lang === 'pt-BR';
+  const isES = lang === 'es-ES';
+  return digits.split('').map(d => {
+    if (isPT) return ['zero','um','dois','três','quatro','cinco','seis','sete','oito','nove'][parseInt(d)];
+    if (isES) return ['cero','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve'][parseInt(d)];
+    return ['zero','one','two','three','four','five','six','seven','eight','nine'][parseInt(d)];
+  }).join(' ');
+}
+
+function isLang(lang, pt, es, en) {
+  if (lang === 'pt-BR') return pt;
+  if (lang === 'es-ES') return es;
+  return en;
+}
+
+function integerToWords(n, lang = 'pt-BR') {
+  if (n === 0) return '';
+  if (n < 0) return '';
+
+  const ONES_PT = ['','um','dois','três','quatro','cinco','seis','sete','oito','nove'];
+  const TEENS_PT = ['dez','onze','doze','treze','quatorze','quinze','dezesseis','dezessete','dezoito','dezenove'];
+  const TENS_PT = ['','','vinte','trinta','quarenta','cinquenta','sessenta','setenta','oitenta','noventa'];
+  const HUNDREDS_PT = ['','cento','duzentos','trezentos','quatrocentos','quinhentos','seiscentos','setecentos','oitocentos','novecentos'];
+
+  const ONES_EN = ['','one','two','three','four','five','six','seven','eight','nine'];
+  const TEENS_EN = ['ten','eleven','twelve','thirteen','fourteen','fifteen','sixteen','seventeen','eighteen','nineteen'];
+  const TENS_EN = ['','','twenty','thirty','forty','fifty','sixty','seventy','eighty','ninety'];
+  const HUNDREDS_EN = ['','one hundred','two hundred','three hundred','four hundred','five hundred','six hundred','seven hundred','eight hundred','nine hundred'];
+
+  const ONES_ES = ['','uno','dos','tres','cuatro','cinco','seis','siete','ocho','nueve'];
+  const TEENS_ES = ['diez','once','doce','trece','catorce','quince','dieciséis','diecisiete','dieciocho','diecinueve'];
+  const TENS_ES = ['','','veinte','treinta','cuarenta','cincuenta','sesenta','setenta','ochenta','noventa'];
+  const HUNDREDS_ES = ['','ciento','doscientos','trescientos','cuatrocientos','quinientos','seiscientos','setecientos','ochocientos','novecientos'];
+
+  const isPT = lang === 'pt-BR';
+  const isES = lang === 'es-ES';
+
+  const ones = isPT ? ONES_PT : isES ? ONES_ES : ONES_EN;
+  const teens = isPT ? TEENS_PT : isES ? TEENS_ES : TEENS_EN;
+  const tens = isPT ? TENS_PT : isES ? TENS_ES : TENS_EN;
+  const hundreds = isPT ? HUNDREDS_PT : isES ? HUNDREDS_ES : HUNDREDS_EN;
+
+  let words = '';
+
+  if (n >= 1000000) {
+    const millions = Math.floor(n / 1000000);
+    const rest = n % 1000000;
+    if (isPT) words += `${millions > 1 ? integerToWords(millions, lang) : ''} milh${millions === 1 ? 'ão' : 'ões'}`;
+    else if (isES) words += `${integerToWords(millions, lang)} mill${millions === 1 ? 'ón' : 'ones'}`;
+    else words += `${integerToWords(millions, lang)} million${millions > 1 ? 's' : ''}`;
+    if (rest > 0) words += ' ' + integerToWords(rest, lang);
+    return words;
+  }
+
+  if (n >= 1000) {
+    const thousands = Math.floor(n / 1000);
+    const rest = n % 1000;
+    if (isPT) words += (thousands === 1 ? 'mil' : integerToWords(thousands, lang) + ' mil');
+    else if (isES) words += (thousands === 1 ? 'mil' : integerToWords(thousands, lang) + ' mil');
+    else words += integerToWords(thousands, lang) + ' thousand';
+    if (rest > 0) words += ' ' + integerToWords(rest, lang);
+    return words;
+  }
+
+  if (n >= 100) {
+    const h = Math.floor(n / 100);
+    const rest = n % 100;
+    if (isPT && n === 100) return 'cem';
+    if (isES && n === 100) return 'cien';
+    if (isEN && n === 100) return 'one hundred';
+    words += hundreds[h];
+    if (rest > 0) {
+      if (isPT) words += ' e ' + integerToWords(rest, lang);
+      else if (isES) words += ' ' + integerToWords(rest, lang);
+      else words += ' ' + integerToWords(rest, lang);
+    }
+    return words;
+  }
+
+  if (n >= 20) {
+    const d = Math.floor(n / 10);
+    const u = n % 10;
+    if (isPT && n >= 16 && n <= 19) return 'dezessete dezessete'.split(' ')[0]; // won't hit, handled below
+    if (u === 0) return tens[d];
+    if (isPT) return tens[d] + ' e ' + ones[u];
+    if (isES) return tens[d] + ' y ' + ones[u];
+    return tens[d] + '-' + ones[u];
+  }
+
+  if (n >= 10) return teens[n - 10];
+  if (n >= 1) return ones[n];
+  return '';
+}
+
+function cleanTextForTTS(text, lang = 'pt-BR') {
   let cleaned = text
     .replace(/[\ud800-\udbff][\udc00-\udfff]/g, '');
   cleaned = cleaned.replace(/[\ud800-\udfff]/g, '');
+  cleaned = normalizeTextForTTS(cleaned, lang);
   return cleaned
     .replace(/[\u0000-\u001f\u007f-\u009f]/g, '')
     .replace(/\*{2}([^*]+)\*{2}/g, '$1')
@@ -109,8 +380,8 @@ function cleanTextForTTS(text) {
     .trim();
 }
 
-function splitTextForTTS(text, maxLen = 450) {
-  const clean = cleanTextForTTS(text);
+function splitTextForTTS(text, maxLen = 450, lang = 'pt-BR') {
+  const clean = cleanTextForTTS(text, lang);
   if (!clean) return [];
   if (clean.length <= maxLen) return [clean];
 
@@ -279,11 +550,9 @@ async function generateKokoroBuffer(text, options = {}) {
 }
 
 async function generateAudioBuffer(text, options = {}) {
-  const cleanText = cleanTextForTTS(text);
-  if (!cleanText) return null;
-
   const lang = options.lang || 'pt-BR';
   const ttsLang = SUPPORTED_TTS_LANGS.includes(lang) ? lang : 'pt-BR';
+  const cleanText = cleanTextForTTS(text, ttsLang);
 
   let engine = 'edge-tts';
   let contentType = 'audio/mp3';

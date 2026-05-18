@@ -106,7 +106,7 @@ async function shouldCreateFollowUp(userId, personaId, sessionId) {
 
   const followUpInterval = parseInt(await getSetting('followup_interval_messages', '10')) || 10;
   const [msgRows] = await pool.execute(
-    'SELECT COUNT(*) as total FROM messages m INNER JOIN sessions s ON m.session_id = s.id WHERE s.user_id = ? AND m.role = ?',
+    'SELECT COUNT(*) as total FROM messages m INNER JOIN sessions s ON m.session_id = s.id WHERE s.user_id = ? AND m.role = ? AND m.timestamp > DATE_SUB(NOW(), INTERVAL 7 DAY)',
     [userId, 'user']
   );
 

@@ -19,6 +19,18 @@ const optimizationModule = require('../optimization');
 const blueprintsModule = require('../blueprints');
 const creativeEngine = require('../creative');
 
+async function resolvePersonaId(personaIdOrName) {
+  if (!personaIdOrName) return null;
+  if (personaIdOrName === 'default' || personaIdOrName === 'jesus') return 'jesus';
+  try {
+    const persona = await personaManager.getPersona(personaIdOrName);
+    if (persona) return persona.id;
+    const personas = await personaManager.listPersonas();
+    const found = personas.find(p => p.name.toLowerCase() === personaIdOrName.toLowerCase() || p.id.toLowerCase() === personaIdOrName.toLowerCase());
+    return found ? found.id : null;
+  } catch { return null; }
+}
+
 const TOOL_DEFINITIONS = [
   {
     type: 'function',
@@ -658,13 +670,14 @@ async function executeTool(name, args, context = {}) {
       const userId = args.user_id || context.userId || 'user_default';
       try {
         const [sessionRows] = await pool.execute(
-          'SELECT COUNT(*) as total FROM sessions WHERE user_id = ? OR user_id IS NULL',
+          'SELECT COUNT(*) as total FROM sessions WHERE user_id = ?',
           [userId]
         );
         const [msgRows] = await pool.execute(
           `SELECT COUNT(*) as total FROM messages m INNER JOIN sessions s ON m.session_id = s.id WHERE s.user_id = ?`,
           [userId]
         );
+        const xpData = await gamificationModule.getXp(userId, context.personaId || 'jesus');
         const profile = await pool.execute('SELECT * FROM profiles WHERE id = ?', [userId]);
         const p = profile[0].length > 0 ? profile[0][0] : null;
         const [feedbackRows] = await pool.execute(
@@ -674,6 +687,9 @@ async function executeTool(name, args, context = {}) {
         return {
           sessions: sessionRows[0].total,
           messages: msgRows[0].total,
+          xp: xpData.xp,
+          level: xpData.level,
+          streak: xpData.streak,
           topics: p ? (typeof p.topics === 'string' ? JSON.parse(p.topics) : p.topics || []) : [],
           emotions: p ? (typeof p.emotions === 'string' ? JSON.parse(p.emotions) : p.emotions || []) : [],
           feedback_count: feedbackRows[0].total,
@@ -705,25 +721,16 @@ async function executeTool(name, args, context = {}) {
           'UPDATE profiles SET prayer_requests = JSON_ARRAY_APPEND(COALESCE(prayer_requests, JSON_ARRAY()), "$", ?) WHERE id = ?',
           [args.request, userId]
         );
-        return { success: true, message: 'Pedido de oração registrado.' };
-      } catch {
-        try {
-          const profile = await pool.execute('SELECT prayer_requests FROM profiles WHERE id = ?', [userId]);
-          let requests = [];
-          if (profile[0].length > 0 && profile[0][0].prayer_requests) {
-            requests = typeof profile[0][0].prayer_requests === 'string'
-              ? JSON.parse(profile[0][0].prayer_requests)
-              : profile[0][0].prayer_requests;
-          }
-          requests.push(args.request);
+        const [checkRows] = await pool.execute('SELECT id FROM profiles WHERE id = ?', [userId]);
+        if (checkRows.length === 0) {
           await pool.execute(
-            'INSERT INTO profiles (id, name, story, topics, emotions, spiritual_journey, prayer_requests) VALUES (?, NULL, "", "[]", "[]", "", ?) ON DUPLICATE KEY UPDATE prayer_requests=VALUES(prayer_requests)',
-            [userId, JSON.stringify(requests)]
+            'INSERT INTO profiles (id, prayer_requests) VALUES (?, JSON_ARRAY(?))',
+            [userId, args.request]
           );
-          return { success: true, message: 'Pedido de oração registrado.' };
-        } catch (err2) {
-          return { error: err2.message };
         }
+        return { success: true, message: 'Pedido de oração registrado.' };
+      } catch (err) {
+        return { error: err.message };
       }
     }
 
@@ -1161,10 +1168,11 @@ async function executeTool(name, args, context = {}) {
 
     case 'manage_goals': {
       const uid = args.owner_id || context.userId || 'user_default';
+      const resolvedPid = args.persona_id ? await resolvePersonaId(args.persona_id) : null;
       try {
         if (args.action === 'create') {
           const goal = await goalsModule.createGoal({
-            persona_id: args.persona_id || null,
+            persona_id: resolvedPid || null,
             owner_id: uid,
             title: args.title || 'Nova meta',
             description: args.description || '',
@@ -1320,7 +1328,8 @@ async function executeTool(name, args, context = {}) {
 
     case 'manage_xp': {
       const uid = context.userId || 'user_default';
-      const pid = args.persona_id || 'default';
+      const resolvedPid = await resolvePersonaId(args.persona_id) || 'default';
+      const pid = resolvedPid;
       try {
         if (args.action === 'add') {
           const result = await gamificationModule.addXp(uid, pid, args.amount || 10, args.reason || 'interaction');
@@ -1370,7 +1379,8 @@ async function executeTool(name, args, context = {}) {
 
     case 'manage_progress': {
       const uid = context.userId || 'user_default';
-      const pid = args.persona_id || 'default';
+      const resolvedPid = await resolvePersonaId(args.persona_id) || 'default';
+      const pid = resolvedPid;
       try {
         if (args.action === 'get') {
           const progress = await progressModule.getProgressState(uid, pid);

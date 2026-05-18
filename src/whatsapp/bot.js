@@ -714,9 +714,11 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
     });
 
     let reply = result.response;
+    console.log(`[WhatsApp] processMessage result: response=${reply?.substring(0, 100)}, ttsVoice=${result.ttsVoice}, sources=${result.sources?.length}`);
 
     if (!reply || !reply.trim()) {
       console.warn('[WhatsApp] Empty response from processMessage, using fallback');
+      console.log('[WhatsApp] Full result:', JSON.stringify(result).substring(0, 500));
       reply = t('llmError', DEFAULT_LANG) || 'Desculpe, não consegui gerar uma resposta. Tente novamente.';
     }
 

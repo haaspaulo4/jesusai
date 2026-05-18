@@ -238,32 +238,19 @@ async function generateSummary(sessionId) {
     .map(m => `${m.role === 'user' ? 'Pessoa' : 'Jesus'}: ${m.content}`)
     .join('\n');
 
-  const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
-  const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY;
-  const CHAT_MODEL = process.env.CHAT_MODEL || 'glm-5.1';
+  const integrations = require('../llm/integrationManager');
 
   try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(OLLAMA_API_KEY ? { Authorization: `Bearer ${OLLAMA_API_KEY}` } : {}),
-      },
-      body: JSON.stringify({
-        model: CHAT_MODEL,
-        messages: [
-          { role: 'system', content: 'Resuma em 2-3 frases esta conversa entre uma pessoa e Jesus, incluindo temas abordados, estado emocional da pessoa e o que Jesus destacou. Seja conciso e em português.' },
-          { role: 'user', content: conversationText },
-        ],
-        stream: false,
-        options: { temperature: 0.3 },
-      }),
-    });
+    const result = await integrations.callLLM([
+      { role: 'system', content: 'Resuma em 2-3 frases esta conversa entre uma pessoa e Jesus, incluindo temas abordados, estado emocional da pessoa e o que Jesus destacou. Seja conciso e em português.' },
+      { role: 'user', content: conversationText },
+    ], { temperature: 0.3, numPredict: 512, stream: false });
 
-    if (!response.ok) throw new Error(`API error ${response.status}`);
-    const data = await response.json();
-    session.summary = data.message?.content?.trim() || session.summary;
-    await saveSession(session);
+    const summary = result?.message?.content || result?.content || result?.choices?.[0]?.message?.content;
+    if (summary) {
+      session.summary = summary.trim();
+      await saveSession(session);
+    }
     return session.summary;
   } catch {
     return session.summary;

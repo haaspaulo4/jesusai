@@ -478,6 +478,11 @@ async function shouldOnboard(userId, personaId) {
   const status = await getUserOnboardingStatus(userId, personaId);
   if (status.done) return null;
 
+  const infoSteps = status.steps.filter(s => !s.answered && s.field_type === 'message');
+  for (const infoStep of infoSteps) {
+    await saveOnboardingAnswer(userId, infoStep.step_key, 'acknowledged', personaId || null);
+  }
+
   const nextStep = status.steps.find(s => !s.answered && s.field_type !== 'message' && s.required);
   if (!nextStep) {
     const nextOptional = status.steps.find(s => !s.answered && s.field_type !== 'message');
@@ -582,11 +587,11 @@ async function ensureUser(userId, userName, source) {
   if (rows.length > 0) return userId;
 
   const name = userName || userId.replace(/^(wa_|tg_|user_)/, '');
-  const email = `${userId}@${source || 'web'}.bot`;
+  const email = `${userId.substring(0, 50)}@${source || 'web'}.local`;
   const role = 'user';
   await pool.execute(
     'INSERT INTO users (id, email, name, role) VALUES (?, ?, ?, ?)',
-    [userId, email, name, role]
+    [userId, email.substring(0, 255), name, role]
   );
   return userId;
 }

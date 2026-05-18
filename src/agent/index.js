@@ -1,7 +1,10 @@
 const { pool } = require('../db');
+const crypto = require('crypto');
+
+function genId(prefix) { return prefix + '_' + crypto.randomBytes(8).toString('hex'); }
 
 async function createTask(data) {
-  const id = data.id || 'task_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+  const id = data.id || genId('task');
   const persona_id = data.persona_id || null;
   const owner_id = data.owner_id || 'system';
   const title = data.title || 'Untitled task';
@@ -73,7 +76,7 @@ async function getOverdueTasks(ownerId) {
 }
 
 async function createCalendarEvent(data) {
-  const id = data.id || 'evt_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+  const id = data.id || genId('evt');
   const persona_id = data.persona_id || null;
   const owner_id = data.owner_id || 'system';
   const title = data.title || 'Untitled event';
@@ -147,7 +150,7 @@ async function getUpcomingEvents(ownerId, days = 7) {
 }
 
 async function createContact(data) {
-  const id = data.id || 'cont_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+  const id = data.id || genId('cont');
   const persona_id = data.persona_id || null;
   const owner_id = data.owner_id || 'system';
   const name = data.name || 'Unknown';
@@ -214,7 +217,7 @@ async function listContacts(filters = {}) {
 }
 
 async function createAutomation(data) {
-  const id = data.id || 'auto_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+  const id = data.id || genId('auto');
   const persona_id = data.persona_id || null;
   const owner_id = data.owner_id || 'system';
   const name = data.name || 'Untitled automation';
@@ -293,22 +296,80 @@ async function checkAndRunAutomations(sessionId, userId, message) {
       const msgCount = countResult[0].total;
       if (msgCount > 0 && msgCount % config.every_n === 0) shouldTrigger = true;
     } else if (auto.trigger_type === 'schedule' && config.cron) {
-      shouldTrigger = true;
+      try {
+        const cronParts = config.cron.split(' ');
+        if (cronParts.length >= 5) {
+          const now = new Date();
+          const cronMin = cronParts[0] === '*' ? -1 : parseInt(cronParts[0]);
+          const cronHour = cronParts[1] === '*' ? -1 : parseInt(cronParts[1]);
+          if ((cronMin === -1 || now.getMinutes() === cronMin) && (cronHour === -1 || now.getHours() === cronHour)) {
+            const lastRun = auto.last_run_at ? new Date(auto.last_run_at) : null;
+            if (!lastRun || (now.getTime() - lastRun.getTime()) > 58000) shouldTrigger = true;
+          }
+        }
+      } catch {}
     } else if (auto.trigger_type === 'manual') {
       continue;
     }
 
     if (shouldTrigger) {
       await pool.execute('UPDATE persona_automations SET last_run_at = NOW(), run_count = run_count + 1 WHERE id = ?', [auto.id]);
+
+      const actionConfig = typeof auto.action_config === 'string' ? JSON.parse(auto.action_config) : (auto.action_config || {});
+      const result = await executeAutomationAction(auto.action_type, actionConfig, sessionId, userId);
+
       triggered.push({
         id: auto.id,
         name: auto.name,
         action_type: auto.action_type,
-        action_config: typeof auto.action_config === 'string' ? JSON.parse(auto.action_config) : auto.action_config,
+        action_config: actionConfig,
+        result,
       });
     }
   }
   return triggered;
+}
+
+async function executeAutomationAction(actionType, actionConfig, sessionId, userId) {
+  switch (actionType) {
+    case 'message':
+      return { sent: true, message: actionConfig.message || '' };
+    case 'create_task': {
+      const tasks = require('./index');
+      const task = await tasks.createTask({
+        persona_id: actionConfig.persona_id || null,
+        owner_id: userId,
+        title: actionConfig.title || 'Automated task',
+        description: actionConfig.description || '',
+        priority: actionConfig.priority || 'medium',
+        status: 'pending',
+      });
+      return { created: true, task_id: task.id };
+    }
+    case 'send_email': {
+      try {
+        const { sendEmail } = require('../email');
+        await sendEmail({ to: actionConfig.email_to, subject: actionConfig.subject || 'Notification', text: actionConfig.body || '' });
+        return { sent: true, to: actionConfig.email_to };
+      } catch (err) {
+        return { sent: false, error: err.message };
+      }
+    }
+    case 'webhook': {
+      try {
+        const response = await fetch(actionConfig.url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(actionConfig.payload || {}), signal: AbortSignal.timeout(10000) });
+        return { status: response.status };
+      } catch (err) {
+        return { error: err.message };
+      }
+    }
+    case 'switch_persona':
+      return { switch_to: actionConfig.persona_id };
+    case 'invoke_skill':
+      return { skill_invoked: actionConfig.skill_id };
+    default:
+      return { error: `Unknown action type: ${actionType}` };
+  }
 }
 
 async function saveHistory(personaId, sessionId, userId, role, content, toolCalls, toolResults) {

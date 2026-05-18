@@ -49,7 +49,7 @@ const PIX_KEY = process.env.PIX_KEY || '';
 const PIX_TYPE = process.env.PIX_TYPE || 'email';
 const STRIPE_URL = process.env.STRIPE_URL || '';
 
-router.post('/stt', upload.single('audio'), async (req, res) => {
+router.post('/stt', authMiddleware, upload.single('audio'), async (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Audio file is required' });
@@ -80,8 +80,8 @@ router.post('/chat', authMiddleware, async (req, res) => {
     return res.status(400).json({ error: 'Message must be a string' });
   }
 
-  if (message.length > 10000) {
-    return res.status(400).json({ error: 'Message too long (max 10000 characters)' });
+  if (message.length > 5000) {
+    return res.status(400).json({ error: 'Message too long (max 5000 characters)' });
   }
 
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
@@ -414,7 +414,7 @@ router.get('/whitelabel', async (req, res) => {
   }
 });
 
-router.post('/tts', async (req, res) => {
+router.post('/tts', authMiddleware, async (req, res) => {
   const { text, lang, voice } = req.body;
 
   if (!text || typeof text !== 'string') {
@@ -459,6 +459,10 @@ router.post('/persona/switch', authMiddleware, async (req, res) => {
     const userId = req.userId || 'user_default';
     if (!personaId) return res.status(400).json({ error: 'personaId is required' });
 
+    if (personaId === 'meta-persona' && req.userRole !== 'admin') {
+      return res.status(403).json({ error: 'Meta-persona is restricted to admin users' });
+    }
+
     const result = await metaRag.switchPersona(userId || 'user_default', sessionId, personaId);
     const persona = await personaManager.getPersona(personaId);
     res.json({
@@ -484,6 +488,8 @@ router.post('/persona/create', authMiddleware, async (req, res) => {
   try {
     const { description, name, lang } = req.body;
     if (!description) return res.status(400).json({ error: 'description is required' });
+    if (description.length > 2000) return res.status(400).json({ error: 'Description too long (max 2000 characters)' });
+    if (name && name.length > 100) return res.status(400).json({ error: 'Name too long (max 100 characters)' });
     const userId = req.userId;
     const userRole = req.userRole;
     if (userRole !== 'admin' && userRole !== 'premium') {
@@ -700,11 +706,15 @@ router.get('/blueprints/:id', async (req, res) => {
   }
 });
 
-router.post('/blueprints/:id/clone', async (req, res) => {
+router.post('/blueprints/:id/clone', authMiddleware, async (req, res) => {
   try {
     const blueprintsModule = require('../blueprints');
     const { overrides } = req.body;
-    const persona = await blueprintsModule.cloneBlueprint(req.params.id, overrides || {});
+    if (req.userRole !== 'admin' && req.userRole !== 'premium') {
+      return res.status(403).json({ error: 'Blueprint cloning requires premium or admin role' });
+    }
+    const overridesWithUser = { ...overrides || {}, owner_id: req.userId };
+    const persona = await blueprintsModule.cloneBlueprint(req.params.id, overridesWithUser);
     res.json({ success: true, persona: { id: persona.id, name: persona.name } });
   } catch (err) {
     res.status(400).json({ error: err.message });

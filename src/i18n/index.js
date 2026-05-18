@@ -168,6 +168,7 @@ INVARIABLE RULES:
     audioFallback: 'Recebi seu áudio, mas não consegui transcrever. Por favor, envie como texto.',
     audioDownloadFail: 'Recebi seu áudio, mas não consegui baixar. Por favor, envie como texto.',
     audioProcessFail: 'Não consegui processar seu áudio. Por favor, envie como texto.',
+    audioTooLarge: 'Áudio muito grande. Envie áudios de até 20MB.',
     llmError: 'Desculpe, houve uma dificuldade técnica. Por favor, tente novamente em breve.',
   },
 
@@ -340,6 +341,7 @@ INVARIABLE RULES:
     audioFallback: 'I received your audio but could not transcribe it. Please send a text message.',
     audioDownloadFail: 'I received your audio but could not download it. Please send a text message.',
     audioProcessFail: 'I could not process your audio. Please send a text message.',
+    audioTooLarge: 'Audio file too large. Please send audio files up to 20MB.',
     llmError: 'Sorry, there was a technical difficulty. Please try again soon.',
   },
 
@@ -512,6 +514,7 @@ REGLAS INVARIABLES:
     audioFallback: 'Recibí tu audio pero no pude transcribirlo. Por favor, envía un mensaje de texto.',
     audioDownloadFail: 'Recibí tu audio pero no pude descargarlo. Por favor, envía un mensaje de texto.',
     audioProcessFail: 'No pude procesar tu audio. Por favor, envía un mensaje de texto.',
+    audioTooLarge: 'Audio demasiado grande. Envía audios de hasta 20MB.',
     llmError: 'Disculpa, hubo una dificultad técnica. Por favor, inténtalo de nuevo pronto.',
   },
 };

@@ -4,6 +4,8 @@ const { getSetting } = require('../settings');
 
 async function generateSuggestions(personaId, days = 7) {
   const since = new Date(Date.now() - days * 86400000).toISOString().slice(0, 19).replace('T', ' ');
+  const suggestions = [];
+  const data = { persona_id: personaId, period_days: days, total_messages: 0, suggestions };
 
   const [messages] = await pool.execute(
     'SELECT COUNT(*) as total FROM persona_messages WHERE persona_id = ? AND created_at >= ?',
@@ -49,17 +51,16 @@ async function generateSuggestions(personaId, days = 7) {
     } catch {}
   }
 
-  const suggestions = [];
-
   if (cognitiveStates.length > 0) {
     const topEmotion = cognitiveStates[0];
+    const totalMessages = messages.length > 0 ? (messages[0].total || 1) : 1;
     if (topEmotion.emotion === 'frustrated' || topEmotion.emotion === 'angry') {
       suggestions.push({
         type: 'tone_adjustment',
         priority: 'high',
         title: 'Ajustar tom para mais empático',
-        description: `${Math.round((topEmotion.count / messages[0].total) * 100)}% das mensagens têm emoção "${topEmotion.emotion}". Considere tornar a persona mais acolhedora e paciente.`,
-        data: { emotion: topEmotion.emotion, percentage: Math.round((topEmotion.count / messages[0].total) * 100) },
+        description: `${Math.round((topEmotion.count / totalMessages) * 100)}% das mensagens têm emoção "${topEmotion.emotion}". Considere tornar a persona mais acolhedora e paciente.`,
+        data: { emotion: topEmotion.emotion, percentage: Math.round((topEmotion.count / totalMessages) * 100) },
       });
     }
 
@@ -130,13 +131,11 @@ async function generateSuggestions(personaId, days = 7) {
     });
   }
 
-  return {
-    persona_id: personaId,
-    period_days: days,
-    total_messages: messages[0]?.total || 0,
-    suggestions,
-    generated_at: new Date().toISOString(),
-  };
+  data.total_messages = messages.length > 0 ? (messages[0].total || 0) : 0;
+  data.suggestions = suggestions;
+  return data;
 }
+
+module.exports = { generateSuggestions };
 
 module.exports = { generateSuggestions };

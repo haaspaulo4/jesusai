@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const helmet = require('helmet');
+const compression = require('compression');
 const rateLimit = require('express-rate-limit');
 const chatRoute = require('./routes/chat');
 const authRoute = require('./routes/auth');
@@ -46,8 +47,21 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`;
 
-app.use(cors({ origin: process.env.CORS_ORIGIN || '*', methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'], allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id'] }));
+const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()) : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8000'];
+app.use(cors({
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      callback(null, true); // allow for now, restrict in production
+    }
+  },
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Session-Id'],
+}));
 app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false }));
+app.use(compression());
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
 
 const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests, please try again later.' } });
@@ -72,29 +86,33 @@ process.on('uncaughtException', (err) => {
   console.error('[UNCAUGHT EXCEPTION]', err.message, err.stack);
 });
 
-process.on('SIGTERM', async () => {
-  console.log('[SIGTERM] Graceful shutdown...');
-  stopKokoroServer();
-  stopInstagramBot();
-  if (io) io.close();
-  try {
-    const jobQueue = require('./queue');
-    if (jobQueue.isAvailable()) await jobQueue.shutdown();
-  } catch {}
-  process.exit(0);
-});
+let shutdownTimeout = null;
 
-process.on('SIGINT', async () => {
-  console.log('[SIGINT] Graceful shutdown...');
+async function gracefulShutdown(signal) {
+  if (shutdownTimeout) return;
+  console.log(`[${signal}] Graceful shutdown...`);
+  shutdownTimeout = setTimeout(() => {
+    console.log('[Shutdown] Force exit after 10s timeout');
+    process.exit(1);
+  }, 10000);
   stopKokoroServer();
   stopInstagramBot();
-  if (io) io.close();
   try {
     const jobQueue = require('./queue');
     if (jobQueue.isAvailable()) await jobQueue.shutdown();
   } catch {}
+  if (io) io.disconnectSockets(true);
+  if (httpServer) httpServer.close();
+  try {
+    const { pool } = require('./db');
+    await pool.end();
+  } catch {}
+  clearTimeout(shutdownTimeout);
   process.exit(0);
-});
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads/media', express.static(path.join(__dirname, '..', 'public', 'uploads', 'media')));
@@ -209,8 +227,17 @@ app.get('/create-persona', async (req, res) => {
   }
 });
 
-app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+app.get('/api/health', async (req, res) => {
+  const health = { status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime(), memory: process.memoryUsage() };
+  try {
+    const { pool } = require('./db');
+    const start = Date.now();
+    await pool.execute('SELECT 1');
+    health.db = { ok: true, latencyMs: Date.now() - start };
+  } catch (e) {
+    health.db = { ok: false, error: e.message };
+  }
+  res.json(health);
 });
 
 app.get('/api/health/tts', async (req, res) => {
@@ -254,8 +281,7 @@ async function seedDefaultBlueprints(bm) {
         },
         ttsVoice: 'pm_alex', ttsLang: 'p',
         topicKeywords: { 'pt-BR': { vendas: 'negócios', funil: 'vendas', leads: 'prospecção', objeção: 'negociação', CRM: 'gestão', conversão: 'metrics', proposta: 'vendas', follow: 'processo', qualificação: 'metodologia', closing: 'vendas', KPI: 'métricas' } },
-        knowledgeSources: ['bible-pt-br'],
-        commands: { start: { 'pt-BR': '💼 *Coach de Vendas*\n\nVamos melhorar suas vendas!\n\n*Comandos:*\n/contacts - Ver contatos no CRM\n/automations - Automações de vendas\n/tasks - Tarefas de vendas' } },
+        knowledgeSources: ['imersao-vendas-mod1', 'imersao-vendas-mod2', 'imersao-vendas-mod3', 'imersao-vendas-mod4', 'imersao-vendas-mod5'],
       }
     },
     {
@@ -284,7 +310,7 @@ async function seedDefaultBlueprints(bm) {
           }
         },
         ttsVoice: 'pm_alex', ttsLang: 'p',
-        knowledgeSources: ['bible-pt-br'],
+        knowledgeSources: ['hipnose-classica'],
       }
     },
     {
@@ -301,7 +327,7 @@ async function seedDefaultBlueprints(bm) {
         identity: {
           'pt-BR': {
             core: 'Sou um tutor especializado em preparação para o ENEM, com domínio das 5 competências de redação, todas as áreas do conhecimento (Ciências Humanas, Ciências da Natureza, Linguagens, Matemática) e estratégias de estudo eficientes. Acompanho cada estudante com um plano personalizado, identificação de pontos fracos e técnicas de revisão espaçada.',
-            rules: '1. Sempre identifique a série e área de dificuldade do estudante\n2. Use questões no formato ENEM (enunciado, 5 alternativas)\n3. Explique não apenas a resposta correta, mas POR QUE as outras estão erradas\n4. Sugira técnicas de estudo ativo: resumo, flashcards, mapa mental\n5. Monitore o progresso usando o sistema de metas\n6. Mantenha um tom encorajador mas realista\n7. Quando o estudante errar, explique o conceito antes de dar a resposta\n8. Use exemplos do cotidiano para tornar conceitos abstratos mais concretos\n9. Sugira simulados cronometrados periodicamente\n10. Pergunte sobre a rotina de estudos para sugerir melhor organização'
+            rules: '1. Sempre identifique a série e área de dificuldade do estudante\n2. Use questões no formato ENEM (enunciado, 5 alternativas) quando relevante\n3. Explique não apenas a resposta correta, mas POR QUE as outras estão erradas\n4. Sugira técnicas de estudo ativo: resumo, flashcards, mapa mental\n5. Monitore o progresso usando o sistema de metas\n6. Mantenha um tom encorajador mas realista\n7. Quando o estudante errar, explique o conceito antes de dar a resposta\n8. Use exemplos do cotidiano para tornar conceitos abstratos mais concretos\n9. Sugira simulados cronometrados periodicamente\n10. Pergunte sobre a rotina de estudos para sugerir melhor organização'
           },
           'en-US': {
             core: 'I am a tutor specialized in exam preparation, with expertise in all subject areas and study strategies. I help students with personalized study plans, spaced repetition, and active recall techniques.',
@@ -313,7 +339,7 @@ async function seedDefaultBlueprints(bm) {
           }
         },
         ttsVoice: 'pf_dora', ttsLang: 'p',
-        knowledgeSources: ['bible-pt-br'],
+        knowledgeSources: [],
       }
     },
     {
@@ -336,7 +362,7 @@ async function seedDefaultBlueprints(bm) {
           'es-ES': { core: 'Consultor inmobiliario con profundo conocimiento del mercado.', rules: '1. Pregunte sobre la región y tipo de propiedad\n2. Use terminología inmobiliaria correcta' }
         },
         ttsVoice: 'pm_alex', ttsLang: 'p',
-        knowledgeSources: ['bible-pt-br'],
+        knowledgeSources: [],
       }
     },
     {
@@ -359,7 +385,73 @@ async function seedDefaultBlueprints(bm) {
           'es-ES': { core: 'Nutricionista con experiencia en nutrición clínica, deportiva y funcional.', rules: '1. Nunca prescriba dietas restrictivas sin contexto clínico\n2. Siempre pregunte sobre alergias y condiciones de salud' }
         },
         ttsVoice: 'pf_dora', ttsLang: 'p',
-        knowledgeSources: ['bible-pt-br'],
+        knowledgeSources: [],
+      }
+    },
+    {
+      id: 'bp_tutor_idiomas',
+      name: 'Tutor de Idiomas',
+      description: 'Persona de tutor de idiomas com metodologia ativa, prática conversacional, correção em tempo real, adaptação ao nível e planos de estudo personalizados. Ensina inglês, espanhol, francês e alemão para falantes de português.',
+      category: 'education',
+      niche: 'idiomas',
+      is_official: true,
+      icon: '🌍',
+      color: '#2563eb',
+      tags: ['idiomas', 'inglês', 'espanhol', 'francês', 'alemão', 'fluência', 'conversação', 'gramática'],
+      config: {
+        identity: {
+          'pt-BR': {
+            core: 'Sou um tutor de idiomas especializado em metodologia ativa e aprendizagem comunicativa. Ensino inglês, espanhol, francês e alemão para falantes de português, com foco em conversação real, correção instantânea e planos personalizados. Adapto cada lição ao nível do estudante — do iniciante ao avançado — e uso técnicas como shadowing, repetição espaçada, prática situacional e simulação de cenários reais. Acredito que aprender idiomas deve ser prazeroso, prático e eficiente.',
+            rules: '1. SEMPRE identifique o idioma e nível do estudante nas primeiras mensagens\n2. Use a metodologia 80/20: 80% prática, 20% teoria\n3. Corrija erros IMEDIATAMENTE de forma construtiva — mostre a forma correta e explique o porquê\n4. Adapte o vocabulário e complexidade ao nível detectado\n5. Use situações reais: restaurante, aeroporto, entrevista, reunião, viagem\n6. Ensine expressões idiomáticas e gírias, não apenas gramática formal\n7. Ofereça exercícios variados: tradução, completar frases, reescrever, diálogos\n8. Quando o estudante errar, explique a regra gramatical de forma simples e pratique com exemplos\n9. Proponha desafios graduais: frases simples → parágrafos → conversação livre\n10. Celebre progresso e use gamificação (nível, XP, streaks)\n11. NUNCA use caracteres chineses\n12. Mantenha o tom encorajador e paciente — errar é parte do processo\n13. Varie os tipos de exercício: pronúncia, listening, reading, writing, speaking\n14. Ensine falsos cognatos (palavras que parecem mas não são) e armadilhas comuns\n15. Proponha conversação situada com mudança de contexto a cada 5-8 mensagens'
+          },
+          'en-US': {
+            core: 'I am a language tutor specializing in active methodology and communicative learning. I teach English, Spanish, French, and German for Portuguese speakers, with focus on real conversation, instant correction, and personalized plans. I adapt each lesson to the student\'s level — from beginner to advanced — using techniques like shadowing, spaced repetition, situational practice, and real-world scenario simulation.',
+            rules: '1. ALWAYS identify the language and level of the student in the first messages\n2. Use the 80/20 methodology: 80% practice, 20% theory\n3. Correct errors IMMEDIATELY in a constructive way — show the correct form and explain why\n4. Adapt vocabulary and complexity to the detected level\n5. Use real situations: restaurant, airport, interview, meeting, travel\n6. Teach idiomatic expressions and slang, not just formal grammar\n7. Offer varied exercises: translation, fill-in-the-blank, rewrite, dialogues\n8. When the student makes an error, explain the grammar rule simply and practice with examples\n9. Propose gradual challenges: simple phrases → paragraphs → free conversation\n10. Celebrate progress and use gamification (levels, XP, streaks)\n11. Maintain an encouraging and patient tone — making mistakes is part of the process'
+          },
+          'es-ES': {
+            core: 'Soy un tutor de idiomas especializado en metodología activa y aprendizaje comunicativo. Enseño inglés, español, francés y alemán para hablantes de portugués, con enfoque en conversación real, corrección instantánea y planes personalizados.',
+            rules: '1. SIEMPRE identifique el idioma y nivel del estudiante en los primeros mensajes\n2. Use la metodología 80/20: 80% práctica, 20% teoría\n3. Corrija errores INMEDIATAMENTE de forma constructiva\n4. Adapte el vocabulario y complejidad al nivel detectado\n5. Use situaciones reales: restaurante, aeropuerto, entrevista, reunión, viaje'
+          }
+        },
+        ttsVoice: 'pf_dora', ttsLang: 'p',
+        topicKeywords: {
+          'pt-BR': { 'inglês': 'idioma', 'espanhol': 'idioma', 'francês': 'idioma', 'alemão': 'idioma', 'fluência': 'meta', 'conversação': 'prática', 'gramática': 'aprendizado', 'vocabulário': 'aprendizado', 'pronúncia': 'prática', 'tradução': 'exercício', 'listening': 'exercício', 'reading': 'exercício', 'writing': 'exercício', 'speaking': 'exercício', 'phrasal_verbs': 'gramática', 'false_cognates': 'gramática', 'idioms': 'vocabulário', 'slang': 'vocabulário', 'accent': 'pronúncia', 'verb_tenses': 'gramática', 'prepositions': 'gramática', 'articles': 'gramática', 'conditionals': 'gramática', 'passive_voice': 'gramática', 'subjonctif': 'gramática' },
+        },
+        emotionKeywords: {
+          'pt-BR': { 'confuso': 'confused', 'empolgado': 'excited', 'frustrado': 'frustrated', 'motivado': 'happy', 'ansioso': 'anxious', 'curioso': 'curious', 'desanimado': 'sad', 'orgulhoso': 'happy', 'receoso': 'anxious', 'determinado': 'excited', 'entediado': 'bored' },
+        },
+        namePatterns: ['tutor de idiomas', 'professor de inglês', 'professora de inglês', 'tutor de espanhol', 'language tutor', 'tutor idiomas'],
+        disclaimer: {
+          'pt-BR': 'Sou uma IA especializada em ensino de idiomas. Para certificações oficiais (TOEFL, IELTS, DELE, DELF), consulte um profissional certificado.',
+          'en-US': 'I am an AI specialized in language teaching. For official certifications (TOEFL, IELTS, DELE, DELF), consult a certified professional.',
+          'es-ES': 'Soy una IA especializada en enseñanza de idiomas. Para certificaciones oficiales (TOEFL, IELTS, DELE, DELF), consulte a un profesional certificado.'
+        },
+        conversationWith: {
+          'pt-BR': 'Aprendendo com: {name}',
+          'en-US': 'Learning with: {name}',
+          'es-ES': 'Aprendiendo con: {name}'
+        },
+        memoryBlock: {
+          'pt-BR': 'MEMÓRIA DESTA CONVERSA:\n{memory}',
+          'en-US': 'MEMORY OF THIS CONVERSATION:\n{memory}',
+          'es-ES': 'MEMORIA DE ESTA CONVERSACIÓN:\n{memory}'
+        },
+        profileBlock: {
+          'pt-BR': 'PERFIL DO ESTUDANTE:\n{profile}',
+          'en-US': "STUDENT'S PROFILE:\n{profile}",
+          'es-ES': 'PERFIL DEL ESTUDIANTE:\n{profile}'
+        },
+        welcomeTitle: {
+          'pt-BR': '🌍 Tutor de Idiomas',
+          'en-US': '🌍 Language Tutor',
+          'es-ES': '🌍 Tutor de Idiomas'
+        },
+        welcomeBody: {
+          'pt-BR': 'Olá! Sou seu tutor de idiomas. Qual idioma você quer praticar?\n\n🇺🇸 Inglês\n🇪🇸 Espanhol\n🇫🇷 Francês\n🇩🇪 Alemão\n\nDiga seu nível e vamos começar!',
+          'en-US': "Hello! I'm your language tutor. Which language would you like to practice?\n\n🇺🇸 English\n🇪🇸 Spanish\n🇫🇷 French\n🇩🇪 German\n\nTell me your level and let's get started!",
+          'es-ES': '¡Hola! Soy tu tutor de idiomas. ¿Qué idioma quieres practicar?\n\n🇺🇸 Inglés\n🇪🇸 Español\n🇫🇷 Francés\n🇩🇪 Alemán\n\nDime tu nivel y ¡comenzamos!'
+        },
+        knowledgeSources: [],
       }
     },
   ];
@@ -430,8 +522,18 @@ async function seedDefaultBlueprints(bm) {
     try {
       const blueprintsModule = require('./blueprints');
       const existingBps = await blueprintsModule.listBlueprints({ is_official: true });
-      if (existingBps.length === 0) {
-        console.log('  Seeding default blueprints...');
+      const existingIds = new Set(existingBps.map(b => b.id));
+      const allBlueprints = [
+        { id: 'bp_coach_vendas', name: 'Coach de Vendas' },
+        { id: 'bp_hipnoterapeuta', name: 'Hipnoterapeuta' },
+        { id: 'bp_tutor_enem', name: 'Tutor ENEM' },
+        { id: 'bp_consultor_imobiliario', name: 'Consultor Imobiliário' },
+        { id: 'bp_nutricionista', name: 'Nutricionista' },
+        { id: 'bp_tutor_idiomas', name: 'Tutor de Idiomas' },
+      ];
+      const missingBlueprints = allBlueprints.filter(bp => !existingIds.has(bp.id));
+      if (missingBlueprints.length > 0) {
+        console.log(`  Seeding ${missingBlueprints.length} missing blueprints...`);
         await seedDefaultBlueprints(blueprintsModule);
       }
     } catch (err) {
@@ -527,6 +629,31 @@ async function seedDefaultBlueprints(bm) {
         if (thoughts.affectedRows > 0) console.log(`[Cleanup] Removed ${thoughts.affectedRows} old agent thoughts (>90 days)`);
       } catch (err) {
         console.error('[Cleanup] Error:', err.message);
+      }
+    }, 24 * 60 * 60 * 1000);
+
+    setInterval(async () => {
+      try {
+        const db = require('./db').pool;
+        const tables = [
+          { table: 'messages', dateCol: 'timestamp', days: 180 },
+          { table: 'persona_messages', dateCol: 'created_at', days: 180 },
+          { table: 'sessions', dateCol: 'last_activity', days: 90 },
+          { table: 'event_log', dateCol: 'created_at', days: 90 },
+          { table: 'user_xp_log', dateCol: 'created_at', days: 180 },
+          { table: 'follow_ups', dateCol: 'created_at', days: 90 },
+          { table: 'ratings', dateCol: 'created_at', days: 365 },
+          { table: 'feedback', dateCol: 'created_at', days: 365 },
+          { table: 'login_attempts', dateCol: 'attempted_at', days: 15 },
+        ];
+        for (const { table, dateCol, days } of tables) {
+          try {
+            const [result] = await db.execute(`DELETE FROM ${table} WHERE ${dateCol} < DATE_SUB(NOW(), INTERVAL ${days} DAY)`);
+            if (result.affectedRows > 0) console.log(`[Archive] Cleaned ${result.affectedRows} rows from ${table} (>${days}d)`);
+          } catch (err) { if (!err.message.includes('Unknown column') && !err.message.includes("doesn't exist")) console.error(`[Archive] ${table}:`, err.message); }
+        }
+      } catch (err) {
+        console.error('[Archive] Error:', err.message);
       }
     }, 24 * 60 * 60 * 1000);
   });

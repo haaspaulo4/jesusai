@@ -19,6 +19,7 @@
     "axios": "^1.7.9",
     "bcryptjs": "^3.0.3",
     "bullmq": "^5.76.8",
+    "compression": "^1.8.1",
     "cors": "^2.8.6",
     "dotenv": "^16.4.7",
     "edge-tts": "^1.0.1",

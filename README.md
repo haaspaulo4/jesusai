@@ -229,9 +229,10 @@ npm run tts:start     # Start Kokoro server on port 8001
 | Proactive | `src/proactive/index.js` | Cron-based proactive intelligence (streaks, goals, automations) |
 | Events | `src/events/index.js` | Event bus (on_goal_completed, on_badge_earned, on_churn_risk_high, etc.) |
 | Blueprints | `src/blueprints/index.js` | Cloneable persona templates, CRUD, clone, seed |
-| LLM Tools | `src/llm/tools.js` | 29 tool definitions + execution logic |
+| LLM Tools | `src/llm/tools.js` | 36 tool definitions + execution logic (29 base + 7 language skills) |
 | Integration Mgr | `src/llm/integrationManager.js` | Multi-key fallback for all integrations |
-| Knowledge | `src/knowledge/` | TF-IDF RAG, multimodal ingestion, per-persona sources |
+| Knowledge | `src/knowledge/` | TF-IDF RAG, multimodal ingestion, per-persona sources, 11 language sources |
+| Skills (seed) | `src/seed/skillsAndBlueprints.js` | 57 global skills + 7 language skills + 6 blueprint templates |
 | Auth | `src/auth/` | JWT, bcrypt, Google OAuth, role-based, rate limiting |
 | Onboarding | `src/onboarding/index.js` | State machine (3 langs, configurable steps) |
 | Survey | `src/survey/index.js` | Surveys, ratings, follow-ups |
@@ -308,12 +309,45 @@ Personas can be saved as **cloneable templates** (blueprints). Each blueprint st
 - **Applied** to an existing persona (merge template into current config)
 - **Created from** any existing persona
 
-5 official blueprints are seeded on first startup:
+6 official blueprints are seeded on first startup:
 1. **Coach de Vendas** — Sales coach with funnel, objection handling, CRM
 2. **Hipnoterapeuta** — Hypnotherapy with safety rules, Ericksonian techniques
 3. **Tutor ENEM** — Exam prep with study techniques, progress tracking
 4. **Consultor Imobiliário** — Real estate with market knowledge, legal compliance
 5. **Nutricionista** — Nutrition with clinical safety, evidence-based recommendations
+6. **Tutor de Idiomas** — Language tutor (EN, ES, FR, DE) with 7 specialized skills, 11 RAG knowledge sources, pronunciation, roleplay, quizzes, flashcards
+
+### Language Tutor Skills
+
+The `tutor-idiomas` persona includes 7 specialized skills:
+
+| Skill | Description |
+|-------|-------------|
+| `language.translate` | Translation with cultural notes, false cognate warnings, register analysis |
+| `language.correct` | Error correction with grammar explanations, CEFR level assessment, practice exercises |
+| `language.listen` | Listening comprehension: gap-fill dialogues, dictation, shadowing scripts |
+| `language.pronunciation` | IPA transcription, PT→target phonetic comparison, minimal pairs, mouth positioning |
+| `language.quiz` | Adaptive quizzes (multiple choice, fill-in, translation, error spotting) by CEFR level |
+| `language.flashcards` | Smart spaced-repetition flashcards: vocabulary, false cognates, idioms, verbs |
+| `language.roleplay` | Realistic conversation simulation (restaurant, airport, interview, hotel, doctor) |
+
+### Language Knowledge Sources (RAG)
+
+11 RAG sources power the tutor's knowledge:
+
+| Source | Content | Levels |
+|--------|---------|--------|
+| False Cognates EN↔PT | 40+ deceptive words | A1-B2 |
+| Phrasal Verbs EN | 65+ verbs with separability, examples | A2-B2 |
+| Idiomatic Expressions EN | 50+ idioms with origin, PT equivalent | A1-B2 |
+| English Grammar | 18 rules (tenses, conditionals, passive, articles, etc.) | A1-B2 |
+| Irregular Verbs EN | 20+ verbs with all forms, pronunciation, expressions | A1-B2 |
+| Vocabulary EN | 12 thematic groups (body, food, travel, emotions, business, etc.) | A1-B2 |
+| Slang & Abbreviations EN | 24 entries (no cap, GOAT, rizz, bussin, mid, etc.) | A1-B2 |
+| False Cognates ES↔PT | 37 deceptive Spanish-Portuguese words | A1-B2 |
+| Spanish Grammar | 16 rules (ser/estar, subjuntivo, por/para, etc.) | A1-B2 |
+| False Cognates FR↔PT | 29 deceptive French-Portuguese words | A1-B2 |
+| French Grammar | 16 rules (articles, accord, subjonctif, pronoms y/en, etc.) | A1-B2 |
 
 ---
 

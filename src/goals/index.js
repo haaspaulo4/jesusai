@@ -1,11 +1,14 @@
 const { pool } = require('../db');
+const crypto = require('crypto');
+const gamificationModule = require('../gamification');
+function genId(prefix) { return prefix + '_' + crypto.randomBytes(8).toString('hex'); }
 
 const GOAL_TYPES = ['strategic', 'tactical', 'operational', 'learning', 'relationship', 'financial', 'growth'];
 const GOAL_STATUSES = ['active', 'paused', 'completed', 'abandoned'];
 const GOAL_PRIORITIES = ['urgent', 'high', 'medium', 'low'];
 
 async function createGoal(data) {
-  const id = data.id || 'goal_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+  const id = data.id || genId('goal');
   const persona_id = data.persona_id || null;
   const owner_id = data.owner_id || 'system';
   const title = data.title || 'Untitled goal';
@@ -51,6 +54,9 @@ async function updateGoal(id, data) {
   const updatedGoal = await getGoal(id);
 
   if (data.status === 'completed' && updatedGoal) {
+    try {
+      await gamificationModule.awardGoalXp(updatedGoal.owner_id, updatedGoal.persona_id);
+    } catch (err) { console.error('[Goals] awardGoalXp error:', err.message); }
     try {
       const events = require('../events');
       await events.emit('on_goal_completed', {
@@ -150,7 +156,8 @@ function formatGoal(row) {
 function formatGoalContext(goals) {
   if (!goals || goals.length === 0) return '';
   const active = goals.filter(g => g.status === 'active');
-  if (active.length === 0) return '';
+  const completed = goals.filter(g => g.status === 'completed');
+  if (active.length === 0 && completed.length === 0) return '';
   const lines = active.map(g => {
     let line = `- [${g.priority}] ${g.title}`;
     if (g.progress > 0) line += ` (${g.progress}%)`;
@@ -159,7 +166,11 @@ function formatGoalContext(goals) {
     if (g.description) line += `\n  ${g.description.substring(0, 100)}`;
     return line;
   });
-  return 'GOALS:\n' + lines.join('\n');
+  const completedLines = completed.slice(0, 5).map(g => `- [completed] ${g.title} (100%)`);
+  let context = '';
+  if (lines.length > 0) context += 'GOALS:\n' + lines.join('\n');
+  if (completedLines.length > 0) context += '\nCOMPLETED GOALS:\n' + completedLines.join('\n');
+  return context;
 }
 
 module.exports = {

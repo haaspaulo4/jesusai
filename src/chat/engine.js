@@ -29,39 +29,69 @@ const progressModule = require('../progress');
 const cognitiveModule = require('../cognitive');
 const thoughtsModule = require('../thoughts');
 const realtime = require('../realtime');
+const { pool } = require('../db');
 const agentModule = require('../agent');
 
 const MAX_TOOL_ROUNDS = 5;
 
-const silenceMap = new Map();
+const silenceCache = new Map();
 
-function setSilence(sessionId, count = 0) {
+async function setSilence(sessionId, count = 0) {
   if (count <= 0) {
-    silenceMap.delete(sessionId);
+    silenceCache.delete(sessionId);
+    try { await pool.execute('UPDATE sessions SET silence_count = 0, silence_infinite = 0 WHERE id = ?', [sessionId]); } catch {}
     return { silenced: false, remaining: 0 };
   }
-  silenceMap.set(sessionId, count);
+  const infinite = count >= 999999;
+  silenceCache.set(sessionId, infinite ? 999999 : count);
+  try { await pool.execute('UPDATE sessions SET silence_count = ?, silence_infinite = ? WHERE id = ?', [infinite ? 0 : count, infinite ? 1 : 0, sessionId]); } catch {}
   return { silenced: true, remaining: count };
 }
 
-function decSilence(sessionId) {
-  const remaining = silenceMap.get(sessionId);
-  if (!remaining) return false;
+async function decSilence(sessionId) {
+  let remaining = silenceCache.get(sessionId);
+  if (remaining === undefined) {
+    try {
+      const [rows] = await pool.execute('SELECT silence_count, silence_infinite FROM sessions WHERE id = ?', [sessionId]);
+      if (rows.length > 0) {
+        if (rows[0].silence_infinite) { silenceCache.set(sessionId, 999999); return true; }
+        remaining = rows[0].silence_count;
+        if (remaining > 0) silenceCache.set(sessionId, remaining);
+      }
+    } catch {}
+    if (remaining === undefined) return false;
+  }
+  if (!remaining || remaining <= 0) { silenceCache.delete(sessionId); return false; }
+  if (remaining >= 999999) return true;
   if (remaining <= 1) {
-    silenceMap.delete(sessionId);
+    silenceCache.delete(sessionId);
+    try { await pool.execute('UPDATE sessions SET silence_count = 0, silence_infinite = 0 WHERE id = ?', [sessionId]); } catch {}
     return false;
   }
-  silenceMap.set(sessionId, remaining - 1);
+  silenceCache.set(sessionId, remaining - 1);
+  try { await pool.execute('UPDATE sessions SET silence_count = ? WHERE id = ?', [remaining - 1, sessionId]); } catch {}
   return true;
 }
 
-function getSilenceStatus(sessionId) {
-  const remaining = silenceMap.get(sessionId);
+async function getSilenceStatus(sessionId) {
+  let remaining = silenceCache.get(sessionId);
+  if (remaining === undefined) {
+    try {
+      const [rows] = await pool.execute('SELECT silence_count, silence_infinite FROM sessions WHERE id = ?', [sessionId]);
+      if (rows.length > 0) {
+        if (rows[0].silence_infinite) remaining = 999999;
+        else remaining = rows[0].silence_count;
+        if (remaining > 0) silenceCache.set(sessionId, remaining);
+      }
+    } catch {}
+  }
   return { silenced: !!remaining && remaining > 0, remaining: remaining || 0 };
 }
 
+const crypto = require('crypto');
+
 function generateSessionId() {
-  return 'sess_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 8);
+  return 'sess_' + crypto.randomBytes(16).toString('hex');
 }
 
 async function getPersonaForContext(personaId, sessionId, userId) {
@@ -72,6 +102,7 @@ async function getPersonaForContext(personaId, sessionId, userId) {
       if (p) return p;
     } catch (err) { console.error('[ChatEngine] getPersona error:', err.message); }
   }
+  let persona = null;
   // Then session
   if (sessionId) {
     try {
@@ -79,7 +110,7 @@ async function getPersonaForContext(personaId, sessionId, userId) {
     } catch (err) { console.error('[ChatEngine] getSessionPersona error:', err.message); }
   }
   // Then user
-  if (userId) {
+  if (!persona && userId) {
     try {
       persona = await personaManager.getUserPersona(userId);
     } catch (err) { console.error('[ChatEngine] getUserPersona error:', err.message); }
@@ -176,36 +207,35 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
      const role = await getUserRole(uid);
      if (role === 'banned') {
        return { response: 'Conta suspensa. Entre em contato com o suporte.', sessionId: sid, sources: [], language: lang, banned: true };
-    }
-    const rateResult = await checkRateLimit(uid, role);
-    if (!rateResult.allowed) {
-      return { response: `Limite de mensagens atingido (${rateResult.limit}/dia). Tente novamente em ${rateResult.resetIn} minutos.`, sessionId: sid, sources: [], language: lang, rateLimited: true };
-    }
-  }
-
-  if (uid && uid !== 'user_default' && !isGroup) {
-    const onboardMsg = await checkOnboarding(uid, lang, personaId);
-    if (onboardMsg) {
-      const answerResult = await processOnboardingAnswer(uid, message, lang, personaId);
-      if (answerResult) {
+     }
+     const rateResult = await checkRateLimit(uid, role);
+     if (!rateResult.allowed) {
+       return { response: `Limite de mensagens atingido (${rateResult.limit}/dia). Tente novamente em ${rateResult.resetIn} minutos.`, sessionId: sid, sources: [], language: lang, rateLimited: true };
+     }
+     if (!isGroup && role !== 'admin' && role !== 'premium') {
+       const onboardMsg = await checkOnboarding(uid, lang, personaId);
+       if (onboardMsg) {
+         const answerResult = await processOnboardingAnswer(uid, message, lang, personaId);
+         if (answerResult) {
+           return {
+             response: answerResult.message,
+             sessionId: sid,
+             sources: [],
+             language: lang,
+             onboarding: !answerResult.done,
+             onboardingDone: answerResult.done,
+             onboardingTotalSteps: answerResult.totalSteps,
+             onboardingCompletedSteps: answerResult.completedSteps,
+           };
+         }
         return {
-          response: answerResult.message,
+          response: onboardMsg,
           sessionId: sid,
           sources: [],
           language: lang,
-          onboarding: !answerResult.done,
-          onboardingDone: answerResult.done,
-          onboardingTotalSteps: answerResult.totalSteps,
-          onboardingCompletedSteps: answerResult.completedSteps,
+          onboarding: true,
         };
       }
-      return {
-        response: onboardMsg,
-        sessionId: sid,
-        sources: [],
-        language: lang,
-        onboarding: true,
-      };
     }
   }
 
@@ -214,31 +244,32 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   await updateSessionContext(sid, userContext);
 
   const override = await overrideModule.getOverride(sid);
-  if (override && override.is_active) {
-    if (override.override_type === 'full') {
-      if (override.human_message) {
-        await addMessage(sid, 'assistant', override.human_message);
-        return { response: override.human_message, sessionId: sid, sources: [], language: lang, humanOverride: true };
-      }
-      return { response: 'Um atendente humano está cuidando desta conversa. Aguarde um momento.', sessionId: sid, sources: [], language: lang, humanOverride: true };
+  const overrideType = override?.is_active ? override.override_type : null;
+  if (overrideType === 'full') {
+    if (override.human_message) {
+      await addMessage(sid, 'assistant', override.human_message);
+      return { response: override.human_message, sessionId: sid, sources: [], language: lang, humanOverride: true, overrideType: 'full' };
     }
+    return { response: 'Um atendente humano está cuidando desta conversa. Aguarde um momento.', sessionId: sid, sources: [], language: lang, humanOverride: true, overrideType: 'full' };
   }
 
-  const silence = getSilenceStatus(sid);
+  const silence = await getSilenceStatus(sid);
   if (silence.silenced) {
-    const stillSilenced = decSilence(sid);
+    const stillSilenced = await decSilence(sid);
     if (stillSilenced) {
-      const remain = silenceMap.get(sid) || 0;
+      const status = await getSilenceStatus(sid);
+      const remain = status.remaining;
       return { response: `🔇 Modo silêncio ativo. Restam ${remain} mensagem(ões) em silêncio. Use /silence off para desativar.`, sessionId: sid, sources: [], language: lang, silenced: true };
     }
     return { response: '🔇 Modo silêncio encerrado. Estou de volta!', sessionId: sid, sources: [], language: lang, silenced: false };
   }
 
   const persona = await getPersonaForContext(personaId, sid, uid);
-  const numVerses = parseInt(await getSetting('search_verses_count', '8')) || 8;
+  const numVerses = persona?.id === 'jesus' ? 8 : 2;
   const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
     ? persona.knowledgeSources
     : null;
+  const noKnowledgeSearch = persona && persona.knowledgeSources !== null && persona.knowledgeSources.length === 0;
 
   let cognitiveContext = '';
   let cognitiveState = null;
@@ -266,7 +297,10 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
    const useContextAware = await getSetting('context_aware_search', 'true') === 'true';
 
-   if (useContextAware && cognitiveState) {
+   if (noKnowledgeSearch) {
+     relevantVerses = [];
+     contextStr = '';
+   } else if (useContextAware && cognitiveState) {
      try {
        const { searchContextAware } = require('../knowledge/contextSearch');
        const ctxResult = await searchContextAware(message, {
@@ -326,15 +360,15 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
      }
    } catch (err) { console.error('[ChatEngine] business context error:', err.message); }
 
-   let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources, businessStr);
+    let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, persona.knowledgeSources, businessStr);
   if (extraContext) {
     systemPrompt += '\n\n' + extraContext;
   }
 
-   console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : 'bible'}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}`);
+    console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : (noKnowledgeSearch ? 'none' : 'bible')}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}`);
 
   const toolsEnabled = await getSetting('tools_enabled', 'true') === 'true';
-  const historyLimit = parseInt(await getSetting('history_limit', '10')) || 10;
+  const historyLimit = 3;
   const history = await getHistoryForLLM(sid, historyLimit);
 
   console.log(`[ChatEngine] historyLen=${history.length}, firstMsg=${history.length > 0 ? history[0].role + ':' + history[0].content?.substring(0, 50) : 'none'}`);
@@ -345,8 +379,11 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   ];
 
   if (relevantVerses && relevantVerses.length > 0) {
+    const isBiblical = !noKnowledgeSearch && (personaSources === null || (persona.knowledgeSources && persona.knowledgeSources.some(s => s.includes('bible') || s.includes('biblia'))));
+    const contextLabel = isBiblical ? 'CONTEXTO BÍBLICO FORNECIDO - NÃO BUSCAR, USAR DIRETAMENTE' : 'CONHECIMENTO FORNECIDO - USAR DIRETAMENTE';
     const versesText = relevantVerses.slice(0, 8).map(v => `${v.reference}: "${v.text}"`).join('\n');
-    messages.push({ role: 'user', content: `[CONTEXTO BÍBLICO FORNECIDO - NÃO BUSCAR, USAR DIRETAMENTE]:\n${versesText}\n\nResponda DIRETAMENTE citando os versículos acima. NÃO diga que vai buscar.\n\nPergunta do usuário: ${message}` });
+    const instructText = isBiblical ? 'Responda DIRETAMENTE citando os versículos acima. NÃO diga que vai buscar.' : 'Responda usando as informações acima diretamente.';
+    messages.push({ role: 'user', content: `[${contextLabel}]:\n${versesText}\n\n${instructText}\n\nPergunta do usuário: ${message}` });
   } else {
     messages.push({ role: 'user', content: message });
   }
@@ -363,12 +400,17 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
   let fullResponse = '';
   let toolRounds = 0;
+  let lastLLMResult = null;
   let sources = relevantVerses.slice(0, 4).map(v => ({
     reference: v.reference,
     text: v.text.substring(0, 120) + (v.text.length > 120 ? '...' : ''),
+    ...(v.image_url ? { image_url: v.image_url } : {}),
+    ...(v.url ? { url: v.url } : {}),
+    ...(v.sourceId ? { sourceId: v.sourceId } : {}),
+    ...(v.type ? { type: v.type } : {}),
   }));
 
-  const maxTokens = parseInt(await getSetting('max_tokens', '4096')) || 4096;
+  const maxTokens = 1024;
   const temperature = parseFloat(await getSetting('temperature', '0.7')) || 0.7;
 
   const isMetaPersona = persona.id === 'meta-persona';
@@ -396,7 +438,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools'];
 
     let tools;
-    const hasContextVerses = relevantVerses && relevantVerses.length > 0;
+  const hasContextVerses = relevantVerses && relevantVerses.length > 0;
     if (isMetaPersona) {
       tools = allTools;
     } else if (isAdmin) {
@@ -404,7 +446,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     } else {
       tools = toolsEnabled ? allTools.filter(t => !metaPersonaOnlyTools.includes(t.function.name)) : null;
     }
-    if (hasContextVerses && tools) {
+    if ((hasContextVerses || noKnowledgeSearch) && tools) {
       tools = tools.filter(t => t.function?.name !== 'bible_lookup');
     }
 
@@ -417,19 +459,48 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
       timeout: parseInt(await getSetting('llm_timeout', '30000')) || 30000,
       tools: tools,
     });
+    lastLLMResult = result;
 
     const toolCalls = result.tool_calls;
     let content = extractContent(result) || '';
-    console.log(`[ChatEngine] LLM raw: contentLen=${(result?.message?.content||'').length}, thinkingLen=${(result?.message?.thinking||'').length}, hasToolCalls=${!!(toolCalls && toolCalls.length)}, extractedLen=${content.length}`);
+    const thinkingContent = result?.message?.thinking || result?.choices?.[0]?.message?.reasoning_content || result?.choices?.[0]?.message?.thinking || result?.message?.reasoning_content || '';
+    console.log(`[ChatEngine] LLM raw: contentLen=${(result?.message?.content||'').length}, thinkingLen=${thinkingContent.length}, hasToolCalls=${!!(toolCalls && toolCalls.length)}, extractedLen=${content.length}`);
     if (!content) {
       console.log(`[ChatEngine] CONTENT EMPTY — content field: "${(result?.message?.content||'').substring(0, 200)}"`);
-      console.log(`[ChatEngine] CONTENT EMPTY — thinking first 300: ${(result?.message?.thinking||'').substring(0, 300)}`);
+      console.log(`[ChatEngine] CONTENT EMPTY — thinking first 300: ${thinkingContent.substring(0, 300)}`);
     }
 
     if (!toolCalls || toolCalls.length === 0) {
       if (!content || content.trim().length < 5) {
+        const isReasoningThinking = thinkingContent.trim().length > 20 && (
+          /^(The user|I should|I need|Let me|I will|This is|Based on|First,|Now,|Okay,|O usuário|Vou usar|Posso usar|Eu devo|Preciso|Vou gerar|O cliente|A pessoa)/i.test(thinkingContent.trim()) ||
+          /^(Vou|Preciso|Devo|O usuário|A pessoa|A cliente|Vou usar|Posso|I should|I need|I will|Let me|I must)/i.test(thinkingContent.trim().substring(0, 100))
+        );
+        if (thinkingContent.trim().length > 20 && !isReasoningThinking) {
+          const hasAccents = /[\u00C0-\u00FF]/.test(thinkingContent);
+          if (hasAccents) {
+            console.log(`[ChatEngine] Thinking recovery (primary): ${thinkingContent.length} chars`);
+            content = thinkingContent.trim();
+          } else if (thinkingContent.trim().length > 100) {
+            const lines = thinkingContent.trim().split('\n').filter(l => l.trim().length > 20);
+            if (lines.length > 0) {
+              content = lines.slice(-3).join('\n');
+              console.log(`[ChatEngine] Thinking recovery (last lines): ${content.length} chars`);
+            }
+          }
+        } else if (isReasoningThinking) {
+          console.log(`[ChatEngine] Thinking is internal reasoning, not response — retrying with direct prompt`);
+        }
+      }
+      if (!content || content.trim().length < 5) {
+        const personaName = persona.name || persona.id;
+        const retryPrompt = lang === 'en-US'
+          ? `You MUST provide your complete answer NOW. Do NOT explain what you will do. Start your response directly as ${personaName}. The user is waiting for your actual answer, not your reasoning.`
+          : lang === 'es-ES'
+          ? `Debes dar tu respuesta COMPLETA AHORA. NO expliques lo que vas a hacer. Comienza tu respuesta directamente como ${personaName}. El usuario espera tu respuesta real, no tu razonamiento.`
+          : `Você DEVE dar sua resposta completa AGORA. NÃO explique o que vai fazer. Comece sua resposta diretamente como ${personaName}. O usuário espera sua resposta real, não seu raciocínio.`;
         console.log('[ChatEngine] Empty response, retrying with direct instruction...');
-        messages.push({ role: 'user', content: 'Responda AGORA em português usando os versículos do contexto. NÃO explique o que vai fazer, apenas RESPONDA diretamente.' });
+        messages.push({ role: 'user', content: retryPrompt });
         try {
           const retryResult = await integrations.callLLM(messages, {
             userId: uid,
@@ -441,14 +512,24 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
             tools: null,
           });
           const retryContent = extractContent(retryResult) || '';
-          console.log(`[ChatEngine] Retry result: contentLen=${(retryResult?.message?.content||'').length}, thinkingLen=${(retryResult?.message?.thinking||'').length}, extractedLen=${retryContent.length}`);
+          const retryThinking = retryResult?.message?.thinking || retryResult?.choices?.[0]?.message?.reasoning_content || retryResult?.choices?.[0]?.message?.thinking || retryResult?.message?.reasoning_content || '';
+          console.log(`[ChatEngine] Retry result: contentLen=${(retryResult?.message?.content||'').length}, thinkingLen=${retryThinking.length}, extractedLen=${retryContent.length}`);
           if (retryContent.trim().length >= 10) {
             content = retryContent;
-          } else {
-            const retryThinking = (retryResult?.message?.thinking || '').trim();
-            if (retryThinking.length > 50 && /[\u00C0-\u00FF]/.test(retryThinking)) {
-              content = retryThinking;
-              console.log(`[ChatEngine] Retry thinking recovery: ${content.length} chars`);
+          } else if (retryThinking.trim().length > 50) {
+            const isReasoningRetry = /^(The user|I should|I need|Let me|I will|This is|Based on|First,|Now,|Okay,|O usuário|Vou usar|Posso usar|Eu devo|Preciso|Vou gerar)/i.test(retryThinking.trim());
+            if (!isReasoningRetry) {
+              const hasAccents = /[\u00C0-\u00FF]/.test(retryThinking);
+              if (hasAccents) {
+                content = retryThinking.trim();
+                console.log(`[ChatEngine] Retry thinking recovery: ${content.length} chars`);
+              } else if (retryThinking.trim().length > 100) {
+                const lines = retryThinking.trim().split('\n').filter(l => l.trim().length > 20);
+                if (lines.length > 0) {
+                  content = lines.slice(-3).join('\n');
+                  console.log(`[ChatEngine] Retry thinking recovery (last lines): ${content.length} chars`);
+                }
+              }
             }
           }
         } catch (retryErr) {
@@ -461,7 +542,8 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
     messages.push({ role: 'assistant', content: content || null, tool_calls: toolCalls });
 
-    for (const tc of toolCalls) {
+    for (let ti = 0; ti < toolCalls.length; ti++) {
+      const tc = toolCalls[ti];
       const fnName = tc.function?.name || tc.name;
       const fnArgs = tc.function?.arguments ? (typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments) : {};
       let toolResult;
@@ -474,6 +556,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
       messages.push({
         role: 'tool',
+        tool_call_id: tc.id || `call_${ti}`,
         name: fnName,
         content: typeof toolResult === 'string' ? toolResult : JSON.stringify(toolResult),
       });
@@ -482,6 +565,10 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
         sources = toolResult.verses.slice(0, 4).map(v => ({
           reference: v.reference,
           text: v.text.substring(0, 120) + (v.text.length > 120 ? '...' : ''),
+          ...(v.image_url ? { image_url: v.image_url } : {}),
+          ...(v.url ? { url: v.url } : {}),
+          ...(v.sourceId ? { sourceId: v.sourceId } : {}),
+          ...(v.type ? { type: v.type } : {}),
         }));
       }
     }
@@ -494,13 +581,19 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   }
 
   if (!fullResponse || fullResponse.trim().length < 5) {
-    const lastThinking = result?.message?.thinking || '';
+    const lastThinking = lastLLMResult?.message?.thinking || lastLLMResult?.choices?.[0]?.message?.reasoning_content || lastLLMResult?.choices?.[0]?.message?.thinking || lastLLMResult?.message?.reasoning_content || '';
     if (lastThinking.trim().length > 20) {
       const hasAccents = /[\u00C0-\u00FF]/.test(lastThinking);
       const looksLikeEnglish = /^(The user|I should|I need|Let me|I will|This is|Based on|First,|Now,|Okay,)/i.test(lastThinking.trim());
       if (hasAccents && !looksLikeEnglish) {
         console.log(`[ChatEngine] Thinking recovery: ${lastThinking.length} chars (has Portuguese chars)`);
         fullResponse = lastThinking.trim();
+      } else if (lastThinking.trim().length > 100) {
+        const lines = lastThinking.trim().split('\n').filter(l => l.trim().length > 20);
+        if (lines.length > 0) {
+          fullResponse = lines.slice(-3).join('\n');
+          console.log(`[ChatEngine] Thinking recovery (last lines): ${fullResponse.length} chars`);
+        }
       } else {
         console.log(`[ChatEngine] Thinking recovery skipped — looks like reasoning, not response (${lastThinking.substring(0, 100)})`);
       }
@@ -562,6 +655,37 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
   smartFollowUp.shouldCreateFollowUp(uid, persona.id, sid).catch(() => {});
 
+  try {
+    const triggered = await agentModule.checkAndRunAutomations(sid, uid, message);
+    if (triggered.length > 0) {
+      const msgAutomation = triggered.find(t => t.action_type === 'message' && t.result?.sent);
+      if (msgAutomation) {
+        addMessage(sid, 'assistant', msgAutomation.result.message).catch(() => {});
+        realtime.emitNewMessage(sid, { role: 'assistant', content: msgAutomation.result.message, personaId: persona.id });
+      }
+      const taskAutomation = triggered.find(t => t.action_type === 'create_task' && t.result?.created);
+      if (taskAutomation) {
+        console.log(`[Automation] Task created: ${taskAutomation.result.task_id}`);
+      }
+    }
+  } catch (err) { console.error('[Automation] Error:', err.message); }
+
+  try {
+    const xpResult = await gamificationModule.awardMessageXp(uid, persona.id);
+    if (xpResult.leveledUp) {
+      try { const events = require('../events'); await events.emit('on_level_up', { userId: uid, personaId: persona.id, newLevel: xpResult.level, previousLevel: xpResult.previousLevel, xp: xpResult.xp }); } catch {}
+    }
+    const newBadges = await gamificationModule.checkAndAwardBadges(uid, persona.id);
+    if (newBadges.length > 0) {
+      for (const badge of newBadges) {
+        try { const events = require('../events'); await events.emit('on_badge_earned', { userId: uid, personaId: persona.id, badgeId: badge.id, badgeName: badge.name, icon: badge.icon }); } catch {}
+      }
+    }
+    if (xpResult.xpGained > 0) {
+      realtime.emitXpUpdate(uid, await gamificationModule.getXp(uid, persona.id));
+    }
+  } catch (err) { console.error('[ChatEngine] message XP error:', err.message); }
+
   if (xpData && xpData.streak > 1 && xpData.last_activity) {
     const lastActivity = new Date(xpData.last_activity);
     const daysSince = Math.floor((Date.now() - lastActivity) / (1000 * 60 * 60 * 24));
@@ -570,7 +694,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     }
   }
 
-  return {
+  const result = {
     response: fullResponse,
     sessionId: sid,
     sources,
@@ -581,6 +705,9 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     ttsVoice: persona.ttsVoice,
     ttsLang: persona.ttsLang,
   };
+  if (overrideType === 'approval') result.needsApproval = true;
+  if (overrideType === 'observation') result.observed = true;
+  return result;
 }
 
 async function getContextualWelcome(userId, personaId, lang) {
@@ -631,16 +758,16 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
       if (onChunk) onChunk(msg);
       return { response: msg, sessionId: sid, sources: [], language: lang, rateLimited: true };
     }
-  }
 
-  if (uid && uid !== 'user_default' && !isGroup) {
-    const onboardMsg = await checkOnboarding(uid, lang, personaId);
-    if (onboardMsg) {
-      const answerResult = await processOnboardingAnswer(uid, message, lang, personaId);
-      if (answerResult) {
-        return { response: answerResult.message, sessionId: sid, sources: [], language: lang, onboarding: !answerResult.done, onboardingDone: answerResult.done };
+    if (!isGroup && role !== 'admin' && role !== 'premium') {
+      const onboardMsg = await checkOnboarding(uid, lang, personaId);
+      if (onboardMsg) {
+        const answerResult = await processOnboardingAnswer(uid, message, lang, personaId);
+        if (answerResult) {
+          return { response: answerResult.message, sessionId: sid, sources: [], language: lang, onboarding: !answerResult.done, onboardingDone: answerResult.done };
+        }
+        return { response: onboardMsg, sessionId: sid, sources: [], language: lang, onboarding: true };
       }
-      return { response: onboardMsg, sessionId: sid, sources: [], language: lang, onboarding: true };
     }
   }
 
@@ -649,21 +776,24 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   await updateSessionContext(sid, userContext);
 
   const override = await overrideModule.getOverride(sid);
-  if (override && override.is_active) {
-    if (override.override_type === 'full') {
-      if (override.human_message) {
-        await addMessage(sid, 'assistant', override.human_message);
-        return { response: override.human_message, sessionId: sid, sources: [], language: lang, humanOverride: true };
-      }
-      return { response: 'Um atendente humano está cuidando desta conversa. Aguarde um momento.', sessionId: sid, sources: [], language: lang, humanOverride: true };
+  const overrideTypeStream = override?.is_active ? override.override_type : null;
+  if (overrideTypeStream === 'full') {
+    if (override.human_message) {
+      await addMessage(sid, 'assistant', override.human_message);
+      if (onChunk) onChunk(override.human_message);
+      return { response: override.human_message, sessionId: sid, sources: [], language: lang, humanOverride: true, overrideType: 'full' };
     }
+    const msg = 'Um atendente humano está cuidando desta conversa. Aguarde um momento.';
+    if (onChunk) onChunk(msg);
+    return { response: msg, sessionId: sid, sources: [], language: lang, humanOverride: true, overrideType: 'full' };
   }
 
-  const silence = getSilenceStatus(sid);
+  const silence = await getSilenceStatus(sid);
   if (silence.silenced) {
-    const stillSilenced = decSilence(sid);
+    const stillSilenced = await decSilence(sid);
     if (stillSilenced) {
-      const remain = silenceMap.get(sid) || 0;
+      const status = await getSilenceStatus(sid);
+      const remain = status.remaining;
       const msg = `🔇 Modo silêncio ativo. Restam ${remain} mensagem(ões) em silêncio.`;
       if (onChunk) onChunk(msg);
       return { response: msg, sessionId: sid, sources: [], language: lang, silenced: true };
@@ -678,6 +808,7 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
     ? persona.knowledgeSources
     : null;
+  const noKnowledgeSearch = persona && persona.knowledgeSources !== null && persona.knowledgeSources.length === 0;
 
   let cognitiveContextStream = '';
   let cognitiveState = null;
@@ -703,7 +834,10 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   let streamSources = [];
 
   const useContextAware = await getSetting('context_aware_search', 'true') === 'true';
-  if (useContextAware && cognitiveState) {
+  if (noKnowledgeSearch) {
+    contextStr = '';
+    streamSources = [];
+  } else if (useContextAware && cognitiveState) {
     try {
       const { searchContextAware } = require('../knowledge/contextSearch');
       const ctxResult = await searchContextAware(message, { userId: uid, personaId: persona.id, personaSources, topK: numVerses, cognitiveState, sessionId: sid });
@@ -772,7 +906,7 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   } catch (err) { console.error('[ChatEngine:Stream] business context error:', err.message); }
 
   const extraContextStream = [goalContextStream, orgContextStream, stageContextStream, xpContextStream, progressContextStreamStream, cognitiveContextStream].filter(Boolean).join('\n\n');
-  let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, personaSources, businessStrStream);
+   let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, persona.knowledgeSources, businessStrStream);
   if (extraContextStream) {
     systemPrompt += '\n\n' + extraContextStream;
   }
@@ -785,9 +919,12 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
     ...history,
   ];
 
-  if (relevantVerses && relevantVerses.length > 0) {
-    const versesText = relevantVerses.slice(0, 8).map(v => `${v.reference}: "${v.text}"`).join('\n');
-    streamMessages.push({ role: 'user', content: `[CONTEXTO BÍBLICO FORNECIDO - NÃO BUSCAR, USAR DIRETAMENTE]:\n${versesText}\n\nResponda DIRETAMENTE citando os versículos acima. NÃO diga que vai buscar.\n\nPergunta do usuário: ${message}` });
+  if (streamSources && streamSources.length > 0) {
+    const isBiblical = !noKnowledgeSearch && (personaSources === null || (persona.knowledgeSources && persona.knowledgeSources.some(s => s.includes('bible') || s.includes('biblia'))));
+    const contextLabel = isBiblical ? 'CONTEXTO BÍBLICO FORNECIDO - NÃO BUSCAR, USAR DIRETAMENTE' : 'CONHECIMENTO FORNECIDO - USAR DIRETAMENTE';
+    const sourceText = streamSources.slice(0, 8).map(v => `${v.reference}: "${v.text}"`).join('\n');
+    const instructText = isBiblical ? 'Responda DIRETAMENTE citando os versículos acima. NÃO diga que vai buscar.' : 'Responda usando as informações acima diretamente.';
+    streamMessages.push({ role: 'user', content: `[${contextLabel}]:\n${sourceText}\n\n${instructText}\n\nPergunta do usuário: ${message}` });
   } else {
     streamMessages.push({ role: 'user', content: message });
   }
@@ -812,8 +949,8 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
   const allTools = [...llmTools, ...extTools];
   const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools'];
   const streamTools = (isMetaPersona || isAdmin) ? allTools : (toolsEnabled ? allTools.filter(t => !metaPersonaOnlyTools.includes(t.function.name)) : null);
-  const hasContextVerses = relevantVerses && relevantVerses.length > 0;
-  const filteredStreamTools = (hasContextVerses && streamTools) ? streamTools.filter(t => t.function?.name !== 'bible_lookup') : streamTools;
+  const hasContextVerses = streamSources && streamSources.length > 0;
+  const filteredStreamTools = ((hasContextVerses || noKnowledgeSearch) && streamTools) ? streamTools.filter(t => t.function?.name !== 'bible_lookup') : streamTools;
 
   try {
     const response = await integrations.callLLM(streamMessages, {
@@ -833,6 +970,29 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
       if (typeof chunk === 'string') {
         fullResponse += chunk;
         if (onChunk) onChunk(chunk);
+      }
+    }
+
+    const isReasoningStream = fullResponse.trim().length > 5 && /^(The user|I should|I need|Let me|I will|This is|Based on|First,|Now,|Okay,|O usuário|Vou usar|Posso usar|Eu devo|Preciso|Vou gerar|A pessoa|O cliente)/i.test(fullResponse.trim());
+    if (isReasoningStream) {
+      console.log(`[ChatEngine:Stream] Response looks like reasoning (${fullResponse.substring(0, 100)}), attempting non-stream retry`);
+      const retryPrompt = lang === 'en-US'
+        ? `You MUST provide your complete answer NOW. Do NOT explain what you will do. Start your response directly. The user is waiting for your actual answer, not your reasoning.`
+        : lang === 'es-ES'
+        ? `Debes dar tu respuesta COMPLETA AHORA. NO expliques lo que vas a hacer. Comienza tu respuesta directamente. El usuario espera tu respuesta real, no tu razonamiento.`
+        : `Você DEVE dar sua resposta completa AGORA. NÃO explique o que vai fazer. Comece sua resposta diretamente. O usuário espera sua resposta real, não seu raciocínio.`;
+      try {
+        const retryResult = await integrations.callLLM(streamMessages, {
+          userId: uid, stream: false, temperature: Math.max(0.3, temperature - 0.3),
+          numPredict: maxTokens, retries: 1,
+          timeout: parseInt(await getSetting('llm_timeout', '30000')) || 30000, tools: null,
+        });
+        const retryContent = extractContent(retryResult) || '';
+        if (retryContent.trim().length >= 10) {
+          fullResponse = retryContent;
+        }
+      } catch (retryErr) {
+        console.error('[ChatEngine:Stream] Reasoning retry failed:', retryErr.message);
       }
     }
 
@@ -859,6 +1019,28 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
 
     surveyEngine.autoCreateFollowUp(uid, sid).catch(() => {});
 
+    try {
+      const triggered = await agentModule.checkAndRunAutomations(sid, uid, message);
+      if (triggered.length > 0) {
+        const msgAutomation = triggered.find(t => t.action_type === 'message' && t.result?.sent);
+        if (msgAutomation && onChunk) onChunk('\n\n' + msgAutomation.result.message);
+      }
+    } catch (err) { console.error('[Stream Automation] Error:', err.message); }
+
+    try {
+      const xpResult = await gamificationModule.awardMessageXp(uid, persona.id);
+      if (xpResult.leveledUp) {
+        try { const events = require('../events'); await events.emit('on_level_up', { userId: uid, personaId: persona.id, newLevel: xpResult.level, previousLevel: xpResult.previousLevel, xp: xpResult.xp }); } catch {}
+      }
+      const newBadges = await gamificationModule.checkAndAwardBadges(uid, persona.id);
+      for (const badge of newBadges) {
+        try { const events = require('../events'); await events.emit('on_badge_earned', { userId: uid, personaId: persona.id, badgeId: badge.id, badgeName: badge.name, icon: badge.icon }); } catch {}
+      }
+      if (xpResult.xpGained > 0) {
+        realtime.emitXpUpdate(uid, await gamificationModule.getXp(uid, persona.id));
+      }
+    } catch (err) { console.error('[Stream] message XP error:', err.message); }
+
     const smartFollowUp = require('../onboarding/followup');
     smartFollowUp.shouldCreateFollowUp(uid, persona.id, sid).catch(() => {});
 
@@ -884,9 +1066,16 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
     const sources = streamSources.slice(0, 4).map(v => ({
       reference: v.reference,
       text: v.text.substring(0, 120) + (v.text.length > 120 ? '...' : ''),
+      ...(v.image_url ? { image_url: v.image_url } : {}),
+      ...(v.url ? { url: v.url } : {}),
+      ...(v.sourceId ? { sourceId: v.sourceId } : {}),
+      ...(v.type ? { type: v.type } : {}),
     }));
 
-    return { response: fullResponse, sessionId: sid, sources, language: lang, personaId: persona.id, personaName: persona.name, ttsVoice: persona.ttsVoice, ttsLang: persona.ttsLang };
+    const result = { response: fullResponse, sessionId: sid, sources, language: lang, personaId: persona.id, personaName: persona.name, ttsVoice: persona.ttsVoice, ttsLang: persona.ttsLang };
+    if (overrideTypeStream === 'approval') result.needsApproval = true;
+    if (overrideTypeStream === 'observation') result.observed = true;
+    return result;
 
   } catch (err) {
     console.error('[ChatEngine] Stream error:', err.message);
@@ -987,10 +1176,23 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const passwordReg = parts[2];
       const nameReg = parts.slice(3).join(' ') || userName || uid.replace(/^(wa_|tg_)/, '');
       if (!emailReg || !passwordReg) {
-        return '📝 Para criar sua conta web e poder acessar pelo site:\n\n/cadastrar email senha [nome]\n\nExemplo:\n/cadastrar joao@email.com minhasenha123 João Silva\n\n• Senha mínima: 6 caracteres\n• Após criar, você pode acessar pelo site com o mesmo email/senha\n• Seus dados daqui já ficam sincronizados\n\nJá tem conta no site? Use /entrar';
+        return '📝 Para criar sua conta web e poder acessar pelo site:\n\n/cadastrar email senha [nome]\n\nExemplo:\n/cadastrar joao@email.com Minhasenha1! João\n\n• Senha: mínimo 8 caracteres, 1 maiúscula, 1 número, 1 especial\n• Já tem conta? Use /entrar';
       }
-      if (passwordReg.length < 6) {
-        return '❌ A senha deve ter no mínimo 6 caracteres.';
+      const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
+      if (!emailRegex.test(emailReg)) {
+        return '❌ Email inválido. Use o formato: nome@dominio.com';
+      }
+      if (passwordReg.length < 8) {
+        return '❌ A senha deve ter no mínimo 8 caracteres.';
+      }
+      if (!/[A-Z]/.test(passwordReg)) {
+        return '❌ A senha deve conter pelo menos uma letra maiúscula.';
+      }
+      if (!/[0-9]/.test(passwordReg)) {
+        return '❌ A senha deve conter pelo menos um número.';
+      }
+      if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(passwordReg)) {
+        return '❌ A senha deve conter pelo menos um caractere especial (!@#$% etc).';
       }
       try {
         const { register, pool: authPool } = require('../auth');
@@ -1053,7 +1255,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
     case '/mutar':
     case '/mute': {
       const silenceArg = parts[1]?.toLowerCase();
-      const silenceStatus = getSilenceStatus(sid);
+      const silenceStatus = await getSilenceStatus(sid);
       if (!silenceArg || silenceArg === 'status') {
         if (silenceStatus.silenced) {
           return `🔇 Modo silêncio ATIVO. Restam ${silenceStatus.remaining} mensagem(ões). Use /silence off para desativar.`;
@@ -1061,18 +1263,18 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         return '🔇 Modo silêncio DESATIVADO. Use:\n• /silence <N> — silenciar por N mensagens\n• /silence off — desativar silêncio\n• /silence infinite — silenciar indefinidamente';
       }
       if (silenceArg === 'off' || silenceArg === 'desativar' || silenceArg === 'stop') {
-        silenceMap.delete(sid);
+        await setSilence(sid, 0);
         return '🔊 Silêncio desativado! Estou de volta à conversa.';
       }
       if (silenceArg === 'infinite' || silenceArg === 'infinito' || silenceArg === 'sempre') {
-        silenceMap.set(sid, 999999);
+        await setSilence(sid, 999999);
         return '🔇 Modo silêncio INFINITO ativado. A persona não vai responder até você usar /silence off.';
       }
       const count = parseInt(silenceArg);
       if (isNaN(count) || count < 1) {
         return '❌ Use: /silence <número> (ex: /silence 5), /silence infinite, ou /silence off';
       }
-      silenceMap.set(sid, count);
+      await setSilence(sid, count);
       return `🔇 Modo silêncio ativado por ${count} mensagem(ões). A persona não vai responder. Use /silence off para desativar.`;
     }
 
@@ -1232,6 +1434,9 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       }
 
       const targetPersona = args.trim().toLowerCase();
+      if (targetPersona === 'meta-persona' && !isAdmin) {
+        return '⛔ Meta-persona é restrita a administradores. Use /persona para listar personas disponíveis.';
+      }
       try {
         const result = await metaRag.switchPersona(uid, sessionId, targetPersona);
         const freshPersona = await personaManager.getPersona(targetPersona);
@@ -1694,10 +1899,13 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
     case '/gamificacao': {
       const subcmd = args ? args.split(' ')[0].toLowerCase() : '';
       if (subcmd === 'add') {
-        const amount = parseInt(args.split(' ')[1]) || 10;
-        const result = await gamificationModule.addXp(uid, persona.id, amount, 'manual');
-        const badges = await gamificationModule.checkAndAwardBadges(uid, persona.id);
-        let msg = `✅ +${amount} XP! Total: ${result.xp} (Nível ${result.level})`;
+        if (!isAdmin) return '❌ Apenas admins podem adicionar XP. Use /xp para ver seu XP.';
+        const targetUserId = args.split(' ')[1];
+        const amount = parseInt(args.split(' ')[2]) || 10;
+        const xpUid = targetUserId || uid;
+        const result = await gamificationModule.addXp(xpUid, persona.id, amount, 'admin_add');
+        const badges = await gamificationModule.checkAndAwardBadges(xpUid, persona.id);
+        let msg = `✅ +${amount} XP para ${xpUid === uid ? 'você' : xpUid}! Total: ${result.xp} (Nível ${result.level})`;
         if (result.leveledUp) msg += `\n🎉 Level up! Agora nível ${result.level}!`;
         if (badges.length > 0) msg += `\n🏆 Nova conquista: ${badges.map(b => b.name).join(', ')}`;
         return msg;

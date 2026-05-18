@@ -21,8 +21,9 @@ const {
 const { isUserAdmin } = require('../chat/engine');
 const integrations = require('../llm/integrationManager');
 const { getSetting } = require('../settings');
-const { t, DEFAULT_LANG, SUPPORTED_LANGS } = require('../i18n');
+const { t, DEFAULT_LANG, SUPPORTED_LANGS, getSTTLang } = require('../i18n');
 const { handleChatCommand } = require('../chat/engine');
+const { transcribeAudio } = require('../stt');
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY;
@@ -68,17 +69,65 @@ function makeTelegramHandler(options = {}) {
 
   return async function handleMessage(bot, msg) {
     const chatId = msg.chat.id;
-    const text = msg.text;
+    const text = msg.text || msg.caption || '';
     const isGroup = msg.chat.type === 'group' || msg.chat.type === 'supergroup';
 
-    if (!text) return;
+    let voiceText = null;
+    const hasVoice = !!(msg.voice || msg.audio);
+    if (hasVoice) {
+      try {
+        const voiceObj = msg.voice || msg.audio;
+        const fileId = voiceObj.file_id;
+        const fileSize = voiceObj.file_size || 0;
+
+        if (fileSize > 20 * 1024 * 1024) {
+          await bot.sendMessage(chatId, t('audioTooLarge', DEFAULT_LANG));
+          return;
+        }
+
+        const fileLink = await bot.getFileLink(fileId);
+        const fileResponse = await fetch(fileLink);
+        if (!fileResponse.ok) {
+          await bot.sendMessage(chatId, t('audioDownloadFail', DEFAULT_LANG));
+          return;
+        }
+        const audioBuffer = Buffer.from(await fileResponse.arrayBuffer());
+
+        const duration = (voiceObj.duration || 30);
+        const ext = voiceObj.mime_type?.split('/')[1] || (msg.voice ? 'ogg' : 'mp3');
+        const filename = `audio.${ext}`;
+        const sttLang = getSTTLang(DEFAULT_LANG);
+
+        voiceText = await transcribeAudio(audioBuffer, filename, sttLang);
+
+        if (!voiceText) {
+          if (!isGroup) {
+            await bot.sendMessage(chatId, t('audioFallback', DEFAULT_LANG));
+          }
+          return;
+        }
+
+        if (!isGroup) {
+          await bot.sendMessage(chatId, `🎤 _${t('transcribed', DEFAULT_LANG, { text: voiceText })}_`, { parse_mode: 'Markdown' });
+        }
+      } catch (err) {
+        console.error(`[TG:${botName}] Voice processing error:`, err.message);
+        if (!isGroup) {
+          await bot.sendMessage(chatId, t('audioProcessFail', DEFAULT_LANG));
+        }
+        return;
+      }
+    }
+
+    const finalText = voiceText || text;
+    if (!finalText) return;
 
     const sid = isGroup ? `tg_${chatId}_${msg.from.id}` : `tg_${chatId}`;
     const uid = `tg_${msg.from.id}`;
     const userName = msg.from?.first_name || msg.from?.username || null;
 
-    await updateProfileFromMessage(uid, text);
-    const userContext = extractContextFromMessage(text);
+    await updateProfileFromMessage(uid, finalText);
+    const userContext = extractContextFromMessage(finalText);
     if (userName && !userContext.name) userContext.name = userName;
     await updateSessionContext(sid, userContext);
 
@@ -86,12 +135,13 @@ function makeTelegramHandler(options = {}) {
 
     try {
       const result = await processMessage({
-        message: text,
+        message: finalText,
         sessionId: sid,
         userId: uid,
         language: 'pt-BR',
         isGroup,
         source: 'telegram',
+        personaId: instancePersonaId || undefined,
       });
 
       let reply = result.response;

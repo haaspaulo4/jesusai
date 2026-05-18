@@ -30,6 +30,8 @@ function makeInstagramHandler(options = {}) {
     const text = message.text || '';
     const senderPk = String(message.user_id);
 
+    console.log(`[IG:${botName}] handleDM called: threadId=${threadId}, userId=${userId}, text="${text.substring(0, 30)}"`);
+
     if (!text) return;
 
     const sid = `ig_dm_${threadId}`;
@@ -65,6 +67,7 @@ function makeInstagramHandler(options = {}) {
         isGroup: false,
         source: 'instagram',
         userName,
+        personaId: instancePersonaId || undefined,
       });
 
       const responseText = result.response || '';
@@ -102,9 +105,9 @@ function chunkMessage(text, maxLen) {
 
 async function sendInstagramMessage(igClient, threadId, text) {
   try {
-    const { IgApiClient } = require('instagram-private-api');
-    if (igClient && typeof igClient.entity?.directThread === 'function') {
-      const thread = igClient.entity.directThread(threadId);
+    const { DirectThreadFeed } = require('instagram-private-api');
+    if (igClient) {
+      const thread = new DirectThreadFeed(igClient, threadId);
       await thread.broadcastText(text);
     }
   } catch (err) {

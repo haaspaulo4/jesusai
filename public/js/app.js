@@ -53,6 +53,9 @@ const app = createApp({
     const messages = ref([]);
     const streaming = ref(false);
     const inputMsg = ref('');
+    const isRecording = ref(false);
+    let mediaRecorder = null;
+    let audioChunks = [];
     const conversations = ref([]);
     const blogPosts = ref([]);
     const currentPost = ref(null);
@@ -74,7 +77,6 @@ const app = createApp({
     const apiKeyInput = ref('');
     const apiKeyStatus = ref('');
     const pixCopied = ref(false);
-    const isRecording = ref(false);
     const showOnboarding = ref(false);
     const onboardingQuestion = ref('');
     const onboardingAnswer = ref('');
@@ -140,6 +142,7 @@ const app = createApp({
         howItWorks: 'Como funciona', features: 'Recursos', startFree: 'Começar grátis',
         seeHow: 'Ver como funciona', supportProject: 'Apoie este projeto',
         quickActions: 'Ações rápidas', send: 'Enviar',
+        startRecording: 'Gravar áudio', stopRecording: 'Parar gravação', listening: 'Ouvindo...',
       },
       'en-US': {
         login: 'Login', register: 'Sign up', email: 'your@email.com', password: 'Min 6 characters',
@@ -160,6 +163,7 @@ const app = createApp({
         howItWorks: 'How it works', features: 'Features', startFree: 'Start free',
         seeHow: 'See how it works', supportProject: 'Support this project',
         quickActions: 'Quick actions', send: 'Send',
+        startRecording: 'Record audio', stopRecording: 'Stop recording', listening: 'Listening...',
       },
       'es-ES': {
         login: 'Iniciar sesi\u00F3n', register: 'Crear cuenta', email: 'tu@email.com', password: 'M\u00EDnimo 6 caracteres',
@@ -179,7 +183,8 @@ const app = createApp({
         letsGo: '¡Vamos!', selectUpTo: 'Selecciona hasta',
         howItWorks: 'C\u00F3mo funciona', features: 'Recursos', startFree: 'Empezar gratis',
         seeHow: 'Ver c\u00F3mo funciona', supportProject: 'Apoya este proyecto',
-        quickActions: 'Acciones r\u00E1pidas', send: 'Enviar',
+        quickActions: 'Acciones rápidas', send: 'Enviar',
+        startRecording: 'Grabar audio', stopRecording: 'Detener grabación', listening: 'Escuchando...',
       }
     };
 
@@ -221,27 +226,33 @@ const app = createApp({
       const fs = {
         'pt-BR': [
           { icon: '\uD83D\uDCAC', title: 'Conversa natural', desc: 'Portugu\u00EAs, ingl\u00EAs e espanhol com mem\u00F3ria persistente' },
+          { icon: '\uD83C\uDF0D', title: 'Tutor de Idiomas', desc: 'EN, ES, FR, DE com skills de tradu\u00E7\u00E3o, pron\u00FAncia, quizzes e roleplay' },
           { icon: '\uD83D\uDCDA', title: 'RAG Multimodal', desc: 'PDF, DOCX, imagens, \u00E1udio, APIs \u2014 busca por persona' },
           { icon: '\u26A1', title: 'Agente aut\u00F4nomo', desc: 'Tarefas, calend\u00E1rio, CRM, automa\u00E7\u00F5es, metas' },
           { icon: '\uD83E\uDDE0', title: 'Cogni\u00E7\u00E3o em tempo real', desc: 'Emo\u00E7\u00E3o, inten\u00E7\u00E3o, churn risk, convers\u00E3o' },
           { icon: '\uD83C\uDFC6', title: 'Gamifica\u00E7\u00E3o', desc: 'XP, n\u00EDveis, streaks, conquistas, ranking' },
           { icon: '\uD83D\uDCF1', title: 'Multi-canal', desc: 'WhatsApp, Telegram, Web, voz' },
+          { icon: '\uD83E\uDEE0', title: 'Blueprints', desc: 'Templates prontos: vendas, terapia, ENEM, idiomas, imobili\u00E1rio' },
         ],
         'en-US': [
           { icon: '\uD83D\uDCAC', title: 'Natural conversation', desc: 'Portuguese, English, Spanish with persistent memory' },
+          { icon: '\uD83C\uDF0D', title: 'Language Tutor', desc: 'EN, ES, FR, DE with translation, pronunciation, quizzes & roleplay skills' },
           { icon: '\uD83D\uDCDA', title: 'Multimodal RAG', desc: 'PDF, DOCX, images, audio, APIs \u2014 per-persona search' },
           { icon: '\u26A1', title: 'Autonomous agent', desc: 'Tasks, calendar, CRM, automations, goals' },
           { icon: '\uD83E\uDDE0', title: 'Real-time cognition', desc: 'Emotion, intent, churn risk, conversion' },
           { icon: '\uD83C\uDFC6', title: 'Gamification', desc: 'XP, levels, streaks, badges, leaderboard' },
           { icon: '\uD83D\uDCF1', title: 'Multi-channel', desc: 'WhatsApp, Telegram, Web, voice' },
+          { icon: '\uD83E\uDEE0', title: 'Blueprints', desc: 'Ready-made templates: sales, therapy, ENEM, languages, real estate' },
         ],
         'es-ES': [
           { icon: '\uD83D\uDCAC', title: 'Conversaci\u00F3n natural', desc: 'Portugu\u00E9s, ingl\u00E9s y espa\u00F1ol con memoria persistente' },
+          { icon: '\uD83C\uDF0D', title: 'Tutor de Idiomas', desc: 'EN, ES, FR, DE con skills de traducci\u00F3n, pronunciaci\u00F3n, quizzes y roleplay' },
           { icon: '\uD83D\uDCDA', title: 'RAG Multimodal', desc: 'PDF, DOCX, im\u00E1genes, audio, APIs \u2014 b\u00FAsqueda por persona' },
           { icon: '\u26A1', title: 'Agente aut\u00F3nomo', desc: 'Tareas, calendario, CRM, automatizaciones, metas' },
           { icon: '\uD83E\uDDE0', title: 'Cognici\u00F3n en tiempo real', desc: 'Emoci\u00F3n, intenci\u00F3n, churn risk, conversi\u00F3n' },
           { icon: '\uD83C\uDFC6', title: 'Gamificaci\u00F3n', desc: 'XP, niveles, streaks, insignias, ranking' },
           { icon: '\uD83D\uDCF1', title: 'Multi-canal', desc: 'WhatsApp, Telegram, Web, voz' },
+          { icon: '\uD83E\uDEE0', title: 'Blueprints', desc: 'Plantillas listas: ventas, terapia, ENEM, idiomas, inmobiliario' },
         ],
       };
       return fs[currentLang.value] || fs['pt-BR'];
@@ -279,10 +290,31 @@ const app = createApp({
       return name ? `Pergunte a ${name}...` : t('askPlaceholder');
     });
 
-    async function api(path, opts = {}) {
+    async function api(path, opts = {}, retry = true) {
       const headers = { 'Content-Type': 'application/json' };
       if (authToken.value) headers['Authorization'] = `Bearer ${authToken.value}`;
       const res = await fetch(`/api${path}`, { ...opts, headers: { ...headers, ...(opts.headers || {}) } });
+      if (res.status === 401 && retry) {
+        const refreshToken = localStorage.getItem('mp_refresh_token');
+        if (refreshToken) {
+          try {
+            const refreshRes = await fetch('/api/auth/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken }) });
+            if (refreshRes.ok) {
+              const refreshData = await refreshRes.json();
+              authToken.value = refreshData.token;
+              localStorage.setItem('mp_token', refreshData.token);
+              if (refreshData.refreshToken) localStorage.setItem('mp_refresh_token', refreshData.refreshToken);
+              headers['Authorization'] = `Bearer ${refreshData.token}`;
+              return api(path, opts, false);
+            }
+          } catch {}
+        }
+        localStorage.removeItem('mp_token');
+        localStorage.removeItem('mp_refresh_token');
+        authToken.value = null;
+        showAuth('login');
+        throw new Error('Sessão expirada. Faça login novamente.');
+      }
       return res;
     }
 
@@ -311,6 +343,9 @@ const app = createApp({
         currentUserId.value = data.user.id;
         localStorage.setItem('mp_token', data.token);
         localStorage.setItem('mp_user_id', data.user.id);
+        if (data.refreshToken) {
+          localStorage.setItem('mp_refresh_token', data.refreshToken);
+        }
         if (data.user.name && profileName.value === '') profileName.value = data.user.name;
         showAuthModal.value = false;
         enterApp();
@@ -338,6 +373,26 @@ const app = createApp({
         authError.value = err.message;
       } finally {
         authLoading.value = false;
+      }
+    }
+
+    async function changePassword(currentPassword, newPassword) {
+      try {
+        const res = await fetch('/api/auth/change-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${authToken.value}` },
+          body: JSON.stringify({ currentPassword, newPassword }),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || 'Falha ao alterar senha');
+        }
+        const data = await res.json();
+        if (data.token) { authToken.value = data.token; localStorage.setItem('mp_token', data.token); }
+        if (data.refreshToken) { localStorage.setItem('mp_refresh_token', data.refreshToken); }
+        return data;
+      } catch (err) {
+        throw err;
       }
     }
 
@@ -379,7 +434,13 @@ const app = createApp({
     function connectSocketIO() {
       try {
         if (socketIo) { socketIo.disconnect(); }
-        socketIo = io({ transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 5, reconnectionDelay: 3000 });
+        socketIo = io({
+          transports: ['websocket', 'polling'],
+          reconnection: true,
+          reconnectionAttempts: 5,
+          reconnectionDelay: 3000,
+          auth: { token: authToken.value, userId: currentUserId.value },
+        });
         socketIo.on('connect', () => {
           if (currentUserId.value) socketIo.emit('auth', { userId: currentUserId.value, sessionId: sessionId.value || undefined });
         });
@@ -603,6 +664,97 @@ const app = createApp({
         inputEl.value.style.height = 'auto';
         inputEl.value.style.height = Math.min(inputEl.value.scrollHeight, 128) + 'px';
       }
+    }
+
+    async function toggleMic() {
+      if (isRecording.value) {
+        stopMic();
+        return;
+      }
+
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        inputMsg.value = currentLang.value === 'en-US' ? 'Microphone not available' : currentLang.value === 'es-ES' ? 'Micrófono no disponible' : 'Microfone não disponível';
+        return;
+      }
+
+      if (!window.MediaRecorder) {
+        inputMsg.value = currentLang.value === 'en-US' ? 'Browser does not support audio recording' : currentLang.value === 'es-ES' ? 'Navegador no soporta grabación' : 'Navegador não suporta gravação de áudio';
+        return;
+      }
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' : MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm' : 'audio/ogg';
+        mediaRecorder = new MediaRecorder(stream, { mimeType });
+        audioChunks = [];
+
+        mediaRecorder.ondataavailable = (e) => {
+          if (e.data.size > 0) audioChunks.push(e.data);
+        };
+
+        mediaRecorder.onstop = async () => {
+          stream.getTracks().forEach(t => t.stop());
+          isRecording.value = false;
+          mediaRecorder = null;
+
+          if (audioChunks.length === 0) return;
+
+          const audioBlob = new Blob(audioChunks, { type: mimeType });
+          const formData = new FormData();
+          formData.append('audio', audioBlob, mimeType.includes('webm') ? 'audio.webm' : 'audio.ogg');
+
+          if (streaming.value) return;
+          streaming.value = true;
+          const botIdx = messages.value.length;
+          messages.value.push({ role: 'bot', content: currentLang.value === 'pt-BR' ? '🎤 Transcrevendo áudio...' : currentLang.value === 'es-ES' ? '🎤 Transcribiendo audio...' : '🎤 Transcribing audio...', sources: [], speaking: false });
+
+          try {
+            const token = authToken.value;
+            const res = await fetch('/api/chat/stt', {
+              method: 'POST',
+              headers: token ? { Authorization: `Bearer ${token}` } : {},
+              body: formData,
+            });
+
+            if (!res.ok) throw new Error(`STT ${res.status}`);
+            const data = await res.json();
+            messages.value.splice(botIdx, 1);
+            streaming.value = false;
+
+            if (data.text) {
+              inputMsg.value = data.text;
+              await nextTick();
+              await sendMessage(data.text);
+            } else {
+              inputMsg.value = '';
+            }
+          } catch (err) {
+            console.error('[STT] Error:', err);
+            messages.value[botIdx].content = currentLang.value === 'pt-BR' ? 'Não consegui transcrever o áudio. Digite sua mensagem.' : currentLang.value === 'es-ES' ? 'No pude transcribir el audio. Escribe tu mensaje.' : 'Could not transcribe audio. Please type your message.';
+            setTimeout(() => { streaming.value = false; }, 1000);
+          }
+        };
+
+        mediaRecorder.onerror = () => {
+          stream.getTracks().forEach(t => t.stop());
+          isRecording.value = false;
+          mediaRecorder = null;
+        };
+
+        mediaRecorder.start();
+        isRecording.value = true;
+      } catch (err) {
+        console.error('[Mic] Error:', err);
+        isRecording.value = false;
+        inputMsg.value = currentLang.value === 'pt-BR' ? 'Permissão de microfone negada' : currentLang.value === 'es-ES' ? 'Permiso de micrófono denegado' : 'Microphone permission denied';
+      }
+    }
+
+    function stopMic() {
+      if (mediaRecorder && mediaRecorder.state === 'recording') {
+        mediaRecorder.stop();
+      }
+      isRecording.value = false;
     }
 
     const TTS_CHUNK_SIZE = 200;
@@ -902,7 +1054,19 @@ const app = createApp({
           if (data.onboarding && data.response) {
             onboardingQuestion.value = data.response;
             showOnboarding.value = true;
-            if (data.sessionId) {
+        if (data.humanOverride) {
+          messages.value[botIdx].content = '👨‍💼 ' + (data.response || 'Um atendente humano está cuidando desta conversa.');
+          messages.value[botIdx].overrideType = data.overrideType || 'full';
+        }
+        if (data.needsApproval) {
+          messages.value[botIdx].approvalPending = true;
+          messages.value[botIdx].content = '⏳ ' + (data.response || '') + '\n\n*(Aguardando aprovação humana)*';
+        }
+        if (data.observed) {
+          messages.value[botIdx].observed = true;
+        }
+
+        if (data.sessionId) {
               sessionId.value = data.sessionId;
               localStorage.setItem('mp_session_id', data.sessionId);
             }
@@ -1329,6 +1493,7 @@ const app = createApp({
       showMediaUpload, mediaUploading, mediaUploadProgress, mediaUploadFiles,
 
       showAuth, skipAuth, doAuth, doGoogleAuth, logout, enterApp,
+      changePassword,
       linkCode, linkCodeExpiry, linkStatus, showLinkCode,
       generateLinkCode, loadLinkStatus, unlinkAccount,
       switchPersona, getPersonaEmoji, getPersonaName, sendMessage, scrollToBottom, autoResize,
@@ -1337,6 +1502,7 @@ const app = createApp({
       saveProfile, saveApiKey, removeApiKey, copyPix, formatDate, saveLang,
       submitOnboardingAnswer, checkFollowUp, answerFollowUp, dismissFollowUp,
       sendQuickAction, loadQuickActions, loadContextualWelcome,
+      isRecording, toggleMic,
       // Quiz functions
       loadQuizzes, startQuiz, selectQuizAnswer, toggleQuizAnswer, nextQuizQuestion, prevQuizQuestion, submitQuiz, closeQuiz,
       // Media functions

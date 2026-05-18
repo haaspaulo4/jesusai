@@ -1,4 +1,22 @@
 const { pool } = require('../db');
+const crypto = require('crypto');
+function genId(prefix) { return prefix + '_' + crypto.randomBytes(8).toString('hex'); }
+
+function evaluateStageTriggers(triggers, context = {}) {
+  if (!triggers || typeof triggers !== 'object') return true;
+  const { min_messages, keywords, emotion, intent, time_after_minutes } = triggers;
+  if (min_messages && context.messageCount && context.messageCount < min_messages) return false;
+  if (keywords && Array.isArray(keywords) && context.lastMessage) {
+    if (!keywords.some(kw => context.lastMessage.toLowerCase().includes(kw.toLowerCase()))) return false;
+  }
+  if (emotion && context.emotion && context.emotion !== emotion) return false;
+  if (intent && context.intent && context.intent !== intent) return false;
+  if (time_after_minutes && context.sessionStart) {
+    const elapsed = (Date.now() - new Date(context.sessionStart).getTime()) / 60000;
+    if (elapsed < time_after_minutes) return false;
+  }
+  return true;
+}
 
 const DEFAULT_STAGES = [
   { id: 'greeting', name: 'Greeting', description: 'Initial contact and introduction', order: 0 },
@@ -9,7 +27,7 @@ const DEFAULT_STAGES = [
 ];
 
 async function createConversationStage(data) {
-  const id = data.id || 'stage_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+  const id = data.id || genId('stage');
   const persona_id = data.persona_id || null;
   const name = data.name || 'New Stage';
   const description = data.description || '';
@@ -103,7 +121,7 @@ async function setUserStage(userId, personaId, stageId, sessionId, stageData) {
   return getUserStage(userId, personaId);
 }
 
-async function advanceUserStage(userId, personaId, sessionId) {
+async function advanceUserStage(userId, personaId, sessionId, context = {}) {
   const currentStage = await getUserStage(userId, personaId);
   const stages = await listConversationStages({ persona_id: personaId });
   
@@ -113,9 +131,20 @@ async function advanceUserStage(userId, personaId, sessionId) {
     ? (stages.find(s => s.id === currentStage.current_stage)?.stage_order ?? 0)
     : -1;
 
-  const nextStage = stages
+  const candidates = stages
     .filter(s => s.stage_order > currentOrder && s.is_active)
-    .sort((a, b) => a.stage_order - b.stage_order)[0];
+    .sort((a, b) => a.stage_order - b.stage_order);
+
+  let nextStage = candidates[0];
+  if (nextStage && nextStage.triggers) {
+    const triggers = typeof nextStage.triggers === 'string' ? JSON.parse(nextStage.triggers) : nextStage.triggers;
+    if (triggers && !evaluateStageTriggers(triggers, context)) {
+      nextStage = candidates.find(s => {
+        const t = typeof s.triggers === 'string' ? JSON.parse(s.triggers) : s.triggers;
+        return !t || evaluateStageTriggers(t, context);
+      });
+    }
+  }
 
   if (!nextStage) return currentStage;
 

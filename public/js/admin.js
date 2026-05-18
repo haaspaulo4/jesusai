@@ -3,6 +3,8 @@ let token = localStorage.getItem('mp_token') || localStorage.getItem('jesus_ai_t
 let currentPage = 'dashboard';
 let socket = null;
 
+function esc(str) { if (str == null) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
 const pages = ['dashboard','users','personas','knowledge','vectors','creatives','search','surveys','ratings','followups','events','thoughts','workspace','billing','bots','integrations','commands','queue','settings'];
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -48,11 +50,31 @@ document.addEventListener('DOMContentLoaded', () => {
   loadDashboard();
 });
 
-async function api(path, opts = {}) {
+async function api(path, opts = {}, retry = true) {
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
   if (opts.headers) Object.assign(headers, opts.headers);
   const res = await fetch(`${API}${path}`, { ...opts, headers });
-  if (res.status === 401 || res.status === 403) { toast('Acesso negado. Voce precisa ser admin.', 'error'); window.location.href = '/'; return null; }
+  if (res.status === 401 && retry) {
+    const refreshToken = localStorage.getItem('mp_refresh_token');
+    if (refreshToken) {
+      try {
+        const refreshRes = await fetch('/api/auth/refresh', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ refreshToken }) });
+        if (refreshRes.ok) {
+          const refreshData = await refreshRes.json();
+          token = refreshData.token;
+          localStorage.setItem('mp_token', token);
+          if (refreshData.refreshToken) localStorage.setItem('mp_refresh_token', refreshData.refreshToken);
+          headers.Authorization = `Bearer ${token}`;
+          return api(path, opts, false);
+        }
+      } catch {}
+    }
+    toast('Sessão expirada. Faça login novamente.', 'error');
+    localStorage.removeItem('mp_token'); localStorage.removeItem('mp_refresh_token');
+    showAdminLogin();
+    return null;
+  }
+  if (res.status === 403) { toast('Acesso negado. Voce precisa ser admin.', 'error'); window.location.href = '/'; return null; }
   if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.error || `HTTP ${res.status}`); }
   return res.json();
 }
@@ -111,6 +133,7 @@ async function doAdminLogin() {
     token = data.token;
     localStorage.setItem('mp_token', token);
     localStorage.setItem('jesus_ai_token', token);
+    if (data.refreshToken) localStorage.setItem('mp_refresh_token', data.refreshToken);
     errEl.style.display = 'none';
     const overlay = document.getElementById('adminLoginOverlay');
     if (overlay) overlay.style.display = 'none';
@@ -179,12 +202,12 @@ function switchPage(page) {
   if (el) el.classList.add('active');
   const loaders = {
     dashboard: loadDashboard, users: loadUsers, personas: loadPersonas, knowledge: loadKnowledge, surveys: loadSurveys, ratings: loadRatings, followups: loadFollowups, bots: loadBots, integrations: loadIntegrations, commands: loadCommands, settings: loadSettings,
-    vectors: loadVectors, creatives: loadCreatives, search: loadGlobalSearch, events: loadEvents, thoughts: loadThoughts, workspace: loadWorkspace, billing: loadBillingPlans, queue: loadQueue,
+    vectors: loadVectors, creatives: loadCreatives, search: loadGlobalSearch, events: loadEvents, thoughts: loadThoughts, overrides: loadOverrides, workspace: loadWorkspace, billing: loadBillingPlans, queue: loadQueue,
   };
   loaders[page]?.();
 }
 
-function logout() { localStorage.removeItem('mp_token'); localStorage.removeItem('jesus_ai_token'); window.location.href = '/'; }
+function logout() { localStorage.removeItem('mp_token'); localStorage.removeItem('jesus_ai_token'); localStorage.removeItem('mp_refresh_token'); window.location.href = '/'; }
 function toggleEl(id, show) { const el = document.getElementById(id); if (el) el.style.display = show === false ? 'none' : (el.style.display === 'none' ? 'block' : 'none'); }
 function toast(msg, type = '') { const el = document.getElementById('toast'); el.textContent = msg; el.className = `toast ${type}`; el.style.display = 'block'; setTimeout(() => el.style.display = 'none', 3000); }
 function loading(show = true) { document.getElementById('loading').style.display = show ? 'flex' : 'none'; }
@@ -211,7 +234,20 @@ async function loadUsers() {
     const role = document.getElementById('userRoleFilter')?.value || '';
     const data = await api(`/users?limit=50&search=${encodeURIComponent(search)}&role=${role}`);
     document.getElementById('usersTable').innerHTML = `<table><thead><tr><th>ID</th><th>Nome</th><th>Email</th><th>Role</th><th>Criado</th><th>Acoes</th></tr></thead><tbody>${
-      data.users.map(u => `<tr><td>${u.id}</td><td>${u.name || '-'}</td><td>${u.email || '-'}</td><td><span class="badge-${u.role === 'admin' ? 'active' : u.role === 'banned' ? 'inactive' : 'active'}">${u.role}</span></td><td>${new Date(u.created_at).toLocaleDateString()}</td><td>${u.role !== 'admin' ? `<button class="btn btn-sm" onclick="setRole('${u.id}','premium')">Premium</button> <button class="btn btn-sm btn-danger" onclick="setRole('${u.id}','banned')">Banir</button>` : ''}</td></tr>`).join('')
+      data.users.map(u => {
+        const uid = esc(u.id);
+        let actions = '';
+        if (u.role === 'admin') {
+          actions = `<button class="btn btn-sm" onclick="setRole('${uid}','user')">Remover Admin</button>`;
+        } else if (u.role === 'banned') {
+          actions = `<button class="btn btn-sm" onclick="setRole('${uid}','user')">Desbanir</button> <button class="btn btn-sm" onclick="setRole('${uid}','premium')">Premium</button>`;
+        } else if (u.role === 'premium') {
+          actions = `<button class="btn btn-sm" onclick="setRole('${uid}','admin')">Admin</button> <button class="btn btn-sm" onclick="setRole('${uid}','user')">Remover Premium</button> <button class="btn btn-sm btn-danger" onclick="setRole('${uid}','banned')">Banir</button>`;
+        } else {
+          actions = `<button class="btn btn-sm" onclick="setRole('${uid}','premium')">Premium</button> <button class="btn btn-sm" onclick="setRole('${uid}','admin')">Admin</button> <button class="btn btn-sm btn-danger" onclick="setRole('${uid}','banned')">Banir</button>`;
+        }
+        return `<tr><td>${uid}</td><td>${esc(u.name) || '-'}</td><td>${esc(u.email) || '-'}</td><td><span class="badge-${u.role === 'admin' ? 'active' : u.role === 'banned' ? 'inactive' : 'active'}">${esc(u.role)}</span></td><td>${new Date(u.created_at).toLocaleDateString()}</td><td>${actions}</td></tr>`;
+      }).join('')
     }</tbody></table>`;
   } catch (e) { toast(e.message, 'error'); }
 }
@@ -221,7 +257,7 @@ async function setRole(uid, role) { try { await api(`/users/${uid}/role`, { meth
 async function loadPersonas() {
   try {
     const personas = await api('/personas');
-    document.getElementById('personasList').innerHTML = personas.map(p => `<div class="persona-card"><h4>${p.name} (${p.id})</h4><div class="meta">TTS: ${p.ttsVoice} | Modelo: ${p.model || 'default'} | Ativa: ${p.isActive ? 'Sim' : 'Nao'}</div><div class="actions"><button class="btn btn-sm" onclick="togglePersona('${p.id}', ${!p.isActive})">${p.isActive ? 'Desativar' : 'Ativar'}</button>${p.id !== 'jesus' ? `<button class="btn btn-sm btn-danger" onclick="deletePersona('${p.id}')">Deletar</button>` : ''}</div></div>`).join('');
+    document.getElementById('personasList').innerHTML = personas.map(p => `<div class="persona-card"><h4>${esc(p.name)} (${esc(p.id)})</h4><div class="meta">TTS: ${esc(p.ttsVoice)} | Modelo: ${esc(p.model || 'default')} | Ativa: ${p.isActive ? 'Sim' : 'Nao'}</div><div class="actions"><button class="btn btn-sm" onclick="togglePersona('${esc(p.id)}', ${!p.isActive})">${p.isActive ? 'Desativar' : 'Ativar'}</button>${p.id !== 'jesus' ? `<button class="btn btn-sm btn-danger" onclick="deletePersona('${esc(p.id)}')">Deletar</button>` : ''}</div></div>`).join('');
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -232,14 +268,14 @@ async function createPersona() {
   try { const p = await api('/personas/generate', { method: 'POST', body: JSON.stringify({ description: desc }) }); toast(`Persona "${p.name}" criada!`, 'success'); toggleEl('createPersonaForm', false); loadPersonas(); } catch (e) { toast(e.message, 'error'); } finally { loading(false); }
 }
 
-async function togglePersona(id, active) { try { await api(`/personas/${id}/${active ? 'activate' : 'deactivate'}`, { method: 'POST' }); toast('Persona atualizada', 'success'); loadPersonas(); } catch (e) { toast(e.message, 'error'); } }
-async function deletePersona(id) { if (!confirm(`Deletar persona "${id}"?`)) return; try { await api(`/personas/${id}`, { method: 'DELETE' }); toast('Persona deletada', 'success'); loadPersonas(); } catch (e) { toast(e.message, 'error'); } }
+async function togglePersona(id, active) { try { await api(`/personas/${encodeURIComponent(id)}/${active ? 'activate' : 'deactivate'}`, { method: 'POST' }); toast('Persona atualizada', 'success'); loadPersonas(); } catch (e) { toast(e.message, 'error'); } }
+async function deletePersona(id) { if (!confirm('Deletar persona?')) return; try { await api(`/personas/${encodeURIComponent(id)}`, { method: 'DELETE' }); toast('Persona deletada', 'success'); loadPersonas(); } catch (e) { toast(e.message, 'error'); } }
 
 async function loadKnowledge() {
   try {
     const data = await api('/knowledge');
     const sources = data.sources || [];
-    document.getElementById('knowledgeSources').innerHTML = sources.map(s => `<div class="source-card"><h4>${s.name || s.id}</h4><div class="meta">Tipo: ${s.ingester || s.type} | Docs: ${s.documentCount} | Index: ${s.indexExists ? 'Sim' : 'Nao'}</div><div class="actions">${s.id !== 'bible-pt-br' ? `<button class="btn btn-sm btn-danger" onclick="deleteSource('${s.id}')">Remover</button>` : ''}</div></div>`).join('');
+    document.getElementById('knowledgeSources').innerHTML = sources.map(s => `<div class="source-card"><h4>${esc(s.name || s.id)}</h4><div class="meta">Tipo: ${esc(s.ingester || s.type)} | Docs: ${s.documentCount} | Index: ${s.indexExists ? 'Sim' : 'Nao'}</div><div class="actions">${s.id !== 'bible-pt-br' ? `<button class="btn btn-sm btn-danger" onclick="deleteSource('${esc(s.id)}')">Remover</button>` : ''}</div></div>`).join('');
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -280,7 +316,7 @@ async function loadSurveys() {
   try {
     const data = await api('/surveys');
     const surveys = data.surveys || data || [];
-    document.getElementById('surveysList').innerHTML = (Array.isArray(surveys) ? surveys : []).map(s => `<div class="survey-card"><h4>${s.title}</h4><div class="meta">${s.description || ''} | Tipo: ${s.triggerType} | Ativa: ${s.isActive ? 'Sim' : 'Nao'}</div></div>`).join('') || '<p>Nenhuma pesquisa.</p>';
+    document.getElementById('surveysList').innerHTML = (Array.isArray(surveys) ? surveys : []).map(s => `<div class="survey-card"><h4>${esc(s.title)}</h4><div class="meta">${esc(s.description || '')} | Tipo: ${esc(s.triggerType)} | Ativa: ${s.isActive ? 'Sim' : 'Nao'}</div></div>`).join('') || '<p>Nenhuma pesquisa.</p>';
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -296,7 +332,7 @@ async function loadRatings() {
     const data = await api(`/ratings?${category ? 'category=' + category : ''}`);
     const ratings = data.ratings || data || [];
     const rows = Array.isArray(ratings) ? ratings : [];
-    document.getElementById('ratingsList').innerHTML = `<table><thead><tr><th>Usuario</th><th>Rating</th><th>Categoria</th><th>Feedback</th><th>Data</th></tr></thead><tbody>${rows.map(r => `<tr><td>${r.user_id || '-'}</td><td class="rating-stars">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</td><td>${r.category || '-'}</td><td>${(r.feedback || '').substring(0, 60)}</td><td>${new Date(r.created_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;
+    document.getElementById('ratingsList').innerHTML = `<table><thead><tr><th>Usuario</th><th>Rating</th><th>Categoria</th><th>Feedback</th><th>Data</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.user_id) || '-'}</td><td class="rating-stars">${'★'.repeat(r.rating)}${'☆'.repeat(5 - r.rating)}</td><td>${esc(r.category) || '-'}</td><td>${esc((r.feedback || '').substring(0, 60))}</td><td>${new Date(r.created_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -306,14 +342,14 @@ async function loadFollowups() {
     const data = await api(`/followups?${status ? 'status=' + status : ''}&limit=30`);
     const list = data.followUps || data || [];
     const items = Array.isArray(list) ? list : [];
-    document.getElementById('followupsList').innerHTML = `<table><thead><tr><th>Usuario</th><th>Tipo</th><th>Pergunta</th><th>Status</th><th>Data</th></tr></thead><tbody>${items.map(f => `<tr><td>${f.user_id}</td><td>${f.type}</td><td>${(f.question || '').substring(0, 60)}</td><td><span class="badge-${f.status === 'completed' ? 'active' : f.status === 'sent' ? 'running' : 'inactive'}">${f.status}</span></td><td>${new Date(f.created_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;
+    document.getElementById('followupsList').innerHTML = `<table><thead><tr><th>Usuario</th><th>Tipo</th><th>Pergunta</th><th>Status</th><th>Data</th></tr></thead><tbody>${items.map(f => `<tr><td>${esc(f.user_id)}</td><td>${esc(f.type)}</td><td>${esc((f.question || '').substring(0, 60))}</td><td><span class="badge-${f.status === 'completed' ? 'active' : f.status === 'sent' ? 'running' : 'inactive'}">${esc(f.status)}</span></td><td>${new Date(f.created_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;
   } catch (e) { toast(e.message, 'error'); }
 }
 
 async function loadBots() {
   try {
     const bots = await api('/bots');
-    document.getElementById('botsList').innerHTML = bots.map(b => `<div class="bot-card"><h4>${b.name} (${b.platform})</h4><div class="meta">Persona: ${b.personaId || 'default'} | ${b.running ? '<span class="badge-running">Rodando</span>' : '<span class="badge-stopped">Parado</span>'}</div><div class="actions">${b.running ? `<button class="btn btn-sm btn-danger" onclick="stopBot(${b.id})">Parar</button>` : `<button class="btn btn-sm" onclick="startBot(${b.id})">Iniciar</button>`}</div></div>`).join('');
+    document.getElementById('botsList').innerHTML = bots.map(b => `<div class="bot-card"><h4>${esc(b.name)} (${esc(b.platform)})</h4><div class="meta">Persona: ${esc(b.personaId || 'default')} | ${b.running ? '<span class="badge-running">Rodando</span>' : '<span class="badge-stopped">Parado</span>'}</div><div class="actions">${b.running ? `<button class="btn btn-sm btn-danger" onclick="stopBot(${b.id})">Parar</button>` : `<button class="btn btn-sm" onclick="startBot(${b.id})">Iniciar</button>`}</div></div>`).join('');
   } catch (e) { toast(e.message, 'error'); }
 }
 
@@ -335,9 +371,9 @@ async function loadIntegrations() {
     const list = document.getElementById('integrationsList');
     const items = Array.isArray(data) ? data : Object.values(data).flatMap(g => Array.isArray(g.integrations) ? g.integrations : g);
     list.innerHTML = items.map(i => `<div class="card">
-      <h4>${i.label || i.service_type}</h4>
+      <h4>${esc(i.label || i.service_type)}</h4>
       <p class="status ${i.is_active ? 'active' : 'inactive'}">${i.is_active ? 'Ativo' : 'Inativo'}</p>
-      <p>${i.model || ''}</p>
+      <p>${esc(i.model || '')}</p>
     </div>`).join('');
     loading(false);
   } catch (e) { toast(e.message, 'error'); loading(false); }
@@ -351,11 +387,11 @@ async function loadCommands() {
     const items = Array.isArray(data) ? data : [];
     list.innerHTML = items.map(c => `<div class="card">
       <div style="display:flex;justify-content:space-between;align-items:center;">
-        <h4>${c.command}</h4>
-        <span class="badge">${c.category}</span>
+        <h4>${esc(c.command)}</h4>
+        <span class="badge">${esc(c.category)}</span>
       </div>
-      <p>${c.description || ''}</p>
-      <p class="text-muted">Tipo: ${c.response_type} | Acao: ${c.action_type}</p>
+      <p>${esc(c.description || '')}</p>
+      <p class="text-muted">Tipo: ${esc(c.response_type)} | Acao: ${esc(c.action_type)}</p>
       <p class="text-muted">Usos: ${c.usage_count}</p>
       <div style="margin-top:1rem;">
         <button class="btn" onclick="deleteCommand(${c.id})">Excluir</button>
@@ -410,7 +446,7 @@ async function loadSettings() {
     const settings = await api('/settings');
     const known = ['onboarding_enabled','onboarding_greeting','survey_enabled','followup_enabled','followup_interval_messages','ratings_enabled','rate_limit_guest','rate_limit_user','rate_limit_premium','rate_limit_admin','tools_enabled','history_limit','search_verses_count','max_tokens','temperature','llm_timeout'];
     const grid = document.getElementById('settingsGrid');
-    grid.innerHTML = known.map(k => `<div class="setting-item"><label>${k}</label><input type="text" class="input" id="setting-${k}" value="${settings[k] || ''}" data-key="${k}"></div>`).join('');
+    grid.innerHTML = known.map(k => `<div class="setting-item"><label>${esc(k)}</label><input type="text" class="input" id="setting-${esc(k)}" value="${esc(settings[k] || '')}" data-key="${esc(k)}"></div>`).join('');
     const wl = ['brand_name','brand_tagline','brand_logo_url','brand_primary_color','brand_secondary_color'];
     wl.forEach(k => { const el = document.getElementById(`setting-${k}`); const inp = document.getElementById(`setting-${k.replace('brand_','setting-brand_')}`); });
     if (settings.brand_name) document.getElementById('setting-brand_name').value = settings.brand_name;
@@ -448,7 +484,7 @@ async function loadVectors() {
       <div class="stat-card"><div class="stat-value">${data.dimensions || 0}d</div><div class="stat-label">Dimensoes</div></div>
       <div class="stat-card"><div class="stat-value">${data.vectorWeight || 0.7}/${data.tfidfWeight || 0.3}</div><div class="stat-label">Peso Vector/TF-IDF</div></div>
     `;
-    const listHtml = (data.sources || []).map(s => `<div class="stat-mini">${s.sourceId}: ${s.count} embeddings</div>`).join('');
+    const listHtml = (data.sources || []).map(s => `<div class="stat-mini">${esc(s.sourceId)}: ${s.count} embeddings</div>`).join('');
     document.getElementById('vectorResult').innerHTML = listHtml;
   } catch(e) { toast(e.message, 'error'); }
 }
@@ -470,7 +506,7 @@ async function loadCreatives() {
     document.getElementById('creativesList').innerHTML = list.map(c => `
       <div class="card" style="margin-bottom:0.5rem">
         <div style="display:flex;justify-content:space-between;align-items:center">
-          <div><strong>${c.template_id || c.type}</strong> <span style="color:var(--muted)">${c.id.substring(0,20)}...</span></div>
+          <div><strong>${esc(c.template_id || c.type)}</strong> <span style="color:var(--muted)">${esc(c.id.substring(0,20))}...</span></div>
           <div><span style="color:var(--muted)">${new Date(c.created_at).toLocaleString()}</span></div>
         </div>
       </div>
@@ -504,7 +540,7 @@ async function loadGlobalSearch() {
     document.getElementById('searchIndexStats').innerHTML = `
       <h3>Indices de Busca</h3>
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:0.5rem;margin-top:0.5rem">
-        ${Object.entries(stats.indexes || {}).map(([k,v]) => `<div class="stat-mini"><strong>${k}</strong>: ${v.documentCount || 0} docs</div>`).join('')}
+        ${Object.entries(stats.indexes || {}).map(([k,v]) => `<div class="stat-mini"><strong>${esc(k)}</strong>: ${v.documentCount || 0} docs</div>`).join('')}
       </div>
     `;
   } catch(e) {}
@@ -517,7 +553,7 @@ async function doGlobalSearch() {
     const results = await api(`/search?q=${encodeURIComponent(q)}&limit=10`);
     const html = Object.entries(results.results || {}).map(([coll, items]) => {
       if (!items || items.length === 0) return '';
-      return `<div style="margin-bottom:1rem"><h4>${coll}</h4>${items.slice(0,5).map(i => `<div style="padding:0.3rem 0;border-bottom:1px solid var(--border)">${i.id?.doc_id || i.id || JSON.stringify(i).substring(0,100)}</div>`).join('')}</div>`;
+      return `<div style="margin-bottom:1rem"><h4>${esc(coll)}</h4>${items.slice(0,5).map(i => `<div style="padding:0.3rem 0;border-bottom:1px solid var(--border)">${esc(i.id?.doc_id || i.id || JSON.stringify(i).substring(0,100))}</div>`).join('')}</div>`;
     }).join('');
     document.getElementById('globalSearchResults').innerHTML = html || '<p style="color:var(--muted)">Nenhum resultado encontrado.</p>';
   } catch(e) { toast(e.message, 'error'); }
@@ -527,7 +563,7 @@ async function loadEvents() {
   try {
     const type = document.getElementById('eventFilter')?.value || '';
     const data = await api(`/events/log?limit=50${type ? '&event_type='+type : ''}`);
-    document.getElementById('eventsTable').innerHTML = `<table class="data-table"><thead><tr><th>Tipo</th><th>Usuario</th><th>Persona</th><th>Data</th><th>Quando</th></tr></thead><tbody>${(data.events || data || []).map(e => `<tr><td>${e.event_type}</td><td>${e.user_id || '-'}</td><td>${e.persona_id || '-'}</td><td>${JSON.stringify(e.data || {}).substring(0,80)}</td><td>${new Date(e.created_at).toLocaleString()}</td></tr>`).join('')}</tbody></table>`;
+    document.getElementById('eventsTable').innerHTML = `<table class="data-table"><thead><tr><th>Tipo</th><th>Usuario</th><th>Persona</th><th>Data</th><th>Quando</th></tr></thead><tbody>${(data.events || data || []).map(e => `<tr><td>${esc(e.event_type)}</td><td>${esc(e.user_id) || '-'}</td><td>${esc(e.persona_id) || '-'}</td><td>${esc(JSON.stringify(e.data || {}).substring(0,80))}</td><td>${new Date(e.created_at).toLocaleString()}</td></tr>`).join('')}</tbody></table>`;
   } catch(e) { toast(e.message, 'error'); }
 }
 
@@ -542,14 +578,14 @@ async function loadThoughts() {
     ];
     document.getElementById('thoughtsStats').innerHTML = statCards.map(c => `<div class="stat-card"><div class="stat-value">${c.value}</div><div class="stat-label">${c.label}</div></div>`).join('');
     const data = await api('/thoughts?limit=30');
-    document.getElementById('thoughtsTable').innerHTML = `<table class="data-table"><thead><tr><th>Usuario</th><th>Emocao</th><th>Intent</th><th>Ferramentas</th><th>Tempo</th><th>Quando</th></tr></thead><tbody>${(data.thoughts || data || []).map(t => `<tr><td>${t.user_id || '-'}</td><td>${t.reasoning?.emotion || '-'}</td><td>${t.reasoning?.intent || '-'}</td><td>${(t.tools_used || []).join(', ') || '-'}</td><td>${t.response_time_ms || '-'}ms</td><td>${new Date(t.created_at).toLocaleString()}</td></tr>`).join('')}</tbody></table>`;
+    document.getElementById('thoughtsTable').innerHTML = `<table class="data-table"><thead><tr><th>Usuario</th><th>Emocao</th><th>Intent</th><th>Ferramentas</th><th>Tempo</th><th>Quando</th></tr></thead><tbody>${(data.thoughts || data || []).map(t => `<tr><td>${esc(t.user_id) || '-'}</td><td>${esc(t.reasoning?.emotion || '-')}</td><td>${esc(t.reasoning?.intent || '-')}</td><td>${esc((t.tools_used || []).join(', ')) || '-'}</td><td>${t.response_time_ms || '-'}ms</td><td>${new Date(t.created_at).toLocaleString()}</td></tr>`).join('')}</tbody></table>`;
   } catch(e) { toast(e.message, 'error'); }
 }
 
 async function loadWorkspace() {
   try {
     const members = await api('/workspace/members');
-    document.getElementById('workspaceMembers').innerHTML = `<table class="data-table"><thead><tr><th>Usuario</th><th>Email</th><th>Role</th><th>Desde</th></tr></thead><tbody>${(members || []).map(m => `<tr><td>${m.name || m.user_id}</td><td>${m.email || '-'}</td><td><span class="badge">${m.role}</span></td><td>${new Date(m.joined_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;
+    document.getElementById('workspaceMembers').innerHTML = `<table class="data-table"><thead><tr><th>Usuario</th><th>Email</th><th>Role</th><th>Desde</th></tr></thead><tbody>${(members || []).map(m => `<tr><td>${esc(m.name || m.user_id)}</td><td>${esc(m.email) || '-'}</td><td><span class="badge">${esc(m.role)}</span></td><td>${new Date(m.joined_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table>`;
   } catch(e) { toast(e.message, 'error'); }
 }
 
@@ -571,6 +607,62 @@ async function loadBillingPlans() {
     const report = await api('/billing/usage');
     document.getElementById('usageReport').innerHTML = `<h3>Uso Atual</h3><pre style="background:var(--bg-card);padding:1rem;border-radius:8px;overflow:auto">${JSON.stringify(report, null, 2)}</pre>`;
   } catch(e) { document.getElementById('usageReport').innerHTML = '<p style="color:var(--muted)">Dados de uso nao disponiveis ainda.</p>'; }
+}
+
+async function changeAdminPassword() {
+  const currentPassword = document.getElementById('currentPassword').value;
+  const newPassword = document.getElementById('newPassword').value;
+  if (!currentPassword || !newPassword) { toast('Preencha ambos os campos', 'error'); return; }
+  try {
+    const res = await fetch('/api/auth/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ currentPassword, newPassword }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      toast(data.error || 'Falha ao alterar senha', 'error');
+      return;
+    }
+    const data = await res.json();
+    if (data.token) { localStorage.setItem('mp_token', data.token); token = data.token; }
+    if (data.refreshToken) localStorage.setItem('mp_refresh_token', data.refreshToken);
+    document.getElementById('currentPassword').value = '';
+    document.getElementById('newPassword').value = '';
+    toast('Senha alterada com sucesso!', 'success');
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function loadOverrides() {
+  try {
+    const data = await api('/override/list?is_active=1');
+    const overrides = data.overrides || data || [];
+    document.getElementById('overridesTable').innerHTML = overrides.length === 0
+      ? '<p style="color:var(--muted)">Nenhum override ativo.</p>'
+      : `<table class="data-table"><thead><tr><th>Session</th><th>Tipo</th><th>Mensagem</th><th>Desde</th><th>Acoes</th></tr></thead><tbody>${overrides.map(o => `<tr><td>${esc(o.session_id)}</td><td>${esc(o.override_type)}</td><td>${esc(o.human_message || '-')}</td><td>${new Date(o.created_at).toLocaleString()}</td><td><button class="btn btn-sm" onclick="deactivateOverride('${esc(o.session_id)}')">Desativar</button></td></tr>`).join('')}</tbody></table>`;
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function activateOverride() {
+  const sessionId = document.getElementById('overrideSessionId').value.trim();
+  const type = document.getElementById('overrideType').value;
+  const message = document.getElementById('overrideMessage').value.trim();
+  if (!sessionId) { toast('Session ID obrigatorio', 'error'); return; }
+  try {
+    await api('/override/activate', { method: 'POST', body: JSON.stringify({ sessionId, override_type: type, human_message: message || undefined }) });
+    toast('Override ativado!', 'success');
+    document.getElementById('overrideSessionId').value = '';
+    document.getElementById('overrideMessage').value = '';
+    loadOverrides();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deactivateOverride(sessionId) {
+  try {
+    await api('/override/deactivate', { method: 'POST', body: JSON.stringify({ sessionId }) });
+    toast('Override desativado', 'success');
+    loadOverrides();
+  } catch(e) { toast(e.message, 'error'); }
 }
 
 async function loadQueue() {
@@ -595,7 +687,7 @@ async function loadQueue() {
 
 function initRealtime() {
   try {
-    socket = io({ transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 5, reconnectionDelay: 3000, auth: { userId: 'admin' } });
+    socket = io({ transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 5, reconnectionDelay: 3000, auth: { token: token, userId: 'admin' } });
     socket.on('connect', () => console.log('[RT] Connected'));
     socket.on('disconnect', () => {});
     socket.on('connect_error', () => {});

@@ -20,8 +20,15 @@ function getConfig(userId, userKey) {
 }
 
 function extractContent(data) {
-  if (!data || !data.message) return '';
-  const content = (data.message.content || '').trim();
+  if (!data) return '';
+
+  let message = data.message || data.choices?.[0]?.message || null;
+  if (!message) {
+    if (data.choices?.[0]?.text) return data.choices[0].text.trim();
+    return '';
+  }
+
+  const content = (message.content || '').trim();
   if (content) return content;
 
   return '';
@@ -94,12 +101,13 @@ async function chat(messages, options = {}) {
       }
 
       const data = await response.json();
+      const normalized = normalizeLLMResponse(data);
 
-      if (data.tool_calls && data.tool_calls.length > 0) {
-        return { message: data.message, tool_calls: data.tool_calls, done: data.done };
+      if (normalized.tool_calls && normalized.tool_calls.length > 0) {
+        return { message: normalized.message, tool_calls: normalized.tool_calls, done: normalized.done };
       }
 
-      return data;
+      return normalized;
     } catch (err) {
       lastError = err;
       if (err.name === 'AbortError') {
@@ -131,16 +139,38 @@ async function* parseStream(response) {
     for (const line of lines) {
       const trimmed = line.trim();
       if (!trimmed) continue;
+      if (trimmed === 'data: [DONE]') return;
+      const dataStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed;
 
       try {
-        const data = JSON.parse(trimmed);
+        const data = JSON.parse(dataStr);
         if (data.done) return;
+
         if (data.message) {
           const content = data.message.content || '';
           if (content) yield content;
+          const thinking = data.message.thinking || data.message.reasoning_content || '';
+          if (thinking && !content) yield thinking;
         }
+
+        if (data.choices?.[0]?.delta) {
+          const delta = data.choices[0].delta;
+          const content = delta.content || '';
+          if (content) yield content;
+          const thinking = delta.reasoning_content || delta.thinking || '';
+          if (thinking && !content) yield thinking;
+        }
+
         if (data.tool_calls && data.tool_calls.length > 0) {
           yield { type: 'tool_calls', tool_calls: data.tool_calls };
+        }
+
+        if (data.choices?.[0]?.message) {
+          const msg = data.choices[0].message;
+          const content = msg.content || '';
+          if (content) yield content;
+          const thinking = msg.reasoning_content || msg.thinking || '';
+          if (thinking && !content) yield thinking;
         }
       } catch {
         continue;
@@ -149,12 +179,41 @@ async function* parseStream(response) {
   }
 }
 
+function normalizeLLMResponse(data) {
+  if (!data) return data;
+  if (data.message && typeof data.message === 'object') return data;
+
+  if (data.choices?.[0]?.message) {
+    const msg = data.choices[0].message;
+    return {
+      message: {
+        role: msg.role || 'assistant',
+        content: msg.content || '',
+        thinking: msg.thinking || msg.reasoning_content || msg.thought || '',
+      },
+      tool_calls: msg.tool_calls || data.tool_calls || null,
+      done: data.done ?? true,
+    };
+  }
+
+  if (data.content !== undefined && !data.message) {
+    return {
+      message: { role: 'assistant', content: data.content || '', thinking: '' },
+      tool_calls: null,
+      done: true,
+    };
+  }
+
+  return data;
+}
+
 module.exports = {
   chat,
   parseStream,
   getConfig,
   getUserApiKey,
   extractContent,
+  normalizeLLMResponse,
   OLLAMA_BASE_URL,
   OLLAMA_API_KEY,
   CHAT_MODEL,

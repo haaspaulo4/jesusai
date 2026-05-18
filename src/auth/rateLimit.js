@@ -61,8 +61,8 @@ async function checkBan(userId) {
 }
 
 async function rateLimitMiddleware(req, res, next) {
-  const userId = req.userId || 'user_default';
-  const role = req.userRole || await getUserRole(userId);
+  const userId = req.userId || `ip_${req.ip || req.connection?.remoteAddress || 'unknown'}`;
+  const role = req.userRole || await getUserRole(req.userId);
 
   if (role === 'banned') {
     return res.status(403).json({ error: 'Conta suspensa. Entre em contato com o suporte.', banned: true });

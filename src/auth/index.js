@@ -70,9 +70,16 @@ async function login(email, password) {
 
   const valid = await bcrypt.compare(password, user.password);
   if (!valid) {
+    const [lockRows] = await pool.execute('SELECT id FROM login_attempts WHERE email = ? AND attempted_at > DATE_SUB(NOW(), INTERVAL 15 MINUTE)', [email]);
+    const attemptCount = lockRows.length;
+    await pool.execute('INSERT INTO login_attempts (email, ip_address) VALUES (?, ?)', [email, '']).catch(() => {});
+    if (attemptCount >= 5) {
+      throw new Error('Conta temporariamente bloqueada. Tente novamente em 15 minutos.');
+    }
     throw new Error('Email ou senha incorretos');
   }
 
+  await pool.execute('DELETE FROM login_attempts WHERE email = ?', [email]).catch(() => {});
   return { id: user.id, email: user.email, name: user.name };
 }
 
@@ -109,7 +116,11 @@ async function findOrCreateFromGoogle(googleUser) {
 }
 
 function generateToken(user) {
-  return jwt.sign({ id: user.id, email: user.email, role: user.role || 'user' }, JWT_SECRET, { expiresIn: '30d' });
+  return jwt.sign({ id: user.id, email: user.email, role: user.role || 'user', tv: user.token_version || 1, type: 'access' }, JWT_SECRET, { expiresIn: '1h' });
+}
+
+function generateRefreshToken(user) {
+  return jwt.sign({ id: user.id, email: user.email, role: user.role || 'user', tv: user.token_version || 1, type: 'refresh' }, JWT_SECRET, { expiresIn: '7d' });
 }
 
 function verifyToken(token) {
@@ -152,7 +163,7 @@ async function updateUser(userId, updates) {
   return getUser(userId);
 }
 
-function authMiddleware(req, res, next) {
+async function authMiddleware(req, res, next) {
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Não autorizado' });
@@ -160,10 +171,28 @@ function authMiddleware(req, res, next) {
   const token = auth.substring(7);
   const decoded = verifyToken(token);
   if (!decoded) {
-    return res.status(401).json({ error: 'Token inválido' });
+    return res.status(401).json({ error: 'Token inválido ou expirado. Faça login novamente.' });
+  }
+  if (decoded.type === 'refresh') {
+    return res.status(401).json({ error: 'Refresh token não pode ser usado para autenticação. Use o endpoint /auth/refresh.' });
   }
   req.userId = decoded.id;
-  req.userRole = decoded.role || 'user';
+  try {
+    const [rows] = await pool.execute('SELECT role, token_version FROM users WHERE id = ?', [decoded.id]);
+    if (rows.length > 0) {
+      req.userRole = rows[0].role;
+      if (rows[0].role === 'banned') {
+        return res.status(403).json({ error: 'Conta suspensa' });
+      }
+      if (decoded.tv !== undefined && decoded.tv !== rows[0].token_version) {
+        return res.status(401).json({ error: 'Sessão expirada. Faça login novamente.' });
+      }
+    } else {
+      req.userRole = decoded.role || 'user';
+    }
+  } catch {
+    req.userRole = decoded.role || 'user';
+  }
   next();
 }
 
@@ -196,6 +225,16 @@ async function getUserWithRole(userId) {
 }
 
 async function generateLinkCode(userId) {
+  const [existing] = await pool.execute(
+    'SELECT link_code_expires FROM users WHERE id = ? AND link_code IS NOT NULL AND link_code_expires > NOW()',
+    [userId]
+  );
+  if (existing.length > 0) {
+    const remaining = new Date(existing[0].link_code_expires) - Date.now();
+    if (remaining > 10 * 60 * 1000) {
+      throw new Error(`Aguarde antes de gerar outro código. Seu código atual ainda é válido por ${Math.ceil(remaining / 60000)} minutos.`);
+    }
+  }
   const code = Math.random().toString(36).substring(2, 8).toUpperCase();
   const expires = new Date(Date.now() + 15 * 60 * 1000);
   await pool.execute(
@@ -239,10 +278,48 @@ async function linkAccount(linkCode, botUserId, source) {
 
   const [botRows] = await pool.execute('SELECT id FROM users WHERE id = ?', [botUserId]);
   if (botRows.length > 0) {
-    await pool.execute(
-      'DELETE FROM users WHERE id = ?',
-      [botUserId]
-    );
+    const migrations = [
+      { table: 'persona_messages', col: 'user_id' },
+      { table: 'sessions', col: 'user_id' },
+      { table: 'messages', col: null },
+      { table: 'user_xp_log', col: 'user_id' },
+      { table: 'user_xp', col: 'user_id' },
+      { table: 'user_progress', col: 'user_id' },
+      { table: 'user_onboarding', col: 'user_id' },
+      { table: 'cognitive_states', col: 'user_id' },
+      { table: 'agent_thoughts', col: 'user_id' },
+      { table: 'follow_ups', col: 'user_id' },
+      { table: 'ratings', col: 'user_id' },
+      { table: 'profiles', col: 'id' },
+      { table: 'persona_goals', col: 'owner_id' },
+      { table: 'persona_tasks', col: 'owner_id' },
+      { table: 'persona_calendar', col: 'owner_id' },
+      { table: 'persona_contacts', col: 'owner_id' },
+      { table: 'persona_automations', col: 'owner_id' },
+      { table: 'persona_org_memory', col: 'owner_id' },
+    ];
+    for (const { table, col } of migrations) {
+      if (!col) continue;
+      try {
+        await pool.execute(
+          `UPDATE ${table} SET ${col} = ? WHERE ${col} = ?`,
+          [webUser.id, botUserId]
+        );
+      } catch {}
+    }
+    try {
+      await pool.execute(
+        'UPDATE messages m INNER JOIN sessions s ON m.session_id = s.id SET s.user_id = ? WHERE s.user_id = ?',
+        [webUser.id, botUserId]
+      );
+    } catch {}
+    for (const table of ['persona_messages', 'sessions', 'user_xp_log', 'user_xp', 'user_progress', 'user_onboarding', 'cognitive_states', 'agent_thoughts', 'follow_ups', 'ratings', 'profiles']) {
+      try { await pool.execute(`DELETE FROM ${table} WHERE user_id = ?`, [botUserId]); } catch {}
+    }
+    try {
+      await pool.execute('UPDATE user_xp SET user_id = ? WHERE user_id = ?', [webUser.id, botUserId]);
+    } catch {}
+    await pool.execute('DELETE FROM users WHERE id = ?', [botUserId]);
   }
 
   return { webUserId: webUser.id, linked: true };
@@ -262,6 +339,7 @@ module.exports = {
   register,
   login,
   generateToken,
+  generateRefreshToken,
   verifyToken,
   getUser,
   updateUser,
@@ -275,6 +353,9 @@ module.exports = {
   generateLinkCode,
   linkAccount,
   findLinkedUser,
+  invalidateTokens: async function(userId) {
+    await pool.execute('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [userId]);
+  },
   createUser: async function(id, name, role = 'user') {
     const [existing] = await pool.execute('SELECT id FROM users WHERE id = ?', [id]);
     if (existing.length > 0) return existing[0].id;

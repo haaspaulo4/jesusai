@@ -1,8 +1,10 @@
 const { pool } = require('../db');
+const crypto = require('crypto');
+function genId(prefix) { return prefix + '_' + crypto.randomBytes(8).toString('hex'); }
 const personaManager = require('../persona/manager');
 
 async function createBlueprint(data) {
-  const id = data.id || 'bp_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 6);
+  const id = data.id || genId('bp');
   const name = data.name || id;
   const description = data.description || '';
   const category = data.category || 'general';
@@ -91,12 +93,24 @@ async function getBlueprintNiches(category = null) {
   return rows.map(r => r.niche);
 }
 
+function deepMerge(target, source) {
+  const result = { ...target };
+  for (const key of Object.keys(source)) {
+    if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key]) && target[key] && typeof target[key] === 'object' && !Array.isArray(target[key])) {
+      result[key] = deepMerge(target[key], source[key]);
+    } else {
+      result[key] = source[key];
+    }
+  }
+  return result;
+}
+
 async function cloneBlueprint(blueprintId, overrides = {}) {
   const blueprint = await getBlueprint(blueprintId);
   if (!blueprint) throw new Error(`Blueprint "${blueprintId}" not found`);
 
   const config = blueprint.config;
-  const mergedConfig = { ...config, ...overrides };
+  const mergedConfig = deepMerge(config, overrides);
 
   if (overrides.name) mergedConfig.name = overrides.name;
   if (overrides.name_en) mergedConfig.name_en = overrides.name_en;

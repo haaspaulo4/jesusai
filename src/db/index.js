@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS sessions (
 CREATE TABLE IF NOT EXISTS messages (
   id INT AUTO_INCREMENT PRIMARY KEY,
   session_id VARCHAR(80) NOT NULL,
-  role ENUM('user','assistant') NOT NULL,
+  role ENUM('user','assistant','system','tool') NOT NULL,
   content TEXT NOT NULL,
   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   KEY idx_messages_session (session_id),
@@ -321,7 +321,8 @@ CREATE TABLE IF NOT EXISTS user_onboarding (
   step_key VARCHAR(100) NOT NULL,
   answer TEXT,
   answered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  UNIQUE KEY idx_onboarding_user_step (user_id, step_key),
+  persona_id VARCHAR(60) DEFAULT NULL,
+  UNIQUE KEY idx_onboarding_user_step (user_id, step_key, persona_id),
   KEY idx_onboarding_user (user_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
@@ -806,6 +807,10 @@ async function initDatabase() {
   try { await pool.execute("ALTER TABLE user_onboarding ADD INDEX idx_user_onboarding_persona (user_id, persona_id)"); } catch {}
 
   // Performance indexes
+  try { await pool.execute("ALTER TABLE messages MODIFY COLUMN role ENUM('user','assistant','system','tool') NOT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE user_onboarding ADD COLUMN IF NOT EXISTS persona_id VARCHAR(60) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE user_onboarding DROP INDEX idx_onboarding_user_step"); } catch {}
+  try { await pool.execute("ALTER TABLE user_onboarding ADD UNIQUE KEY idx_onboarding_user_step (user_id, step_key, persona_id)"); } catch {}
   try { await pool.execute("ALTER TABLE persona_messages ADD INDEX idx_msgs_user_persona (user_id, persona_id)"); } catch {}
   try { await pool.execute("ALTER TABLE persona_messages ADD INDEX idx_msgs_user_created (user_id, created_at)"); } catch {}
   try { await pool.execute("ALTER TABLE ratings ADD INDEX idx_ratings_user_session (user_id, session_id)"); } catch {}
@@ -839,6 +844,7 @@ async function initDatabase() {
   try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN skip_label JSON DEFAULT NULL"); } catch {}
   try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN max_choices INT DEFAULT NULL"); } catch {}
   try { await pool.execute("ALTER TABLE onboarding_steps ADD COLUMN field_type ENUM('text','choice','email','phone','number','multichoice','confirm','message') DEFAULT 'text'"); } catch {}
+  try { await pool.execute("ALTER TABLE onboarding_steps ADD UNIQUE KEY idx_step_persona (step_key, persona_id)"); } catch {}
 
   // Quizzes table
   try { await pool.execute(`
@@ -926,6 +932,22 @@ async function initDatabase() {
   try { await pool.execute("ALTER TABLE users ADD UNIQUE KEY idx_users_link_code (link_code)"); } catch {}
   try { await pool.execute("ALTER TABLE users ADD UNIQUE KEY idx_users_whatsapp_id (whatsapp_id)"); } catch {}
   try { await pool.execute("ALTER TABLE users ADD UNIQUE KEY idx_users_telegram_id (telegram_id)"); } catch {}
+
+  try { await pool.execute("ALTER TABLE sessions ADD COLUMN silence_count INT DEFAULT 0"); } catch {}
+  try { await pool.execute("ALTER TABLE sessions ADD COLUMN silence_infinite TINYINT(1) DEFAULT 0"); } catch {}
+
+  try { await pool.execute(`CREATE TABLE IF NOT EXISTS login_attempts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(255) NOT NULL,
+    ip_address VARCHAR(45) DEFAULT '',
+    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX idx_login_email_time (email, attempted_at)
+  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
+
+  try { await pool.execute("ALTER TABLE users ADD COLUMN token_version INT DEFAULT 1"); } catch {}
+
+  try { await pool.execute("ALTER TABLE user_xp ADD COLUMN total_messages INT DEFAULT 0"); } catch {}
+  try { await pool.execute("ALTER TABLE user_xp ADD COLUMN goals_completed INT DEFAULT 0"); } catch {}
 
   console.log('Database schema initialized (with migrations)');
 }

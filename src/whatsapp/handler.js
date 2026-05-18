@@ -25,6 +25,7 @@ function makeWhatsAppHandler(options = {}) {
         isGroup,
         source: 'whatsapp',
         userName: pushName || undefined,
+        personaId: instancePersonaId || undefined,
       });
 
       return {
