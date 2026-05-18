@@ -854,7 +854,8 @@ const app = createApp({
         .replace(/`([^`]+)`/g, '<code class="bg-surface-600 px-1 rounded text-brand-300 text-xs">$1</code>');
       html = html.replace(/((?:1|2|3)?\s*[A-Z][a-z\u00E1\u00E0\u00E2\u00E3\u00E9\u00E8\u00EA\u00ED\u00EF\u00F3\u00F4\u00F5\u00FA\u00FC\u00E7]+(?:\s+\w+)?\s+\d+:\d+(?:-\d+)?)/g, '<span class="text-brand-400 font-medium">$1</span>');
       html = html.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
-      return `<p>${html}</p>`;
+      const raw = `<p>${html}</p>`;
+      return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(raw, { ALLOWED_TAGS: ['p', 'strong', 'em', 'code', 'br', 'span'], ALLOWED_ATTR: ['class'] }) : raw;
     }
 
     async function loadConversations() {

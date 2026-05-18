@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
+const BOT_COL_MAP = { whatsapp: 'whatsapp_id', telegram: 'telegram_id' };
 if (!JWT_SECRET) {
   console.error('[AUTH] FATAL: JWT_SECRET environment variable is required. Set it in .env');
   process.exit(1);
@@ -37,6 +38,12 @@ function rowToUser(row) {
     personaId: row.persona_id || null,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
   };
+}
+
+function safeUser(user) {
+  if (!user) return null;
+  const { password, ...safe } = user;
+  return safe;
 }
 
 async function register(email, password, name) {
@@ -255,7 +262,7 @@ async function linkAccount(linkCode, botUserId, source) {
 
   const webUser = rowToUser(rows[0]);
 
-  const col = source === 'whatsapp' ? 'whatsapp_id' : 'telegram_id';
+  const col = BOT_COL_MAP[source] || 'telegram_id';
   const [existing] = await pool.execute(
     `SELECT id FROM users WHERE ${col} = ? AND id != ?`,
     [botUserId, webUser.id]
@@ -326,7 +333,7 @@ async function linkAccount(linkCode, botUserId, source) {
 }
 
 async function findLinkedUser(botUserId, source) {
-  const col = source === 'whatsapp' ? 'whatsapp_id' : 'telegram_id';
+  const col = BOT_COL_MAP[source] || 'telegram_id';
   const [rows] = await pool.execute(
     `SELECT * FROM users WHERE ${col} = ?`,
     [botUserId]
@@ -353,6 +360,7 @@ module.exports = {
   generateLinkCode,
   linkAccount,
   findLinkedUser,
+  safeUser,
   invalidateTokens: async function(userId) {
     await pool.execute('UPDATE users SET token_version = token_version + 1 WHERE id = ?', [userId]);
   },

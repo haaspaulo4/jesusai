@@ -27,9 +27,13 @@ async function checkRateLimit(userId, role) {
   const windowMs = windowHours * 60 * 60 * 1000;
   const serviceType = 'chat';
 
-  await pool.execute(
-    'INSERT INTO rate_limits (user_id, service_type, request_count, window_start) VALUES (?, ?, 1, NOW()) ON DUPLICATE KEY UPDATE request_count = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, 1, request_count + 1), window_start = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, NOW(), window_start)',
-    [userId, serviceType, windowHours, windowHours]
+  const [result] = await pool.execute(
+    `INSERT INTO rate_limits (user_id, service_type, request_count, window_start) VALUES (?, ?, 1, NOW())
+     ON DUPLICATE KEY UPDATE
+       request_count = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, 1, request_count + 1),
+       window_start = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, NOW(), window_start),
+       new_count = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, 1, request_count + 1)`,
+    [userId, serviceType, windowHours, windowHours, windowHours]
   );
 
   const [rows] = await pool.execute(
@@ -38,16 +42,13 @@ async function checkRateLimit(userId, role) {
   );
 
   const row = rows[0];
+  if (!row) return { allowed: true, remaining: limit, limit, resetIn: Math.ceil(windowMs / 60000) };
 
   if (row.request_count > limit) {
     const windowStart = new Date(row.window_start);
     const elapsedMs = Date.now() - windowStart;
     const remainingMs = windowMs - elapsedMs;
     const remainingMin = Math.ceil(remainingMs / 60000);
-    await pool.execute(
-      'UPDATE rate_limits SET request_count = ? WHERE user_id = ? AND service_type = ?',
-      [limit, userId, serviceType]
-    );
     return { allowed: false, remaining: 0, limit, resetIn: remainingMin };
   }
 

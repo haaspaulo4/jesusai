@@ -31,10 +31,13 @@ const thoughtsModule = require('../thoughts');
 const realtime = require('../realtime');
 const { pool } = require('../db');
 const agentModule = require('../agent');
+      smartFollowUp
 
 const MAX_TOOL_ROUNDS = 5;
 
 const silenceCache = new Map();
+const BOT_ID_COL_MAP = { whatsapp: 'whatsapp_id', telegram: 'telegram_id' };
+const getBotCol = (uid) => BOT_ID_COL_MAP[uid.startsWith('wa_') ? 'whatsapp' : 'telegram'];
 
 async function setSilence(sessionId, count = 0) {
   if (count <= 0) {
@@ -43,13 +46,15 @@ async function setSilence(sessionId, count = 0) {
     return { silenced: false, remaining: 0 };
   }
   const infinite = count >= 999999;
-  silenceCache.set(sessionId, infinite ? 999999 : count);
+  silenceCache.set(sessionId, { count: infinite ? 999999 : count, ts: Date.now() });
   try { await pool.execute('UPDATE sessions SET silence_count = ?, silence_infinite = ? WHERE id = ?', [infinite ? 0 : count, infinite ? 1 : 0, sessionId]); } catch {}
   return { silenced: true, remaining: count };
 }
 
 async function decSilence(sessionId) {
-  let remaining = silenceCache.get(sessionId);
+  let cached = silenceCache.get(sessionId);
+  if (cached && (Date.now() - cached.ts) > SILENCE_TTL) { silenceCache.delete(sessionId); cached = undefined; }
+  let remaining = cached?.count;
   if (remaining === undefined) {
     try {
       const [rows] = await pool.execute('SELECT silence_count, silence_infinite FROM sessions WHERE id = ?', [sessionId]);
@@ -368,7 +373,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : (noKnowledgeSearch ? 'none' : 'bible')}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}`);
 
   const toolsEnabled = await getSetting('tools_enabled', 'true') === 'true';
-  const historyLimit = 3;
+  const historyLimit = parseInt(await getSetting('history_limit', '10')) || 10;
   const history = await getHistoryForLLM(sid, historyLimit);
 
   console.log(`[ChatEngine] historyLen=${history.length}, firstMsg=${history.length > 0 ? history[0].role + ':' + history[0].content?.substring(0, 50) : 'none'}`);
@@ -389,7 +394,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   }
 
   const sensitiveCmd = /^\s*\/(cadastrar|entrar|register|login|criarconta)\s/i.test(message);
-  const safeMessage = sensitiveCmd ? message.replace(/(\S+@\S+\s+)(\S+)/, '$1••••••') : message;
+  const safeMessage = sensitiveCmd ? message.replace(/(\S+@\S+)|(\b\S{6,}\b)/g, (m) => m.includes('@') ? m : '••••••') : message;
 
   await addMessage(sid, 'user', safeMessage);
 
@@ -472,24 +477,8 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
     if (!toolCalls || toolCalls.length === 0) {
       if (!content || content.trim().length < 5) {
-        const isReasoningThinking = thinkingContent.trim().length > 20 && (
-          /^(The user|I should|I need|Let me|I will|This is|Based on|First,|Now,|Okay,|O usuário|Vou usar|Posso usar|Eu devo|Preciso|Vou gerar|O cliente|A pessoa)/i.test(thinkingContent.trim()) ||
-          /^(Vou|Preciso|Devo|O usuário|A pessoa|A cliente|Vou usar|Posso|I should|I need|I will|Let me|I must)/i.test(thinkingContent.trim().substring(0, 100))
-        );
-        if (thinkingContent.trim().length > 20 && !isReasoningThinking) {
-          const hasAccents = /[\u00C0-\u00FF]/.test(thinkingContent);
-          if (hasAccents) {
-            console.log(`[ChatEngine] Thinking recovery (primary): ${thinkingContent.length} chars`);
-            content = thinkingContent.trim();
-          } else if (thinkingContent.trim().length > 100) {
-            const lines = thinkingContent.trim().split('\n').filter(l => l.trim().length > 20);
-            if (lines.length > 0) {
-              content = lines.slice(-3).join('\n');
-              console.log(`[ChatEngine] Thinking recovery (last lines): ${content.length} chars`);
-            }
-          }
-        } else if (isReasoningThinking) {
-          console.log(`[ChatEngine] Thinking is internal reasoning, not response — retrying with direct prompt`);
+        if (thinkingContent.trim().length > 20) {
+          console.log(`[ChatEngine] Empty content with thinking (${thinkingContent.length} chars). Retrying with direct prompt — never serving thinking to user.`);
         }
       }
       if (!content || content.trim().length < 5) {
@@ -516,21 +505,8 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
           console.log(`[ChatEngine] Retry result: contentLen=${(retryResult?.message?.content||'').length}, thinkingLen=${retryThinking.length}, extractedLen=${retryContent.length}`);
           if (retryContent.trim().length >= 10) {
             content = retryContent;
-          } else if (retryThinking.trim().length > 50) {
-            const isReasoningRetry = /^(The user|I should|I need|Let me|I will|This is|Based on|First,|Now,|Okay,|O usuário|Vou usar|Posso usar|Eu devo|Preciso|Vou gerar)/i.test(retryThinking.trim());
-            if (!isReasoningRetry) {
-              const hasAccents = /[\u00C0-\u00FF]/.test(retryThinking);
-              if (hasAccents) {
-                content = retryThinking.trim();
-                console.log(`[ChatEngine] Retry thinking recovery: ${content.length} chars`);
-              } else if (retryThinking.trim().length > 100) {
-                const lines = retryThinking.trim().split('\n').filter(l => l.trim().length > 20);
-                if (lines.length > 0) {
-                  content = lines.slice(-3).join('\n');
-                  console.log(`[ChatEngine] Retry thinking recovery (last lines): ${content.length} chars`);
-                }
-              }
-            }
+          } else {
+            console.log(`[ChatEngine] Retry also empty — using fallback. NOT serving thinking content.`);
           }
         } catch (retryErr) {
           console.error('[ChatEngine] Retry failed:', retryErr.message);
@@ -545,7 +521,14 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     for (let ti = 0; ti < toolCalls.length; ti++) {
       const tc = toolCalls[ti];
       const fnName = tc.function?.name || tc.name;
-      const fnArgs = tc.function?.arguments ? (typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments) : {};
+      let fnArgs = {};
+      try {
+        fnArgs = tc.function?.arguments ? (typeof tc.function.arguments === 'string' ? JSON.parse(tc.function.arguments) : tc.function.arguments) : {};
+        if (!fnArgs || typeof fnArgs !== 'object') fnArgs = {};
+      } catch (e) {
+        console.warn(`[Engine] Invalid JSON in tool args for ${fnName}:`, e.message);
+        fnArgs = {};
+      }
       let toolResult;
       const isExternalTool = fnName === 'use_external_tool' || fnName === 'list_external_tools';
       if (isExternalTool) {
@@ -583,32 +566,25 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   if (!fullResponse || fullResponse.trim().length < 5) {
     const lastThinking = lastLLMResult?.message?.thinking || lastLLMResult?.choices?.[0]?.message?.reasoning_content || lastLLMResult?.choices?.[0]?.message?.thinking || lastLLMResult?.message?.reasoning_content || '';
     if (lastThinking.trim().length > 20) {
-      const hasAccents = /[\u00C0-\u00FF]/.test(lastThinking);
-      const looksLikeEnglish = /^(The user|I should|I need|Let me|I will|This is|Based on|First,|Now,|Okay,)/i.test(lastThinking.trim());
-      if (hasAccents && !looksLikeEnglish) {
-        console.log(`[ChatEngine] Thinking recovery: ${lastThinking.length} chars (has Portuguese chars)`);
-        fullResponse = lastThinking.trim();
-      } else if (lastThinking.trim().length > 100) {
-        const lines = lastThinking.trim().split('\n').filter(l => l.trim().length > 20);
-        if (lines.length > 0) {
-          fullResponse = lines.slice(-3).join('\n');
-          console.log(`[ChatEngine] Thinking recovery (last lines): ${fullResponse.length} chars`);
-        }
-      } else {
-        console.log(`[ChatEngine] Thinking recovery skipped — looks like reasoning, not response (${lastThinking.substring(0, 100)})`);
-      }
+      console.log(`[ChatEngine] Empty final response with thinking (${lastThinking.length} chars). NOT serving thinking content — using fallback instead.`);
     }
   }
 
   if (!fullResponse || fullResponse.trim().length < 5) {
     fullResponse = persona.cjkFallback ? (persona.cjkFallback[lang] || persona.cjkFallback['pt-BR'] || '') : '';
     if (!fullResponse) {
-      const fallbacks = {
-        'pt-BR': 'Perdoe-me, irmão. Não consegui formular uma resposta adequada agora. Poderia repetir a pergunta?',
-        'en-US': 'Forgive me, brother. I could not formulate a proper response right now. Could you repeat the question?',
-        'es-ES': 'Perdóname, hermano. No pude formular una respuesta adecuada ahora. ¿Podrías repetir la pregunta?',
-      };
-      fullResponse = fallbacks[lang] || fallbacks['pt-BR'];
+      const llmError = persona.llmError || (typeof persona.identity === 'object' ? persona.identity?.llmError : null);
+      if (llmError) {
+        fullResponse = typeof llmError === 'string' ? llmError : (llmError[lang] || llmError['pt-BR'] || Object.values(llmError)[0] || '');
+      }
+      if (!fullResponse) {
+        const fallbacks = {
+          'pt-BR': 'Não consegui formular uma resposta agora. Por favor, tente novamente.',
+          'en-US': 'I could not formulate a response right now. Please try again.',
+          'es-ES': 'No pude formular una respuesta ahora. Por favor, intente de nuevo.',
+        };
+        fullResponse = fallbacks[lang] || fallbacks['pt-BR'];
+      }
     }
   }
 
@@ -650,7 +626,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     generateProfileSummary(uid).catch(() => {});
   }
 
-  const smartFollowUp = require('../onboarding/followup');
+        smartFollowUp
   surveyEngine.autoCreateFollowUp(uid, sid).catch(() => {});
 
   smartFollowUp.shouldCreateFollowUp(uid, persona.id, sid).catch(() => {});
@@ -711,12 +687,12 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 }
 
 async function getContextualWelcome(userId, personaId, lang) {
-  const smartFollowUp = require('../onboarding/followup');
+        smartFollowUp
   return smartFollowUp.getContextualWelcome(userId, personaId, lang);
 }
 
 async function getQuickActions(personaId, userId) {
-  const smartFollowUp = require('../onboarding/followup');
+        smartFollowUp
   const { getProfile } = require('../memory/profile');
   const profile = userId ? await getProfile(userId).catch(() => null) : null;
   return smartFollowUp.getQuickActions(personaId, profile);
@@ -1041,7 +1017,7 @@ async function processMessageStream({ message, sessionId, userId, language, isGr
       }
     } catch (err) { console.error('[Stream] message XP error:', err.message); }
 
-    const smartFollowUp = require('../onboarding/followup');
+          smartFollowUp
     smartFollowUp.shouldCreateFollowUp(uid, persona.id, sid).catch(() => {});
 
     thoughtsModule.logThought({
@@ -1161,7 +1137,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         if (!linked) {
           return '❌ Sua conta não está vinculada a nenhuma conta web.';
         }
-        const col = uid.startsWith('wa_') ? 'whatsapp_id' : 'telegram_id';
+        const col = getBotCol(uid);
         await pool.execute(`UPDATE users SET ${col} = NULL WHERE id = ?`, [linked.id]);
         return '✅ Conta desvinculada. Suas conversas agora usam uma conta separada do bot.';
       } catch (err) {
@@ -1209,7 +1185,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           throw regErr;
         }
         if (existingBotUser) {
-          const col = uid.startsWith('wa_') ? 'whatsapp_id' : 'telegram_id';
+          const col = getBotCol(uid);
           await authPool.execute(`UPDATE users SET ${col} = ? WHERE id = ?`, [uid, userId]);
           const [delRows] = await authPool.execute('SELECT id FROM users WHERE id = ?', [uid]);
           if (delRows.length > 0 && uid !== userId) {
@@ -1236,7 +1212,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         const user = await login(emailLogin, passwordLogin);
         const fullUser = await getUserWithRole(user.id);
         if ((uid.startsWith('wa_') || uid.startsWith('tg_'))) {
-          const col = uid.startsWith('wa_') ? 'whatsapp_id' : 'telegram_id';
+          const col = getBotCol(uid);
           await authPool.execute(`UPDATE users SET ${col} = ? WHERE id = ?`, [uid, fullUser.id]);
           const [delRows] = await authPool.execute('SELECT id FROM users WHERE id = ?', [uid]);
           if (delRows.length > 0 && uid !== fullUser.id) {
@@ -2200,7 +2176,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
     }
 
     case '/email': {
-      if (!isAdmin) return '⛔ Apenas administrados.';
+      if (!isAdmin) return '⛔ Apenas administradores.';
       const emailParts = args.trim().split('|');
       if (emailParts.length < 2) return 'Uso: /email <destinatário> | <assunto> | <mensagem>';
       const to = emailParts[0].trim();
