@@ -541,6 +541,13 @@ async function seedDefaultBlueprints(bm) {
     } catch (err) {
       console.error('Warning: Blueprint seeding failed:', err.message);
     }
+
+    try {
+      const chatCommands = require('./chat/commands');
+      await chatCommands.seedDefaultCommands();
+    } catch (err) {
+      console.error('Warning: Chat commands seeding failed:', err.message);
+    }
   } catch (err) {
     console.error('Warning: Personas load failed:', err.message);
   }

@@ -134,29 +134,430 @@ async function loadRegistry() {
     category: 'weather',
     niche: 'general',
     name: 'Previsão do Tempo',
-    description: 'Busca previsão do tempo por cidade',
+    description: 'Busca previsão do tempo por cidade (usa Open-Meteo API gratuita)',
     input: ['city', 'days'],
-    output: ['temperature', 'condition', 'humidity', 'wind'],
+    output: ['temperature', 'condition', 'humidity', 'wind', 'forecast'],
     enabled: true,
     priority: 5,
     execute: async (params) => {
       const city = params.city || 'São Paulo';
-      return { city, temperature: 22, condition: 'Parcialmente nublado', humidity: 65, wind: 12 };
+      try {
+        const geoRes = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(city)}&limit=1`, {
+          headers: { 'User-Agent': 'MetaPersonaAI/1.0' }
+        });
+        const geoData = await geoRes.json();
+        if (!geoData || geoData.length === 0) return { error: 'Cidade não encontrada', city };
+        const { lat, lon } = geoData[0];
+        const weatherRes = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,relative_humidity_2m,weather_code,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min&timezone=auto&forecast_days=${params.days || 3}`);
+        const weather = await weatherRes.json();
+        const current = weather.current;
+        const daily = weather.daily || {};
+        const condicoes = { 0: 'Céu claro', 1: 'Predominantemente limpo', 2: 'Parcialmente nublado', 3: 'Nublado', 45: 'Neblina', 48: 'Neblina', 51: 'Garoa leve', 53: 'Garoa', 55: 'Garoa forte', 61: 'Chuva leve', 63: 'Chuva', 65: 'Chuva forte', 71: 'Neve leve', 73: 'Neve', 75: 'Neve forte', 80: 'Pancadas', 95: 'Tempestade', 96: 'Tempestade com granizo', 99: 'Tempestade severa' };
+        return {
+          city,
+          temperature: current?.temperature_2m,
+          condition: condicoes[current?.weather_code] || 'Desconhecido',
+          humidity: current?.relative_humidity_2m,
+          wind: current?.wind_speed_10m,
+          forecast: daily.time?.slice(0, 3).map((t, i) => ({
+            date: t,
+            min: daily.temperature_2m_min?.[i],
+            max: daily.temperature_2m_max?.[i],
+            condition: condicoes[daily.weather_code?.[i]] || 'Desconhecido'
+          })) || []
+        };
+      } catch (e) {
+        return { error: e.message, city };
+      }
     },
   });
 
   registerTool({
-    id: ' cep_lookup',
+    id: 'cep_lookup',
     category: 'address',
     niche: 'general',
     name: 'Buscar CEP',
-    description: 'Busca endereço por CEP',
+    description: 'Busca endereço por CEP (usa ViaCEP API gratuita)',
     input: ['cep'],
     output: ['address', 'neighborhood', 'city', 'state', 'ibge'],
     enabled: true,
     priority: 6,
     execute: async (params) => {
-      return { address: 'Rua Example', neighborhood: 'Centro', city: 'São Paulo', state: 'SP', ibge: '3550308' };
+      const cep = (params.cep || '').replace(/\D/g, '');
+      if (cep.length !== 8) return { error: 'CEP inválido. Use 8 dígitos.' };
+      try {
+        const res = await fetch(`https://viacep.com.br/ws/${cep}/json/`);
+        const data = await res.json();
+        if (data.erro) return { error: 'CEP não encontrado' };
+        return {
+          cep: data.cep,
+          address: `${data.logradouro || ''} ${data.complemento || ''}`.trim(),
+          neighborhood: data.bairro,
+          city: data.localidade,
+          state: data.uf,
+          ibge: data.ibge
+        };
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+  });
+
+  registerTool({
+    id: 'geocoding',
+    category: 'geocoding',
+    niche: 'general,location',
+    name: 'Geocoding',
+    description: 'Converte endereço em coordenadas ou vice-versa (usa Nominatim)',
+    input: ['address', 'latitude', 'longitude'],
+    output: ['latitude', 'longitude', 'display_name'],
+    enabled: true,
+    priority: 5,
+    execute: async (params) => {
+      try {
+        if (params.latitude && params.longitude) {
+          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${params.latitude}&lon=${params.longitude}&zoom=18&addressdetails=1`, {
+            headers: { 'User-Agent': 'MetaPersonaAI/1.0' }
+          });
+          const data = await res.json();
+          return { latitude: params.latitude, longitude: params.longitude, display_name: data.display_name, address: data.address };
+        }
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(params.address)}&limit=1&addressdetails=1`, {
+          headers: { 'User-Agent': 'MetaPersonaAI/1.0' }
+        });
+        const data = await res.json();
+        if (!data || data.length === 0) return { error: 'Endereço não encontrado' };
+        return { latitude: data[0].lat, longitude: data[0].lon, display_name: data[0].display_name, address: data[0].address };
+      } catch (e) {
+        return { error: e.message };
+      }
+    },
+  });
+
+  registerTool({
+    id: 'cat_facts',
+    category: 'animals',
+    niche: 'fun,general',
+    name: 'Fatos sobre Gatos',
+    description: 'Retorna fatos aleatórios sobre gatos',
+    input: [],
+    output: ['fact'],
+    enabled: true,
+    priority: 3,
+    execute: async () => {
+      try {
+        const res = await fetch('https://catfact.ninja/fact');
+        const data = await res.json();
+        return { fact: data.fact, length: data.length };
+      } catch (e) { return { fact: 'Gatos são incríveis!', error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'dog_facts',
+    category: 'animals',
+    niche: 'fun,general',
+    name: 'Fatos sobre Cães',
+    description: 'Retorna fatos aleatórios sobre cães',
+    input: [],
+    output: ['fact'],
+    enabled: true,
+    priority: 3,
+    execute: async () => {
+      try {
+        const res = await fetch('https://dogapi.dog/api/v2/facts?limit=1');
+        const data = await res.json();
+        return { fact: data.data?.[0]?.attributes?.body || 'Cães são melhores amigos!' };
+      } catch (e) { return { fact: 'Cães são melhores amigos!', error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'jokes',
+    category: 'fun',
+    niche: 'fun,general',
+    name: 'Piadas',
+    description: 'Retorna piadas aleatórias (suporta categorias: any, programming, dark, pun, spooky, christmas)',
+    input: ['category'],
+    output: ['joke', 'setup', 'delivery'],
+    enabled: true,
+    priority: 3,
+    execute: async (params) => {
+      try {
+        const cat = params.category || 'any';
+        const res = await fetch(`https://v2.jokeapi.dev/joke/${cat}?safe-mode&type=single`);
+        const data = await res.json();
+        if (data.type === 'twopart') return { setup: data.setup, delivery: data.category };
+        return { joke: data.joke, category: data.category };
+      } catch (e) { return { joke: 'Por que o програмador foi ao médico? Porque tinha muitos bugs!', error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'advice',
+    category: 'fun',
+    niche: 'fun,general',
+    name: 'Conselho Aleatório',
+    description: 'Retorna conselhos aleatórios',
+    input: [],
+    output: ['advice', 'slip_id'],
+    enabled: true,
+    priority: 3,
+    execute: async () => {
+      try {
+        const res = await fetch('https://api.adviceslip.com/advice');
+        const data = await res.json();
+        return { advice: data.slip.advice, slip_id: data.slip.slip_id };
+      } catch (e) { return { advice: 'Nunca desista dos seus sonhos!', error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'random_user',
+    category: 'data',
+    niche: 'general',
+    name: 'Usuário Aleatório',
+    description: 'Gera dados de usuário fake aleatório',
+    input: [],
+    output: ['name', 'email', 'phone', 'location', 'picture'],
+    enabled: true,
+    priority: 2,
+    execute: async () => {
+      try {
+        const res = await fetch('https://randomuser.me/api/');
+        const data = await res.json();
+        const u = data.results?.[0];
+        return {
+          name: `${u.name.first} ${u.name.last}`,
+          email: u.email,
+          phone: u.cell,
+          location: `${u.location.city}, ${u.location.country}`,
+          picture: u.picture.large
+        };
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'number_fact',
+    category: 'data',
+    niche: 'general,fun',
+    name: 'Fato sobre Número',
+    description: 'Retorna fato interessante sobre um número (trivia, math, date, year)',
+    input: ['number', 'type'],
+    output: ['text', 'number', 'type'],
+    enabled: true,
+    priority: 2,
+    execute: async (params) => {
+      try {
+        const num = params.number || Math.floor(Math.random() * 100);
+        const type = params.type || 'trivia';
+        const res = await fetch(`http://numbersapi.com/${num}/${type}?json`);
+        const data = await res.json();
+        return { text: data.text, number: data.number, type: data.type };
+      } catch (e) { return { text: `${params.number || 42} é um número interessante!`, error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'word_definition',
+    category: 'dictionary',
+    niche: 'education,language',
+    name: 'Definição de Palavra',
+    description: 'Busca definição de palavra no dicionário',
+    input: ['word'],
+    output: ['word', 'definition', 'phonetic', 'partOfSpeech'],
+    enabled: true,
+    priority: 4,
+    execute: async (params) => {
+      try {
+        const word = params.word || 'hello';
+        const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${word}`);
+        const data = await res.json();
+        if (!data[0]) return { error: 'Palavra não encontrada' };
+        const def = data[0].meanings?.[0]?.definitions?.[0];
+        return {
+          word: data[0].word,
+          phonetic: data[0].phonetic || data[0].phonetics?.[0]?.text,
+          partOfSpeech: data[0].meanings?.[0]?.partOfSpeech,
+          definition: def?.definition
+        };
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'horoscope',
+    category: 'fun',
+    niche: 'fun,astrology',
+    name: 'Horóscopo',
+    description: 'Retorna horóscopo do dia (aries, taurus, gemini, cancer, leo, virgo, libra, scorpio, sagittarius, capricorn, aquarius, pisces)',
+    input: ['sign'],
+    output: ['sign', 'horoscope', 'mood', 'color', 'lucky_number', 'lucky_time'],
+    enabled: true,
+    priority: 2,
+    execute: async (params) => {
+      const signs = ['aries', 'taurus', 'gemini', 'cancer', 'leo', 'virgo', 'libra', 'scorpio', 'sagittarius', 'capricorn', 'aquarius', 'pisces'];
+      const sign = (params.sign || '').toLowerCase();
+      if (!signs.includes(sign)) return { error: `Sign inválido. Use: ${signs.join(', ')}` };
+      try {
+        const res = await fetch(`https://horoscope-app-api.vercel.app/api/v1/get-horoscope/daily?sign=${sign}`);
+        const data = await res.json();
+        return data.data || { sign, horoscope: 'Horóscopo indisponível' };
+      } catch (e) { return { sign, horoscope: 'Hoje será um ótimo dia!', error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'exchange_rates',
+    category: 'finance',
+    niche: 'finance,general',
+    name: 'Taxas de Câmbio',
+    description: 'Busca taxas de câmbio atualizadas (base: USD)',
+    input: ['base'],
+    output: ['base', 'rates', 'timestamp'],
+    enabled: true,
+    priority: 5,
+    execute: async (params) => {
+      try {
+        const res = await fetch('https://api.exchangerate-api.com/v4/latest/USD');
+        const data = await res.json();
+        const base = params.base || 'USD';
+        const rates = {};
+        for (const [k, v] of Object.entries(data.rates)) {
+          rates[k] = (v / data.rates[base || 'USD']).toFixed(4);
+        }
+        return { base, rates, timestamp: data.time_last_updated };
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'news_search',
+    category: 'news',
+    niche: 'news,general',
+    name: 'Buscar Notícias',
+    description: 'Busca notícias por termo (usa GNews API ou fallback)',
+    input: ['query', 'lang', 'max'],
+    output: ['articles', 'totalArticles'],
+    enabled: true,
+    priority: 5,
+    execute: async (params) => {
+      const query = params.query || 'technology';
+      const lang = params.lang || 'pt';
+      const max = params.max || 5;
+      try {
+        const key = process.env.GNEWS_API_KEY || '';
+        const url = key
+          ? `https://gnews.io/api/v4/search?q=${encodeURIComponent(query)}&lang=${lang}&max=${max}&apikey=${key}`
+          : `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=${lang}&gl=${lang}`;
+        const res = await fetch(url);
+        if (key) {
+          const data = await res.json();
+          return { articles: data.articles?.slice(0, max).map(a => ({ title: a.title, description: a.description, url: a.url, source: a.source.name })), totalArticles: data.totalArticles };
+        }
+        return { articles: [{ title: 'Google News RSS', description: 'Use GNEWS_API_KEY para resultados completos' }], totalArticles: 0 };
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'youtube_search',
+    category: 'video',
+    niche: 'media,search',
+    name: 'Buscar YouTube',
+    description: 'Busca vídeos no YouTube',
+    input: ['query', 'max'],
+    output: ['title', 'videoId', 'channel', 'views', 'published'],
+    enabled: true,
+    priority: 4,
+    execute: async (params) => {
+      const query = params.query || 'tutorial';
+      const max = params.max || 5;
+      try {
+        const key = process.env.YOUTUBE_API_KEY || '';
+        if (!key) return { error: 'YOUTUBE_API_KEY não configurado' };
+        const res = await fetch(`https://www.googleapis.com/youtube/v3/search?part=snippet&q=${encodeURIComponent(query)}&type=video&maxResults=${max}&key=${key}`);
+        const data = await res.json();
+        return { videos: data.items?.map(v => ({ title: v.snippet.title, videoId: v.id.videoId, channel: v.snippet.channelTitle, published: v.snippet.publishedAt })) || [] };
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'wikipedia_search',
+    category: 'knowledge',
+    niche: 'education,general',
+    name: 'Buscar Wikipedia',
+    description: 'Busca informações na Wikipedia',
+    input: ['query'],
+    output: ['title', 'extract', 'url', 'thumbnail'],
+    enabled: true,
+    priority: 5,
+    execute: async (params) => {
+      try {
+        const query = params.query || 'Brazil';
+        const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(query)}`);
+        const data = await res.json();
+        return { title: data.title, extract: data.extract, url: data.content_urls?.desktop?.page, thumbnail: data.thumbnail?.source };
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'emoji_search',
+    category: 'fun',
+    niche: 'fun,social',
+    name: 'Buscar Emoji',
+    description: 'Busca emoji por palavra-chave',
+    input: ['query'],
+    output: ['emoji', 'keywords'],
+    enabled: true,
+    priority: 2,
+    execute: async (params) => {
+      const query = params.query || 'happy';
+      try {
+        const res = await fetch(`https://emoji-api.com/emojis?search=${query}`);
+        const data = await res.json();
+        return { emojis: data.slice(0, 10).map(e => ({ emoji: e.character, name: e.slug, keywords: e.keywords })) };
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'qr_code',
+    category: 'tools',
+    niche: 'utility',
+    name: 'Gerar QR Code',
+    description: 'Gera QR Code para URL ou texto',
+    input: ['content', 'size'],
+    output: ['url', 'base64'],
+    enabled: true,
+    priority: 3,
+    execute: async (params) => {
+      const content = params.content || 'https://example.com';
+      const size = params.size || 200;
+      return { url: `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${encodeURIComponent(content)}`, content };
+    },
+  });
+
+  registerTool({
+    id: 'url_metadata',
+    category: 'tools',
+    niche: 'utility',
+    name: 'Meta URL',
+    description: 'Extrai metadata de URL (title, description, image)',
+    input: ['url'],
+    output: ['title', 'description', 'image', 'favicon'],
+    enabled: true,
+    priority: 3,
+    execute: async (params) => {
+      const url = params.url || 'https://example.com';
+      try {
+        const res = await fetch(`https://api.microlink.io/url=${encodeURIComponent(url)}&palette=structured`);
+        const data = await res.json();
+        return { title: data.data?.title, description: data.data?.description, image: data.data?.image?.url, favicon: data.data?.favicon?.url, url };
+      } catch (e) { return { error: e.message }; }
     },
   });
 

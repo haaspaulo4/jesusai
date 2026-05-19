@@ -86,6 +86,31 @@ function invalidateCache() {
   loaded = false;
 }
 
+const DEFAULT_COMMANDS = [
+  { command: 'ajuda', description: 'Mostra lista de comandos disponíveis', response_template: 'Comandos disponíveis:\n• /ajuda - Esta mensagem\n• /stats - Suas estatísticas\n• /persona - Listar personas\n• /xp - Ver XP e level\n• /goals - Ver metas\n• /dashboard - Painel geral', response_type: 'text', category: 'general' },
+  { command: 'ping', description: 'Testa connectivity', response_template: 'Pong! 🤙', response_type: 'text', category: 'general' },
+  { command: 'bonjour', description: 'Saudação em francês', response_template: 'Bonjour! 🇫🇷 Comment allez-vous?', response_type: 'text', category: 'fun' },
+  { command: 'hola', description: 'Saudação em espanhol', response_template: '¡Hola! 🇪🇸 ¿Cómo estás?', response_type: 'text', category: 'fun' },
+  { command: 'hi', description: 'Saudação em inglês', response_template: 'Hi! 🇬🇧 How are you?', response_type: 'text', category: 'fun' },
+  { command: 'piada', description: 'Conta uma piada', response_type: 'tool', action_type: 'invoke_skill', action_config: { tool_id: 'jokes' }, category: 'fun' },
+  { command: 'fato', description: 'Fato aleatório', response_type: 'tool', action_type: 'invoke_skill', action_config: { tool_id: 'cat_facts' }, category: 'fun' },
+  { command: 'clima', description: 'Previsão do tempo', response_type: 'tool', action_type: 'invoke_skill', action_config: { tool_id: 'weather' }, category: 'utility' },
+];
+
+async function seedDefaultCommands() {
+  try {
+    for (const cmd of DEFAULT_COMMANDS) {
+      try {
+        await pool.execute(
+          `INSERT IGNORE INTO chat_commands (command, description, response_template, response_type, action_type, action_config, category) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [cmd.command, cmd.description, cmd.response_template || null, cmd.response_type || 'text', cmd.action_type || 'respond', cmd.action_config ? JSON.stringify(cmd.action_config) : null, cmd.category || 'general']
+        );
+      } catch (e) { console.log(`[Seed] Command ${cmd.command}: ${e.message}`); }
+    }
+    console.log('[Seed] Default chat commands seeded');
+  } catch (e) { console.error('[Seed] Chat commands seed error:', e.message); }
+}
+
 async function processCommand(message, userId, role, personaId) {
   const cmd = await getCommand(message.trim());
   if (!cmd) return null;

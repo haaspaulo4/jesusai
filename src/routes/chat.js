@@ -121,6 +121,7 @@ router.post('/chat', authMiddleware, async (req, res) => {
     if (result.onboarding !== undefined) response.onboarding = result.onboarding;
     if (result.onboardingDone !== undefined) response.onboardingDone = result.onboardingDone;
     if (result.humanOverride !== undefined) response.humanOverride = result.humanOverride;
+    if (result.interactiveOptions) response.interactiveOptions = result.interactiveOptions;
 
     res.json(response);
   } catch (err) {

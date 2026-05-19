@@ -78,7 +78,28 @@ async function startBot(id) {
       instanceId: id,
     });
 
-    tgBot.on('message', (msg) => {
+    tgBot.on('message', async (msg) => {
+      if (msg.text && msg.text.trim() === '/start') {
+        const chatId = msg.chat.id;
+        const firstName = msg.from?.first_name || 'amigo';
+        const isGroup = msg.chat.type === 'group' || msg.chat.type === 'supergroup';
+        if (!isGroup) {
+          try {
+            await tgBot.sendMessage(chatId, `👋 Olá, ${firstName}! Eu sou o ${bot.name || 'MetaPersona.AI'}. Como posso te ajudar hoje?`, {
+              reply_markup: {
+                keyboard: [
+                  ['💬 Conversar', '📊 /stats'],
+                  ['🎭 /persona', '🎯 /goals'],
+                  ['✅ /tasks', '📅 /calendar'],
+                  ['📖 Ajuda', '⚙️ /myprofile'],
+                ],
+                resize_keyboard: true,
+                one_time_keyboard: false,
+              },
+            });
+          } catch {}
+        }
+      }
       handler(tgBot, msg).catch(err => console.error(`[TG:${bot.name}] Error:`, err.message));
     });
     tgBot.on('callback_query', async (query) => {

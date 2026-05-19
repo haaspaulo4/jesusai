@@ -900,7 +900,17 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         `SELECT COUNT(*) as total FROM messages m INNER JOIN sessions s ON m.session_id = s.id WHERE s.user_id = ?`,
         [uid]
       );
-      return `📊 Suas estatísticas:\n• Sessões: ${sessionRows[0].total}\n• Mensagens: ${msgRows[0].total}`;
+      return {
+        response: `📊 Suas estatísticas:\n• Sessões: ${sessionRows[0].total}\n• Mensagens: ${msgRows[0].total}`,
+        interactiveOptions: {
+          type: 'buttons',
+          items: [
+            { id: 'action:/myprofile', text: '📋 Perfil' },
+            { id: 'action:/xp', text: '🎮 XP' },
+            { id: 'action:/cognitive', text: '🧠 Cognitivo' },
+          ],
+        },
+      };
     }
 
     case '/myprofile':
@@ -1196,7 +1206,11 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const { KOKORO_VOICES: kv } = require('../tts');
       const voiceList = Object.entries(kv).map(([lang, cfg]) => `  ${lang}: ${cfg.voice}`).join('\n');
       if (!args) {
-        return `🔊 Voz atual: ${persona.ttsVoice || 'pm_alex'}\n\nVozes Kokoro disponíveis:\n${voiceList}\n\nUse: /voice <nome_da_voz>\nExemplo: /voice pm_alex, /voice pf_dora`;
+        const voiceNames = Object.entries(kv).slice(0, 6).map(([lang, cfg]) => ({ id: `voice:${cfg.voice}`, text: `${cfg.voice}`, label: lang }));
+        return {
+          response: `🔊 Voz atual: ${persona.ttsVoice || 'pm_alex'}\n\nVozes Kokoro disponíveis:\n${voiceList}\n\nUse: /voice <nome_da_voz>\nExemplo: /voice pm_alex, /voice pf_dora`,
+          interactiveOptions: { type: 'buttons', items: voiceNames },
+        };
       }
       const newVoice = args.trim();
       try {
@@ -1239,7 +1253,13 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         const surveys = await surveyEngine.listSurveys({ activeOnly: false });
         if (surveys.surveys.length === 0) return '📋 Nenhuma pesquisa criada. Use /survey create <título>';
         const lines = surveys.surveys.map(s => `• ${s.id}: "${s.title}" ${s.isActive ? '✅' : '❌'} (${s.triggerType})`);
-        return `📋 Pesquisas:\n${lines.join('\n')}\n\nComandos:\n/survey create <título>\n/survey <id> - Ver detalhes\n/survey <id> toggle\n/survey <id> responses`;
+        return {
+          response: `📋 Pesquisas:\n${lines.join('\n')}\n\nComandos:\n/survey create <título>\n/survey <id> - Ver detalhes\n/survey <id> toggle\n/survey <id> responses`,
+          interactiveOptions: {
+            type: 'buttons',
+            items: surveys.surveys.slice(0, 3).map(s => ({ id: `action:/survey ${s.id}`, text: `📋 ${s.title}`, label: s.title })),
+          },
+        };
       }
 
       const surveyArgs = args.split(' ');
@@ -1334,14 +1354,35 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       taskFilters.limit = 20;
       const tasks = await agentModule.listTasks(taskFilters);
       if (tasks.length === 0) return '📋 Nenhuma tarefa encontrada.';
-      return `📋 Tarefas (${tasks.length}):\n${tasks.map(t => `• [${t.priority}] ${t.title} - ${t.status} ${t.due_date ? '(Prazo: ' + t.due_date + ')' : ''}`).join('\n')}`;
+      const taskText = `📋 Tarefas (${tasks.length}):\n${tasks.map(t => `• [${t.priority}] ${t.title} - ${t.status} ${t.due_date ? '(Prazo: ' + t.due_date + ')' : ''}`).join('\n')}`;
+      return {
+        response: taskText,
+        interactiveOptions: {
+          type: 'buttons',
+          items: [
+            { id: 'action:/tasks pending', text: '⏳ Pendentes' },
+            { id: 'action:/tasks in_progress', text: '🔄 Em progresso' },
+            { id: 'action:/tasks overdue', text: '⚠️ Atrasadas' },
+          ],
+        },
+      };
     }
 
     case '/calendar': {
       if (!args || args === 'upcoming' || args === 'semana') {
         const events = await agentModule.getUpcomingEvents(uid, 7);
         if (events.length === 0) return '📅 Nenhum evento nos próximos 7 dias.';
-        return `📅 Próximos eventos (${events.length}):\n${events.map(e => `• ${e.start_time}: ${e.title} (${e.event_type}) ${e.location ? '@ ' + e.location : ''}`).join('\n')}`;
+        const calText = `📅 Próximos eventos (${events.length}):\n${events.map(e => `• ${e.start_time}: ${e.title} (${e.event_type}) ${e.location ? '@ ' + e.location : ''}`).join('\n')}`;
+        return {
+          response: calText,
+          interactiveOptions: {
+            type: 'buttons',
+            items: [
+              { id: 'action:/tasks', text: '📋 Tarefas' },
+              { id: 'action:/goals', text: '🎯 Metas' },
+            ],
+          },
+        };
       }
       return '📅 Use: /calendar [upcoming|semana]\nOu peça para criar um evento no chat.';
     }
@@ -1357,19 +1398,51 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       contactFilters.limit = 20;
       const contacts = await agentModule.listContacts(contactFilters);
       if (contacts.length === 0) return '👥 Nenhum contato encontrado.';
-      return `👥 Contatos (${contacts.length}):\n${contacts.map(c => `• ${c.name} [${c.stage}] ${c.email || ''} ${c.company ? '@ ' + c.company : ''} ${c.tags ? '(' + (Array.isArray(c.tags) ? c.tags.join(',') : c.tags) + ')' : ''}`).join('\n')}`;
+      const contactText = `👥 Contatos (${contacts.length}):\n${contacts.map(c => `• ${c.name} [${c.stage}] ${c.email || ''} ${c.company ? '@ ' + c.company : ''} ${c.tags ? '(' + (Array.isArray(c.tags) ? c.tags.join(',') : c.tags) + ')' : ''}`).join('\n')}`;
+      return {
+        response: contactText,
+        interactiveOptions: {
+          type: 'buttons',
+          items: [
+            { id: 'action:/contacts lead', text: '🔵 Leads' },
+            { id: 'action:/contacts customer', text: '🟢 Clientes' },
+            { id: 'action:/contacts vip', text: '⭐ VIPs' },
+          ],
+        },
+      };
     }
 
     case '/automations': {
       const automations = await agentModule.listAutomations({ owner_id: uid, limit: 20 });
       if (automations.length === 0) return '🤖 Nenhuma automação configurada.';
-      return `🤖 Automações (${automations.length}):\n${automations.map(a => `• ${a.name} [${a.trigger_type} → ${a.action_type}] ${a.is_active ? '✅' : '❌'}`).join('\n')}`;
+      const autoText = `🤖 Automações (${automations.length}):\n${automations.map(a => `• ${a.name} [${a.trigger_type} → ${a.action_type}] ${a.is_active ? '✅' : '❌'}`).join('\n')}`;
+      return {
+        response: autoText,
+        interactiveOptions: {
+          type: 'buttons',
+          items: [
+            { id: 'action:/dashboard', text: '📊 Dashboard' },
+            { id: 'action:/goals', text: '🎯 Metas' },
+          ],
+        },
+      };
     }
 
     case '/dashboard': {
       const stats = await agentModule.getDashboardStats(uid);
       const goals2 = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 5 });
-      return `📊 Dashboard:\n• Tarefas: ${stats.tasks.total} (${Object.entries(stats.tasks.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ')})\n• Eventos (7d): ${stats.upcomingEvents}\n• Contatos: ${stats.contacts.total} (${Object.entries(stats.contacts.byStage).map(([k, v]) => `${k}: ${v}`).join(', ')})\n• Automações ativas: ${stats.activeAutomations}\n• Personas: ${stats.activePersonas}\n• Skills: ${stats.activeSkills}${stats.goals ? '\n• Metas: ' + stats.goals.total + ' (' + Object.entries(stats.goals.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ') + ')' : ''}${stats.orgMemory && stats.orgMemory.total > 0 ? '\n• Memória Org: ' + stats.orgMemory.total + ' itens' : ''}${goals2.length > 0 ? '\n• Metas ativas: ' + goals2.map(g => g.title).join(', ') : ''}`;
+      const dashText = `📊 Dashboard:\n• Tarefas: ${stats.tasks.total} (${Object.entries(stats.tasks.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ')})\n• Eventos (7d): ${stats.upcomingEvents}\n• Contatos: ${stats.contacts.total} (${Object.entries(stats.contacts.byStage).map(([k, v]) => `${k}: ${v}`).join(', ')})\n• Automações ativas: ${stats.activeAutomations}\n• Personas: ${stats.activePersonas}\n• Skill: ${stats.activeSkills}${stats.goals ? '\n• Metas: ' + stats.goals.total + ' (' + Object.entries(stats.goals.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ') + ')' : ''}${stats.orgMemory && stats.orgMemory.total > 0 ? '\n• Memória Org: ' + stats.orgMemory.total + ' itens' : ''}${goals2.length > 0 ? '\n• Metas ativas: ' + goals2.map(g => g.title).join(', ') : ''}`;
+      return {
+        response: dashText,
+        interactiveOptions: {
+          type: 'buttons',
+          items: [
+            { id: 'action:/tasks', text: '📋 Tarefas' },
+            { id: 'action:/goals', text: '🎯 Metas' },
+            { id: 'action:/calendar', text: '📅 Eventos' },
+          ],
+        },
+      };
     }
 
     case '/goals':
@@ -1382,7 +1455,16 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           const progressStr = g.progress > 0 ? ` (${g.progress}%)` : '';
           return `${statusIcon} [${g.goal_type}] ${g.title} - ${g.status}${progressStr}`;
         });
-        return `🎯 Metas (${goals.length}):\n${lines.join('\n')}\n\nComandos:\n/goals create <título>\n/goals <id> edit <campo> <valor>\n/goals <id> progress <0-100>\n/goals progress - Progresso geral`;
+        return {
+          response: `🎯 Metas (${goals.length}):\n${lines.join('\n')}\n\nComandos:\n/goals create <título>\n/goals <id> edit <campo> <valor>\n/goals <id> progress <0-100>\n/goals progress - Progresso geral`,
+          interactiveOptions: {
+            type: 'buttons',
+            items: [
+              { id: 'action:/goals progress', text: '📊 Progresso' },
+              { id: 'action:/goals create', text: '➕ Criar meta' },
+            ],
+          },
+        };
       }
 
       if (args === 'progress' || args === 'progresso') {
@@ -1565,7 +1647,17 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const xpData = await gamificationModule.getXp(uid, persona.id);
       const nextLevel = gamificationModule.getXpForNextLevel(xpData.xp);
       const badges = (xpData.badges || []).map(b => b.name).join(', ') || 'Nenhuma';
-      return `🎮 Seu Progresso:\n• Nível: ${xpData.level}\n• XP: ${xpData.xp}${nextLevel.remaining > 0 ? ` (${nextLevel.remaining} para o próximo)` : ''}\n• Streak: ${xpData.streak || 0} dias (melhor: ${xpData.best_streak || 0})\n• Conquistas: ${badges}`;
+      return {
+        response: `🎮 Seu Progresso:\n• Nível: ${xpData.level}\n• XP: ${xpData.xp}${nextLevel.remaining > 0 ? ` (${nextLevel.remaining} para o próximo)` : ''}\n• Streak: ${xpData.streak || 0} dias (melhor: ${xpData.best_streak || 0})\n• Conquistas: ${badges}`,
+        interactiveOptions: {
+          type: 'buttons',
+          items: [
+            { id: 'action:/xp leaderboard', text: '🏆 Ranking' },
+            { id: 'action:/xp badges', text: '🎖️ Conquistas' },
+            { id: 'action:/stats', text: '📊 Stats' },
+          ],
+        },
+      };
     }
 
     case '/progress': {
@@ -1658,14 +1750,32 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         const intentPct = Math.round((state.intent_confidence || 0) * 100);
         const churnPct = Math.round((state.churn_risk || 0) * 100);
         const engagePct = Math.round((state.engagement_score || 0) * 100);
-        return `🧠 Estado Cognitivo:\n• Emoção: ${state.emotion || 'neutral'} (${emotionPct}%)\n• Intenção: ${state.intent || 'unknown'} (${intentPct}%)\n• Risco de churn: ${churnPct}%\n• Engajamento: ${engagePct}%\n• Ação sugerida: ${state.suggested_action || 'N/A'}`;
+        return {
+          response: `🧠 Estado Cognitivo:\n• Emoção: ${state.emotion || 'neutral'} (${emotionPct}%)\n• Intenção: ${state.intent || 'unknown'} (${intentPct}%)\n• Risco de churn: ${churnPct}%\n• Engajamento: ${engagePct}%\n• Ação sugerida: ${state.suggested_action || 'N/A'}`,
+          interactiveOptions: {
+            type: 'buttons',
+            items: [
+              { id: 'action:/progress', text: '📈 Progresso' },
+              { id: 'action:/xp', text: '🎮 XP' },
+            ],
+          },
+        };
       }
       if (args === 'stats' || args === 'estatisticas') {
         if (!isAdmin) return '⛔ Apenas administradores.';
         const stats = await cognitiveModule.getCognitiveStats(persona.id, 7);
         return `🧠 Estatísticas cognitivas (7d):\n• Total de análises: ${stats.totalMessages}\n• Emoções: ${Object.entries(stats.emotionDistribution || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}\n• Intenções: ${Object.entries(stats.intentDistribution || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}\n• Churn médio: ${stats.avgChurnRisk}\n• Conversão média: ${stats.avgConversionProbability}\n• Engajamento médio: ${stats.avgEngagement}`;
       }
-      return '🧠 Comandos:\n/cognitive me - Seu estado cognitivo\n/cognitive stats - Estatísticas (admin)';
+      return {
+        response: '🧠 Comandos:\n/cognitive me - Seu estado cognitivo\n/cognitive stats - Estatísticas (admin)',
+        interactiveOptions: {
+          type: 'buttons',
+          items: [
+            { id: 'action:/cognitive me', text: '🧠 Meu estado' },
+            { id: 'action:/cognitive stats', text: '📊 Estatísticas' },
+          ],
+        },
+      };
     }
 
     case '/override': {
@@ -1791,7 +1901,18 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         '📊 /stats2 - Estatísticas globais',
         '⚙️ /config - Configurações rápidas (admin)',
       ];
-      return cmds.join('\n');
+      const textResponse = cmds.join('\n');
+      return {
+        response: textResponse,
+        interactiveOptions: {
+          type: 'buttons',
+          items: [
+            { id: 'action:/stats', text: '📊 Stats' },
+            { id: 'action:/persona', text: '🎭 Personas' },
+            { id: 'action:/goals', text: '🎯 Metas' },
+          ],
+        },
+      };
     }
 
     case '/creative': {
