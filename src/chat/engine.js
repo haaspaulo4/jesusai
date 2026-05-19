@@ -153,8 +153,11 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     try {
       const cmdResult = await handleChatCommand(message.trim(), uid, source || 'web', sid, personaId);
       if (cmdResult) {
-        const responseText = typeof cmdResult === 'string' ? cmdResult : JSON.stringify(cmdResult);
         console.log(`[ChatEngine] Command handled: ${message.trim().split(/\s+/)[0]}`);
+        if (typeof cmdResult === 'object' && cmdResult.interactiveOptions) {
+          return { response: cmdResult.response || '', sessionId: sid, sources: [], language: lang, interactiveOptions: cmdResult.interactiveOptions };
+        }
+        const responseText = typeof cmdResult === 'string' ? cmdResult : (cmdResult.response || cmdResult.text || cmdResult.message || JSON.stringify(cmdResult));
         return { response: responseText, sessionId: sid, sources: [], language: lang };
       }
     } catch (err) {
@@ -188,6 +191,11 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
               // Onboarding complete — fall through to normal chat with user's message
             } else if (answerResult.nextStep) {
               const nextQuestion = await onboarding.formatOnboardingQuestion(answerResult.nextStep, lang);
+              const step = answerResult.nextStep;
+              const choices = step.choices || step.choices_en;
+              const interactiveOptions = (choices && choices.length > 0 && step.field_type !== 'text' && step.field_type !== 'email')
+                ? { type: step.field_type === 'multichoice' ? 'list' : 'buttons', items: choices.slice(0, step.field_type === 'multichoice' ? 10 : 3).map((c, i) => ({ id: `onboarding:${step.step_key}:${c}`, text: c, label: c })), sections: step.field_type === 'multichoice' ? [{ title: step.icon ? `${step.icon} ${step.question || ''}` : 'Opções', rows: choices.slice(0, 10).map((c, i) => ({ id: `onboarding:${step.step_key}:${c}`, title: c })) }] : undefined }
+                : undefined;
               return {
                 response: nextQuestion,
                 sessionId: sid,
@@ -196,11 +204,16 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
                 onboarding: true,
                 onboardingDone: false,
                 onboardingStep: answerResult.nextStep.step_key,
+                ...(interactiveOptions ? { interactiveOptions } : {}),
               };
             }
           }
         } else {
           const onboardMsg = await onboarding.formatOnboardingQuestion(nextStep, lang);
+          const choices2 = nextStep.choices || nextStep.choices_en;
+          const interactiveOptions2 = (choices2 && choices2.length > 0 && nextStep.field_type !== 'text' && nextStep.field_type !== 'email')
+            ? { type: nextStep.field_type === 'multichoice' ? 'list' : 'buttons', items: choices2.slice(0, nextStep.field_type === 'multichoice' ? 10 : 3).map((c, i) => ({ id: `onboarding:${nextStep.step_key}:${c}`, text: c, label: c })), sections: nextStep.field_type === 'multichoice' ? [{ title: nextStep.icon ? `${nextStep.icon} ${nextStep.question || ''}` : 'Opções', rows: choices2.slice(0, 10).map((c, i) => ({ id: `onboarding:${nextStep.step_key}:${c}`, title: c })) }] : undefined }
+            : undefined;
           return {
             response: onboardMsg,
             sessionId: sid,
@@ -208,6 +221,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
             language: lang,
             onboarding: true,
             onboardingStep: nextStep.step_key,
+            ...(interactiveOptions2 ? { interactiveOptions: interactiveOptions2 } : {}),
           };
         }
       }
@@ -941,7 +955,26 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           return `${status} ${p.name}${meta} (${p.id}) ${voice}${lang}${isCurrent}`;
         });
         const metaLine = personas.some(p => p.id === 'meta-persona') ? '' : '\n💡 Dica: /meta para ativar a meta-persona';
-        return `🎭 Personas disponíveis (${personas.length}):\n${lines.join('\n')}${metaLine}\n\nComandos:\n/persona <id> - Trocar de persona\n/persona info <id> - Ver detalhes da persona\n/meta - Ativar meta-persona (admin)\n/persona reset - Voltar para padrão\n/persona create <desc> - Criar persona (admin)\n/persona edit <id> <campo> <valor> - Editar (admin)\n/persona delete <id> - Deletar (admin)`;
+        const textResponse = `🎭 Personas disponíveis (${personas.length}):\n${lines.join('\n')}${metaLine}\n\nComandos:\n/persona <id> - Trocar de persona\n/persona info <id> - Ver detalhes da persona\n/meta - Ativar meta-persona (admin)\n/persona reset - Voltar para padrão\n/persona create <desc> - Criar persona (admin)\n/persona edit <id> <campo> <valor> - Editar (admin)\n/persona delete <id> - Deletar (admin)`;
+
+        const activePersonas = personas.filter(p => p.isActive);
+        if (activePersonas.length > 0 && activePersonas.length <= 10) {
+          return {
+            response: textResponse,
+            interactiveOptions: {
+              type: 'list',
+              title: 'Personas',
+              sections: [{
+                title: 'Trocar persona',
+                rows: activePersonas.map(p => ({
+                  id: `persona:${p.id}`,
+                  title: p.name,
+                  description: p.id === (currentPersona?.id) ? 'Persona atual' : `ID: ${p.id}`,
+                })),
+              }],
+            },
+          };
+        }
       }
 
       if (args === 'reset' || args === 'default') {
@@ -1840,7 +1873,17 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (!args || args === 'list') {
         const quizzes = await quizModule.listQuizzes({ status: 'active' });
         if (!quizzes || quizzes.length === 0) return '🎮 Nenhum quiz ativo no momento.';
-        return `🎮 Quizzes disponíveis:\n${quizzes.map(q => `• ${q.id}: ${q.title} (${q.questions?.length || 0} perguntas)`).join('\n')}`;
+        const textResponse = `🎮 Quizzes disponíveis:\n${quizzes.map(q => `• ${q.id}: ${q.title} (${q.questions?.length || 0} perguntas)`).join('\n')}`;
+        if (quizzes.length <= 10) {
+          return {
+            response: textResponse,
+            interactiveOptions: {
+              type: 'buttons',
+              items: quizzes.slice(0, 3).map(q => ({ id: `quiz:${q.id}`, text: `${q.title}`, label: q.title })),
+            },
+          };
+        }
+        return textResponse;
       }
       try {
         const quizId = parseInt(args);
@@ -1850,7 +1893,37 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         }
         const quiz = await quizModule.getQuiz(quizId);
         if (!quiz) return '❌ Quiz não encontrado.';
-        return `🎮 ${quiz.title}\n${quiz.questions.map((q, i) => `${i + 1}. ${q.question}\n   ${q.options?.map((o, oi) => `${String.fromCharCode(65 + oi)}) ${o}`).join('\n   ')}`).join('\n')}`;
+        const questions = quiz.questions || [];
+        if (questions.length > 0 && questions[0].options && questions[0].options.length >= 2) {
+          const firstQuestion = questions[0];
+          const textResponse = `🎮 ${quiz.title}\n\n${firstQuestion.question}\n${firstQuestion.options.map((o, i) => `${String.fromCharCode(65 + i)}) ${o}`).join('\n')}`;
+          if (questions.length > 1) {
+            const remaining = questions.length - 1;
+            return {
+              response: textResponse + `\n\n📝 ${remaining} pergunta(s) restante(s). Responda para continuar!`,
+              interactiveOptions: {
+                type: 'poll',
+                pollOptions: firstQuestion.options,
+                prompt: firstQuestion.question,
+                quiz: true,
+                correctOption: firstQuestion.correct,
+                anonymous: false,
+              },
+            };
+          }
+          return {
+            response: textResponse,
+            interactiveOptions: {
+              type: 'poll',
+              pollOptions: firstQuestion.options,
+              prompt: firstQuestion.question,
+              quiz: true,
+              correctOption: firstQuestion.correct,
+              anonymous: false,
+            },
+          };
+        }
+        return `🎮 ${quiz.title}\n${questions.map((q, i) => `${i + 1}. ${q.question}\n   ${q.options?.map((o, oi) => `${String.fromCharCode(65 + oi)}) ${o}`).join('\n   ')}`).join('\n')}`;
       } catch (err) { return `❌ Erro: ${err.message}`; }
     }
 
