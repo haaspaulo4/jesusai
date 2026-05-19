@@ -639,15 +639,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
   try {
     const xpResult = await gamificationModule.awardMessageXp(uid, persona.id);
-    if (xpResult.leveledUp) {
-      try { const events = require('../events'); await events.emit('on_level_up', { userId: uid, personaId: persona.id, newLevel: xpResult.level, previousLevel: xpResult.previousLevel, xp: xpResult.xp }); } catch {}
-    }
-    const newBadges = await gamificationModule.checkAndAwardBadges(uid, persona.id);
-    if (newBadges.length > 0) {
-      for (const badge of newBadges) {
-        try { const events = require('../events'); await events.emit('on_badge_earned', { userId: uid, personaId: persona.id, badgeId: badge.id, badgeName: badge.name, icon: badge.icon }); } catch {}
-      }
-    }
+    await gamificationModule.checkAndAwardBadges(uid, persona.id);
     if (xpResult.xpGained > 0) {
       realtime.emitXpUpdate(uid, await gamificationModule.getXp(uid, persona.id));
     }
