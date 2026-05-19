@@ -14,6 +14,7 @@ const EVENT_TYPES = [
   'on_automation_triggered',
   'on_override_activated',
   'on_xp_milestone',
+  'on_streak_update',
 ];
 
 function on(eventType, handler) {
