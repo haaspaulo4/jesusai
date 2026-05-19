@@ -7,7 +7,7 @@ const TOOL_DEFINITIONS = [
     type: 'function',
     function: {
       name: 'use_external_tool',
-      description: 'Executa ferramentas externas especializadas: nutricional (TACO, OpenFood Facts), educação (ENEM), saúde (IMC), conversão de moedas, CEP, Bible, Weather, News, Trivia. Use quando precisar de dados reais e atualizados.',
+      description: 'Executa ferramentas externas especializadas: nutricional (TACO, OpenFood Facts), educação (ENEM), saúde (IMC), conversão de moedas, CEP, Bible, Weather, News, Trivia, B2B (prospecção de leads, CNPJ, scoring, scraping, Google Places, WhatsApp templates, IBGE), geocoding, horóscopo, definições, conselhos, Wikipedia, QR Code, API de imagens. Use quando precisar de dados reais e atualizados.',
       parameters: {
         type: 'object',
         properties: {

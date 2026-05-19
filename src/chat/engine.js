@@ -424,7 +424,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     const llmTools = getToolDefinitions();
     const extTools = getExtToolDefs ? getExtToolDefs() : [];
     const allTools = [...llmTools, ...extTools];
-    const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools', 'manage_quizzes'];
+    const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools', 'manage_quizzes', 'b2b_prospect', 'cnpj_lookup', 'lead_scoring', 'site_scraper', 'google_places_search'];
 
     let tools;
   const hasContextVerses = relevantVerses && relevantVerses.length > 0;

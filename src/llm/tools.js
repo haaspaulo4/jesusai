@@ -647,6 +647,89 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'b2b_prospect',
+      description: 'Busca empresas (leads B2B) por nicho e localização via Google. Retorna nome, site, telefone, endereço. Use para prospectar clientes potenciais.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Nicho ou tipo de negócio (ex: "restaurante", "dentista", "escritório de advocacia")' },
+          location: { type: 'string', description: 'Cidade e/ou estado (ex: "São Paulo", "Curitiba PR")' },
+          limit: { type: 'integer', description: 'Número máximo de resultados (padrão: 20)' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cnpj_lookup',
+      description: 'Consulta dados de empresa por CNPJ na BrasilAPI. Retorna razão social, CNAE, capital, situação, sócios, endereço. Use para enriquecer dados de leads B2B.',
+      parameters: {
+        type: 'object',
+        properties: {
+          cnpj: { type: 'string', description: 'CNPJ com 14 dígitos (apenas números ou com pontuação)' },
+        },
+        required: ['cnpj'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'lead_scoring',
+      description: 'Calcula score 0-100 de presença digital de uma empresa baseado em site, redes sociais, Google Maps, CNPJ. Use para priorizar leads B2B.',
+      parameters: {
+        type: 'object',
+        properties: {
+          has_website: { type: 'boolean', description: 'Tem site próprio?' },
+          has_instagram: { type: 'boolean', description: 'Tem Instagram?' },
+          has_google_maps: { type: 'boolean', description: 'Tem presença no Google Maps?' },
+          has_ads: { type: 'boolean', description: 'Tem anúncios Google?' },
+          has_email: { type: 'boolean', description: 'Tem email de contato no site?' },
+          has_phone: { type: 'boolean', description: 'Tem telefone?' },
+          capital_social: { type: 'number', description: 'Capital social da empresa (do CNPJ)' },
+          maps_rating: { type: 'number', description: 'Avaliação no Google Maps (0-5)' },
+          maps_reviews: { type: 'integer', description: 'Número de avaliações no Google Maps' },
+          is_mei: { type: 'boolean', description: 'É MEI?' },
+          business_age_years: { type: 'integer', description: 'Idade da empresa em anos' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'site_scraper',
+      description: 'Extrai dados de contato de um site (emails, telefones, redes sociais, CNPJ). Use para enriquecer dados de leads.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'URL do site para scraping (ex: "https://empresa.com.br")' },
+        },
+        required: ['url'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'google_places_search',
+      description: 'Busca empresas no Google Maps com avaliações, telefone, endereço. Use para encontrar leads com presença local.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Tipo de negócio (ex: "restaurante", "dentista")' },
+          location: { type: 'string', description: 'Cidade/localização (ex: "São Paulo")' },
+        },
+        required: ['query'],
+      },
+    },
+  },
 ];
 
 async function executeTool(name, args, context = {}) {
@@ -1713,6 +1796,49 @@ async function executeTool(name, args, context = {}) {
       }
 
       return { error: `Unknown media action: ${mAction}` };
+    }
+
+    case 'b2b_prospect': {
+      const { executeTool: execTool } = require('../tools');
+      const result = await execTool('b2b_search', { query: args.query, location: args.location, limit: args.limit });
+      return result;
+    }
+
+    case 'cnpj_lookup': {
+      const { executeTool: execTool } = require('../tools');
+      const cnpj = (args.cnpj || '').replace(/\D/g, '');
+      const result = await execTool('cnpj_lookup', { cnpj });
+      return result;
+    }
+
+    case 'lead_scoring': {
+      const { executeTool: execTool } = require('../tools');
+      const result = await execTool('lead_scoring', {
+        has_website: args.has_website,
+        has_instagram: args.has_instagram,
+        has_google_maps: args.has_google_maps,
+        has_ads: args.has_ads,
+        has_email: args.has_email,
+        has_phone: args.has_phone,
+        capital_social: args.capital_social,
+        maps_rating: args.maps_rating,
+        maps_reviews: args.maps_reviews,
+        is_mei: args.is_mei,
+        business_age_years: args.business_age_years,
+      });
+      return result;
+    }
+
+    case 'site_scraper': {
+      const { executeTool: execTool } = require('../tools');
+      const result = await execTool('site_scraper', { url: args.url });
+      return result;
+    }
+
+    case 'google_places_search': {
+      const { executeTool: execTool } = require('../tools');
+      const result = await execTool('google_places', { query: args.query, location: args.location });
+      return result;
     }
 
     default:

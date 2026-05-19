@@ -2037,6 +2037,310 @@ async function loadRegistry() {
     },
   });
 
+  // ==========================================
+  // B2B PROSPECTING TOOLS (Prospector-inspired)
+  // ==========================================
+
+  registerTool({
+    id: 'b2b_search',
+    category: 'b2b',
+    niche: 'sales,business,prospecting',
+    name: 'Busca B2B de Empresas',
+    description: 'Busca empresas por nicho e localização via Google (Serper API). Retorna nome, site, telefone, endereço, CNPJ e redes sociais.',
+    input: ['query', 'location', 'limit'],
+    output: ['leads', 'total'],
+    enabled: true,
+    priority: 10,
+    execute: async (params) => {
+      const query = params.query || 'restaurante';
+      const location = params.location || 'São Paulo';
+      const limit = parseInt(params.limit) || 20;
+      const searchQuery = `${query} em ${location}`;
+      try {
+        const key = process.env.SERPER_KEY || process.env.SERPER_API_KEY || '';
+        if (!key) return { error: 'SERPER_KEY não configurada. Adicione nos settings ou .env' };
+        const res = await fetch('https://google.serper.dev/search', {
+          method: 'POST',
+          headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ q: searchQuery, gl: 'br', hl: 'pt-br', num: limit })
+        });
+        const data = await res.json();
+        const organic = (data.organic || []).map(r => ({
+          title: r.title,
+          link: r.link,
+          snippet: r.snippet,
+          position: r.position
+        }));
+        const places = (data.local || data.places || []).map(p => ({
+          title: p.title,
+          address: p.address,
+          phone: p.phoneNumber || p.phone || '',
+          website: p.website || '',
+          rating: p.rating || null,
+          reviews: p.reviews || null,
+          maps_link: p.url || p.map_url || ''
+        }));
+        return { query: searchQuery, organic, places, total: organic.length + places.length };
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'cnpj_lookup',
+    category: 'b2b',
+    niche: 'sales,business,prospecting',
+    name: 'Consulta CNPJ',
+    description: 'Busca dados de empresa por CNPJ na BrasilAPI (razão social, CNAE, capital, situação, sócios).',
+    input: ['cnpj'],
+    output: ['razao_social', 'nome_fantasia', 'cnpj', 'situacao', 'capital_social', 'porte', 'cnae', 'socios', 'abertura'],
+    enabled: true,
+    priority: 10,
+    execute: async (params) => {
+      const cnpj = (params.cnpj || '').replace(/\D/g, '');
+      if (cnpj.length !== 14) return { error: 'CNPJ inválido. Use 14 dígitos (apenas números).' };
+      try {
+        const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${cnpj}`);
+        const data = await res.json();
+        if (data.message && data.type === 'not_found') return { error: 'CNPJ não encontrado na BrasilAPI' };
+        return {
+          cnpj: data.cnpj,
+          razao_social: data.razao_social,
+          nome_fantasia: data.nome_fantasia,
+          situacao: data.descricao_situacao_cadastral || data.situacao_cadastral,
+          capital_social: data.capital_social,
+          porte: data.descricao_porte || data.porte,
+          cnae: data.cnae_fiscal_descricao || data.cnae_fiscal,
+          cnae_codigo: data.cnae_fiscal,
+          abertura: data.data_inicio_atividade,
+          socios: (data.qsa || []).map(s => ({ nome: s.nome_socio, qualificacao: s.qualificacao_socio })),
+          municipio: data.municipio,
+          uf: data.uf,
+          logradouro: data.logradouro,
+          numero: data.numero,
+          complemento: data.complemento,
+          cep: data.cep,
+          email: data.email,
+          telefone: data.ddd_telefone_1,
+          natureza_juridica: data.natureza_juridica,
+          mei: data.opcao_pelo_mei || false,
+        };
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'lead_scoring',
+    category: 'b2b',
+    niche: 'sales,business,prospecting',
+    name: 'Lead Scoring B2B',
+    description: 'Calcula score 0-100 de presença digital de uma empresa baseado em site, redes sociais, Google Maps, avaliações e CNPJ.',
+    input: ['has_website', 'has_instagram', 'has_google_maps', 'has_ads', 'has_email', 'has_phone', 'has_youtube', 'has_tiktok', 'capital_social', 'maps_rating', 'maps_reviews', 'is_mei', 'business_age_years'],
+    output: ['score', 'breakdown', 'priority', 'recommendation'],
+    enabled: true,
+    priority: 9,
+    execute: async (params) => {
+      const has = (v) => v === true || v === 'true' || v === '1' || v === 'yes';
+      let score = 0;
+      const breakdown = {};
+      if (has(params.has_website)) { score += 15; breakdown.site = 15; } else { breakdown.site = 0; }
+      if (has(params.has_instagram)) { score += 10; breakdown.instagram = 10; } else { breakdown.instagram = 0; }
+      if (has(params.has_google_maps)) { score += 10; breakdown.maps = 10; } else { breakdown.maps = 0; }
+      if (has(params.has_ads)) { score += 10; breakdown.ads = 10; } else { breakdown.ads = 0; }
+      if (has(params.has_email)) { score += 5; breakdown.email = 5; } else { breakdown.email = 0; }
+      if (has(params.has_phone)) { score += 3; breakdown.phone = 3; } else { breakdown.phone = 0; }
+      if (has(params.has_youtube)) { score += 3; breakdown.youtube = 3; } else { breakdown.youtube = 0; }
+      if (has(params.has_tiktok)) { score += 2; breakdown.tiktok = 2; } else { breakdown.tiktok = 0; }
+      const capital = parseFloat(params.capital_social) || 0;
+      if (capital >= 100000) { breakdown.capital = 20; score += 20; }
+      else if (capital >= 50000) { breakdown.capital = 15; score += 15; }
+      else if (capital >= 10000) { breakdown.capital = 10; score += 10; }
+      else if (capital > 0) { breakdown.capital = 5; score += 5; }
+      else { breakdown.capital = 0; }
+      const rating = parseFloat(params.maps_rating) || 0;
+      if (rating >= 4.5) { breakdown.rating = 15; score += 15; }
+      else if (rating >= 4.0) { breakdown.rating = 10; score += 10; }
+      else if (rating >= 3.5) { breakdown.rating = 7; score += 7; }
+      else if (rating > 0) { breakdown.rating = 3; score += 3; }
+      else { breakdown.rating = 0; }
+      const reviews = parseInt(params.maps_reviews) || 0;
+      if (reviews >= 100) score += 5; else if (reviews >= 20) score += 3;
+      const age = parseInt(params.business_age_years) || 0;
+      if (age >= 10) { breakdown.age = 10; score += 10; }
+      else if (age >= 5) { breakdown.age = 7; score += 7; }
+      else if (age >= 2) { breakdown.age = 5; score += 5; }
+      else { breakdown.age = 0; }
+      if (has(params.is_mei)) { score -= 5; breakdown.mei_penalty = -5; }
+      score = Math.max(0, Math.min(100, score));
+      let priority, recommendation;
+      if (score >= 70) { priority = 'alto'; recommendation = 'Lead qualificado — alta presença digital, provavelmente já investe em marketing. Foque em diferenciais.'; }
+      else if (score >= 40) { priority = 'médio'; recommendation = 'Lead com oportunidade — presença digital intermediária. Ofereça pacotes de melhoria (site, redes sociais, SEO).'; }
+      else { priority = 'alto'; recommendation = 'Lead com alta necessidade — baixa presença digital. Cliente ideal para serviços de criação de site, gestão de redes sociais e Google Meu Negócio.'; }
+      return { score, breakdown, priority, recommendation };
+    },
+  });
+
+  registerTool({
+    id: 'site_scraper',
+    category: 'b2b',
+    niche: 'sales,business,prospecting',
+    name: 'Scraping de Site',
+    description: 'Extrai dados de contato de um site (emails, telefones, redes sociais, CNPJ).',
+    input: ['url'],
+    output: ['emails', 'phones', 'social_links', 'cnpj', 'title', 'description'],
+    enabled: true,
+    priority: 8,
+    execute: async (params) => {
+      const url = params.url;
+      if (!url) return { error: 'URL não informada' };
+      try {
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' },
+          signal: AbortSignal.timeout(10000)
+        });
+        const html = await res.text();
+        const titleMatch = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+        const descMatch = html.match(/<meta[^>]*name=["']description["'][^>]*content=["']([\s\S]*?)["']/i);
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        const emails = [...new Set((html.match(emailRegex) || []))].filter(e => !e.includes('.png') && !e.includes('.jpg') && !e.includes('.svg')).slice(0, 5);
+        const phoneRegex = /(?:\+55\s?)?(?:\(\d{2}\)\s?)?(?:9\d{4}[-.\s]?\d{4}|\d{4,5}[-.\s]?\d{4})/g;
+        const phones = [...new Set((html.match(phoneRegex) || []))].map(p => p.replace(/\D/g, '').replace(/^55/, '')).filter(p => p.length >= 10 && p.length <= 11).slice(0, 5);
+        const socialRegexes = {
+          instagram: /href=["']([^"']*instagram\.com\/[^"']+)["']/gi,
+          facebook: /href=["']([^"']*facebook\.com\/[^"']+)["']/gi,
+          youtube: /href=["']([^"']*youtube\.com\/[^"']+)["']/gi,
+          tiktok: /href=["']([^"']*tiktok\.com\/@[^"']+)["']/gi,
+          linkedin: /href=["']([^"']*linkedin\.com\/[^"']+)["']/gi,
+        };
+        const social_links = {};
+        for (const [platform, regex] of Object.entries(socialRegexes)) {
+          const matches = [...new Set((html.match(regex) || []).map(m => m.replace(/href=["']/i, '').replace(/["']$/, '')))].slice(0, 3);
+          if (matches.length) social_links[platform] = matches;
+        }
+        const cnpjRegex = /\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}/g;
+        const cnpjs = [...new Set((html.match(cnpjRegex) || []))].slice(0, 3);
+        return {
+          title: titleMatch ? titleMatch[1].trim() : '',
+          description: descMatch ? descMatch[1].trim() : '',
+          emails, phones, social_links,
+          cnpj: cnpjs.length ? cnpjs[0] : null
+        };
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'google_places',
+    category: 'b2b',
+    niche: 'sales,business,prospecting',
+    name: 'Google Places Search',
+    description: 'Busca empresas no Google Maps via Serper API Places endpoint.',
+    input: ['query', 'location'],
+    output: ['places', 'total'],
+    enabled: true,
+    priority: 8,
+    execute: async (params) => {
+      const query = params.query || 'restaurante';
+      const location = params.location || 'São Paulo';
+      try {
+        const key = process.env.SERPER_KEY || process.env.SERPER_API_KEY || '';
+        if (!key) return { error: 'SERPER_KEY não configurada' };
+        const res = await fetch('https://google.serper.dev/places', {
+          method: 'POST',
+          headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ q: `${query} em ${location}`, gl: 'br', hl: 'pt-br' })
+        });
+        const data = await res.json();
+        const places = (data.places || []).map(p => ({
+          title: p.title,
+          address: p.address,
+          rating: p.rating || null,
+          reviews: p.reviews || null,
+          phone: p.phoneNumber || '',
+          website: p.website || '',
+          maps_link: p.url || '',
+          category: p.category || '',
+        }));
+        return { places, total: places.length };
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
+  registerTool({
+    id: 'whatsapp_template',
+    category: 'b2b',
+    niche: 'sales,business,prospecting',
+    name: 'Gerador de Template WhatsApp B2B',
+    description: 'Gera template de mensagem de abordagem WhatsApp para prospectar leads B2B.',
+    input: ['business_name', 'niche', 'pain_point', 'service', 'tone'],
+    output: ['message', 'follow_up', 'tips'],
+    enabled: true,
+    priority: 7,
+    execute: async (params) => {
+      const name = params.business_name || 'Empresa';
+      const niche = params.niche || 'comércio';
+      const pain = params.pain_point || 'presença digital';
+      const service = params.service || 'criação de site e gestão de redes sociais';
+      const tone = params.tone || 'amigável e profissional';
+      const templates = {
+        cold: `Olá! 👋\n\nVi a ${name} no Google e percebi que poderiamos ajudar com ${pain}. Nós somos especialistas em ${service} para o setor de ${niche}.\n\nPosso te mostrar como melhoramos a presença digital de empresas como a sua em apenas 15 min?\n\nSem compromisso! 😊`,
+        referral: `Oi! 👋\n\nMeu nome é {{seu_nome}} e trabalho com ${service}. Um cliente me indicou a ${name} dizendo que vocês poderiam se beneficiar de nossos serviços.\n\nPosso mostrar rapidamente o que fazemos?\n\nObrigado! 🙏`,
+        value: `Olá! 👋\n\nPesquisei sobre a ${name} e vi uma oportunidade incrível de crescimento no setor de ${niche}.\n\nNossos clientes em ${niche} costumam ter desafios com ${pain}. Nossa solução de ${service} já ajudou +50 empresas a:\n\n✅ Aumentar visibilidade online em 300%\n✅ Receber mais leads qualificados\n✅ Economizar horas por semana\n\nQuer saber como funciona? É rápido! 🚀`,
+      };
+      const templateType = tone === 'referral' ? 'referral' : tone === 'value' ? 'value' : 'cold';
+      const message = templates[templateType];
+      const follow_up = `Olá! 😊 Apenas seguindo com a mensagem sobre ${service}. Entendo que está ocupado — sem pressa!\n\nSe tiver 5 min essa semana, posso mostrar como nosso trabalho pode ajudar a ${name}.`;
+      const tips = [
+        `Personalize com o nome do contato (não apenas ${name})`,
+        'Envie entre 9h-11h ou 14h-16h (horário comercial)',
+        'Mantenha a primeira mensagem curta (<150 palavras)',
+        'Inclua uma pergunta aberta para incentivar resposta',
+        'Não envie mais de 3 follow-ups sem resposta',
+      ];
+      return { message, follow_up, tips };
+    },
+  });
+
+  registerTool({
+    id: 'ibge_search',
+    category: 'b2b',
+    niche: 'sales,business,prospecting',
+    name: 'Busca IBGE (Cidades)',
+    description: 'Busca dados demográficos de cidades brasileiras via IBGE API.',
+    input: ['city', 'state'],
+    output: ['nome', 'populacao', 'area', 'densidade', 'pib_per_capita', 'idh'],
+    enabled: true,
+    priority: 5,
+    execute: async (params) => {
+      const city = params.city || 'São Paulo';
+      const state = params.state || '';
+      try {
+        const searchUrl = `https://servicodados.ibge.gov.br/api/v1/localidades/municipios?nome=${encodeURIComponent(city)}`;
+        const searchRes = await fetch(searchUrl);
+        const searchData = await searchRes.json();
+        if (!searchData || searchData.length === 0) return { error: 'Cidade não encontrada' };
+        const municipality = searchData[0];
+        const muniCode = municipality.id;
+        const statsRes = await fetch(`https://servicodados.ibge.gov.br/api/v1/pesquisas/indicadores/${muniCode}`);
+        const statsData = await statsRes.json();
+        const resObj = {
+          nome: municipality.nome,
+          estado: municipality.microrregiao?.mesorregiao?.UF?.sigla || '',
+          regiao: municipality.microrregiao?.mesorregiao?.UF?.regiao?.nome || '',
+          codigo_ibge: muniCode,
+        };
+        if (statsData && Array.isArray(statsData)) {
+          for (const ind of statsData.slice(0, 5)) {
+            if (ind?.res?.[0]?.res) {
+              const val = Object.values(ind.res[0].res)[0];
+              if (val) resObj[ind.id] = val;
+            }
+          }
+        }
+        return resObj;
+      } catch (e) { return { error: e.message }; }
+    },
+  });
+
   console.log(`[ToolRegistry] Loaded ${TOOL_REGISTRY.size} external tools`);
 }
 
