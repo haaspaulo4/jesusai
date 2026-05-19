@@ -77,6 +77,7 @@ const app = createApp({
     const apiKeyInput = ref('');
     const apiKeyStatus = ref('');
     const pixCopied = ref(false);
+    const showCookieBanner = ref(!localStorage.getItem('cookie_consent'));
     const showOnboarding = ref(false);
     const onboardingQuestion = ref('');
     const onboardingAnswer = ref('');
@@ -1450,6 +1451,22 @@ const app = createApp({
       updatePersonaDisplay();
     }
 
+    async function acceptCookies(level) {
+      const consent = level === 'all' ? 'all' : 'necessary';
+      localStorage.setItem('cookie_consent', consent);
+      showCookieBanner.value = false;
+      try {
+        const token = authToken.value || localStorage.getItem('mp_token');
+        if (token) {
+          await fetch('/api/auth/consent', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+            body: JSON.stringify({ data_processing: 1, cookie_consent: consent }),
+          });
+        }
+      } catch {}
+    }
+
     onMounted(() => {
       if (authToken.value) {
         enterApp();
@@ -1500,10 +1517,11 @@ const app = createApp({
       switchPersona, getPersonaEmoji, getPersonaName, sendMessage, scrollToBottom, autoResize,
       speakText, formatMarkdown, loadConversations, loadSession, deleteSession, newChat,
       loadBlog, viewPost, doSearch, searchSource, loadBibleBooks,
-      saveProfile, saveApiKey, removeApiKey, copyPix, formatDate, saveLang,
+      saveProfile, saveApiKey, removeApiKey, copyPix, formatDate, saveLang, acceptCookies,
       submitOnboardingAnswer, checkFollowUp, answerFollowUp, dismissFollowUp,
       sendQuickAction, loadQuickActions, loadContextualWelcome,
       isRecording, toggleMic,
+      showCookieBanner,
       // Quiz functions
       loadQuizzes, startQuiz, selectQuizAnswer, toggleQuizAnswer, nextQuizQuestion, prevQuizQuestion, submitQuiz, closeQuiz,
       // Media functions

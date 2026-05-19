@@ -2,9 +2,25 @@ function escapeHtml(str) {
   return String(str).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+function sanitizeColor(c) {
+  if (!c) return '#d4a843';
+  const hex = String(c).trim();
+  if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(hex)) return hex;
+  if (/^([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) return '#' + hex;
+  return '#d4a843';
+}
+
+function sanitizeUrl(url) {
+  if (!url) return '';
+  const s = String(url).trim();
+  if (/^(https?:\/\/|\/)[^\s<"']*$/.test(s)) return s;
+  return '';
+}
+
 function buildPersonaPage(d) {
-  const favicon = d.brandLogoUrl
-    ? '<link rel="icon" href="' + d.brandLogoUrl + '">'
+  const logoUrl = sanitizeUrl(d.brandLogoUrl);
+  const favicon = logoUrl
+    ? '<link rel="icon" href="' + logoUrl + '">'
     : '<link rel="icon" href="data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><text y=\'.9em\' font-size=\'90\'>🤖</text></svg>">';
   const logoImg = d.brandLogoUrl
     ? '<img src="' + d.brandLogoUrl + '" alt="' + escapeHtml(d.brandName) + '" style="height:28px;margin-right:8px;border-radius:4px;">'
@@ -17,18 +33,18 @@ function buildPersonaPage(d) {
   '<link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/site.css">' +
   favicon +
   '<style>' +
-  ':root{--gold:' + d.brandPrimaryColor + ';--dark-bg:' + d.brandSecondaryColor + ';}' +
+  ':root{--gold:' + sanitizeColor(d.brandPrimaryColor) + ';--dark-bg:' + sanitizeColor(d.brandSecondaryColor) + ';}' +
   '.pl-hero{position:relative;z-index:1;min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:8rem 2rem 4rem;}' +
-  '.pl-hero-glow{position:absolute;width:500px;height:500px;border-radius:50%;background:' + d.brandPrimaryColor + ';opacity:0.06;filter:blur(120px);top:10%;left:50%;transform:translateX(-50%);pointer-events:none;}' +
-  '.pl-avatar{width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,' + d.brandPrimaryColor + '22,' + d.brandPrimaryColor + '44);border:2px solid ' + d.brandPrimaryColor + '55;display:flex;align-items:center;justify-content:center;font-size:3rem;margin-bottom:2rem;box-shadow:0 0 40px ' + d.brandPrimaryColor + '22;}' +
-  '.pl-badge{display:inline-flex;align-items:center;gap:0.5rem;padding:0.4rem 1.2rem;border:1px solid ' + d.brandPrimaryColor + '33;border-radius:999px;font-size:0.78rem;color:' + d.brandPrimaryColor + ';background:' + d.brandPrimaryColor + '11;margin-bottom:1.5rem;backdrop-filter:blur(8px);}' +
-  '.pl-badge-dot{width:6px;height:6px;border-radius:50%;background:' + d.brandPrimaryColor + ';animation:pulse-glow 2s ease-in-out infinite;}' +
+  '.pl-hero-glow{position:absolute;width:500px;height:500px;border-radius:50%;background:' + sanitizeColor(d.brandPrimaryColor) + ';opacity:0.06;filter:blur(120px);top:10%;left:50%;transform:translateX(-50%);pointer-events:none;}' +
+  '.pl-avatar{width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,' + sanitizeColor(d.brandPrimaryColor) + '22,' + sanitizeColor(d.brandPrimaryColor) + '44);border:2px solid ' + sanitizeColor(d.brandPrimaryColor) + '55;display:flex;align-items:center;justify-content:center;font-size:3rem;margin-bottom:2rem;box-shadow:0 0 40px ' + sanitizeColor(d.brandPrimaryColor) + '22;}' +
+  '.pl-badge{display:inline-flex;align-items:center;gap:0.5rem;padding:0.4rem 1.2rem;border:1px solid ' + sanitizeColor(d.brandPrimaryColor) + '33;border-radius:999px;font-size:0.78rem;color:' + sanitizeColor(d.brandPrimaryColor) + ';background:' + sanitizeColor(d.brandPrimaryColor) + '11;margin-bottom:1.5rem;backdrop-filter:blur(8px);}' +
+  '.pl-badge-dot{width:6px;height:6px;border-radius:50%;background:' + sanitizeColor(d.brandPrimaryColor) + ';animation:pulse-glow 2s ease-in-out infinite;}' +
   '.pl-title{font-size:clamp(2.2rem,5vw,3.5rem);font-weight:800;color:var(--text);line-height:1.1;margin-bottom:1rem;letter-spacing:-0.03em;}' +
   '.pl-desc{font-size:1.1rem;color:var(--text-muted);line-height:1.7;max-width:600px;margin:0 auto 2rem;}' +
   '.pl-actions{display:flex;gap:0.75rem;justify-content:center;flex-wrap:wrap;margin-bottom:3rem;}' +
   '.pl-features{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1.25rem;max-width:800px;width:100%;margin:0 auto 4rem;}' +
   '.pl-feature{background:var(--surface-glass);backdrop-filter:blur(12px);border:1px solid var(--border);border-radius:var(--radius-lg);padding:1.5rem;text-align:left;transition:all 0.3s ease;}' +
-  '.pl-feature:hover{border-color:' + d.brandPrimaryColor + '44;transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,0.2);}' +
+  '.pl-feature:hover{border-color:' + sanitizeColor(d.brandPrimaryColor) + '44;transform:translateY(-2px);box-shadow:0 4px 20px rgba(0,0,0,0.2);}' +
   '.pl-feature-icon{font-size:1.5rem;margin-bottom:0.75rem;}' +
   '.pl-feature h4{color:var(--text);font-size:0.95rem;font-weight:600;margin-bottom:0.3rem;}' +
   '.pl-feature p{color:var(--text-muted);font-size:0.82rem;line-height:1.5;}' +
@@ -37,13 +53,13 @@ function buildPersonaPage(d) {
   '.pl-container{max-width:900px;margin:0 auto;}' +
   '.pl-other-personas{display:flex;flex-direction:column;gap:0.75rem;max-width:500px;margin:0 auto;}' +
   '.persona-card-mini{display:flex;align-items:center;gap:1rem;padding:1rem 1.25rem;background:var(--surface-glass);border:1px solid var(--border);border-radius:var(--radius);transition:all 0.25s ease;text-decoration:none;color:var(--text);}' +
-  '.persona-card-mini:hover{border-color:' + d.brandPrimaryColor + '44;transform:translateX(4px);}' +
+  '.persona-card-mini:hover{border-color:' + sanitizeColor(d.brandPrimaryColor) + '44;transform:translateX(4px);}' +
   '.pcm-icon{font-size:1.5rem;}' +
   '.persona-card-mini strong{display:block;font-size:0.95rem;}' +
   '.persona-card-mini small{display:block;color:var(--text-muted);font-size:0.8rem;margin-top:0.15rem;}' +
-  '.pcm-arrow{margin-left:auto;color:' + d.brandPrimaryColor + ';font-weight:600;}' +
+  '.pcm-arrow{margin-left:auto;color:' + sanitizeColor(d.brandPrimaryColor) + ';font-weight:600;}' +
   '.pl-identity-rules{background:var(--surface-glass);border:1px solid var(--border);border-radius:var(--radius-lg);padding:2rem;margin-bottom:2rem;}' +
-  '.pl-identity-rules h3{color:' + d.brandPrimaryColor + ';font-size:0.85rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:1rem;}' +
+  '.pl-identity-rules h3{color:' + sanitizeColor(d.brandPrimaryColor) + ';font-size:0.85rem;text-transform:uppercase;letter-spacing:0.1em;margin-bottom:1rem;}' +
   '.pl-rule-item{display:flex;align-items:flex-start;gap:0.75rem;margin-bottom:0.75rem;font-size:0.88rem;color:var(--text-muted);line-height:1.5;}' +
   '.pl-disclaimer{font-size:0.8rem;color:var(--text-muted);opacity:0.7;line-height:1.6;max-width:600px;margin:2rem auto 0;text-align:center;}' +
   '@media(max-width:600px){.pl-hero{padding:7rem 1.5rem 3rem;}.pl-features{grid-template-columns:1fr;}}' +
@@ -73,28 +89,29 @@ function buildPersonaPage(d) {
   '</div></section>' +
   (d.identityRulesHtml ? '<section class="pl-section pl-section-alt"><div class="pl-container"><div class="pl-identity-rules"><h3>Como ' + escapeHtml(d.personaName) + ' funciona</h3>' + d.identityRulesHtml + '</div></div></section>' : '') +
   (d.disclaimer ? '<section class="pl-section"><div class="pl-container" style="text-align:center;"><p class="pl-disclaimer">' + escapeHtml(d.disclaimer) + '</p></div></section>' : '') +
-  (d.otherPersonasHtml ? '<section class="pl-section pl-section-alt" id="personas"><div class="pl-container"><div style="text-align:center;margin-bottom:2.5rem;"><div class="section-label" style="color:' + d.brandPrimaryColor + ';">Multi-Persona</div><h2 class="section-title" style="background:linear-gradient(135deg,var(--text),' + d.brandPrimaryColor + ');-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Outras personas disponíveis</h2><p class="section-subtitle">Cada persona tem identidade, conhecimento e voz próprios.</p></div><div class="pl-other-personas">' + d.otherPersonasHtml + '<a href="/site" class="hero-btn secondary" style="text-align:center;margin-top:0.5rem;">Ver todas as personas →</a></div></div></section>' : '') +
+  (d.otherPersonasHtml ? '<section class="pl-section pl-section-alt" id="personas"><div class="pl-container"><div style="text-align:center;margin-bottom:2.5rem;"><div class="section-label" style="color:' + sanitizeColor(d.brandPrimaryColor) + ';">Multi-Persona</div><h2 class="section-title" style="background:linear-gradient(135deg,var(--text),' + sanitizeColor(d.brandPrimaryColor) + ');-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Outras personas disponíveis</h2><p class="section-subtitle">Cada persona tem identidade, conhecimento e voz próprios.</p></div><div class="pl-other-personas">' + d.otherPersonasHtml + '<a href="/site" class="hero-btn secondary" style="text-align:center;margin-top:0.5rem;">Ver todas as personas →</a></div></div></section>' : '') +
   '<section class="pl-section" style="text-align:center;padding:4rem 2rem;"><div class="pl-container">' +
   '<h2 style="font-size:clamp(1.5rem,3vw,2rem);font-weight:800;color:var(--text);margin-bottom:0.5rem;">Pronto para conversar?</h2>' +
   '<p style="color:var(--text-muted);margin-bottom:2rem;">Comece agora — grátis, sem fila, 24 horas por dia.</p>' +
   '<button class="hero-btn primary" onclick="startChat()" style="font-size:1.05rem;padding:1rem 2.5rem;">Conversar com ' + escapeHtml(d.personaName) + ' <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" style="margin-left:0.5rem;"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></button>' +
   '</div></section>' +
   '<footer style="text-align:center;padding:2rem;border-top:1px solid var(--border);position:relative;z-index:1;">' +
-  '<p style="color:var(--text-muted);font-size:0.82rem;">' + escapeHtml(d.brandName) + ' © ' + new Date().getFullYear() + ' · <a href="/site" style="color:' + d.brandPrimaryColor + ';text-decoration:none;">Plataforma</a> · <a href="/admin" style="color:var(--text-muted);text-decoration:none;">Admin</a></p>' +
+  '<p style="color:var(--text-muted);font-size:0.82rem;">' + escapeHtml(d.brandName) + ' © ' + new Date().getFullYear() + ' · <a href="/site" style="color:' + sanitizeColor(d.brandPrimaryColor) + ';text-decoration:none;">Plataforma</a> · <a href="/admin" style="color:var(--text-muted);text-decoration:none;">Admin</a></p>' +
   '</footer></div>' +
   '<script>const PERSONA_ID=\'' + d.personaId + '\';function startChat(){window.location.href=\'/?persona=\'+PERSONA_ID;}</script>' +
   '</body></html>';
 }
 
 function buildSitePage(d) {
-  const favicon = d.brandLogoUrl
-    ? '<link rel="icon" href="' + d.brandLogoUrl + '">'
+  const logoUrl = sanitizeUrl(d.brandLogoUrl);
+  const favicon = logoUrl
+    ? '<link rel="icon" href="' + logoUrl + '">'
     : '<link rel="icon" href="data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><text y=\'.9em\' font-size=\'90\'>🤖</text></svg>">';
-  const logoImg = d.brandLogoUrl
-    ? '<img src="' + d.brandLogoUrl + '" alt="' + escapeHtml(d.brandName) + '" style="height:28px;margin-right:8px;border-radius:4px;">'
+  const logoImg = logoUrl
+    ? '<img src="' + logoUrl + '" alt="' + escapeHtml(d.brandName) + '" style="height:28px;margin-right:8px;border-radius:4px;">'
     : '<span class="persona-icon">🤖</span>';
-  const footerLogo = d.brandLogoUrl
-    ? '<img src="' + d.brandLogoUrl + '" alt="' + escapeHtml(d.brandName) + '" style="height:24px;margin-right:8px;border-radius:4px;">'
+  const footerLogo = logoUrl
+    ? '<img src="' + logoUrl + '" alt="' + escapeHtml(d.brandName) + '" style="height:24px;margin-right:8px;border-radius:4px;">'
     : '<span class="persona-icon">🤖</span>';
 
   const personaCards = d.personas.map(function(p) {
@@ -122,22 +139,22 @@ function buildSitePage(d) {
   '<meta name="description" content="' + escapeHtml(d.brandTagline || 'Plataforma whitelabel de assistentes virtuais com RAG multimodal, multi-persona e onboarding automático.') + '">' +
   '<link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/site.css">' +
   favicon +
-  '<style>:root{--gold:' + d.brandPrimaryColor + ';--dark-bg:' + d.brandSecondaryColor + ';}' +
-  '.spc-avatar{width:64px;height:64px;border-radius:50%;background:' + d.brandPrimaryColor + '18;border:2px solid ' + d.brandPrimaryColor + '44;display:flex;align-items:center;justify-content:center;font-size:2rem;margin-bottom:1rem;}' +
+  '<style>:root{--gold:' + sanitizeColor(d.brandPrimaryColor) + ';--dark-bg:' + sanitizeColor(d.brandSecondaryColor) + ';}' +
+  '.spc-avatar{width:64px;height:64px;border-radius:50%;background:' + sanitizeColor(d.brandPrimaryColor) + '18;border:2px solid ' + sanitizeColor(d.brandPrimaryColor) + '44;display:flex;align-items:center;justify-content:center;font-size:2rem;margin-bottom:1rem;}' +
   '.spc-badges{display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.75rem;margin-bottom:0.75rem;}' +
-  '.spc-badge{font-size:0.7rem;padding:0.2rem 0.6rem;border-radius:999px;background:' + d.brandPrimaryColor + '15;color:' + d.brandPrimaryColor + ';border:1px solid ' + d.brandPrimaryColor + '22;}' +
+  '.spc-badge{font-size:0.7rem;padding:0.2rem 0.6rem;border-radius:999px;background:' + sanitizeColor(d.brandPrimaryColor) + '15;color:' + sanitizeColor(d.brandPrimaryColor) + ';border:1px solid ' + sanitizeColor(d.brandPrimaryColor) + '22;}' +
   '.site-persona-card h3{color:var(--text);font-size:1.15rem;font-weight:700;}' +
   '.site-persona-card p{color:var(--text-muted);font-size:0.88rem;line-height:1.5;}' +
-  '.spc-cta{margin-top:auto;color:' + d.brandPrimaryColor + ';font-size:0.85rem;font-weight:600;display:inline-flex;align-items:center;gap:0.3rem;transition:gap 0.2s;}' +
+  '.spc-cta{margin-top:auto;color:' + sanitizeColor(d.brandPrimaryColor) + ';font-size:0.85rem;font-weight:600;display:inline-flex;align-items:center;gap:0.3rem;transition:gap 0.2s;}' +
   '.site-persona-card:hover .spc-cta{gap:0.6rem;}' +
-  '.create-persona-cta{text-align:center;padding:3rem 2rem;background:linear-gradient(135deg,' + d.brandPrimaryColor + '08,' + d.brandSecondaryColor + '22);border:2px dashed ' + d.brandPrimaryColor + '33;border-radius:var(--radius-lg);}' +
+  '.create-persona-cta{text-align:center;padding:3rem 2rem;background:linear-gradient(135deg,' + sanitizeColor(d.brandPrimaryColor) + '08,' + sanitizeColor(d.brandSecondaryColor) + '22);border:2px dashed ' + sanitizeColor(d.brandPrimaryColor) + '33;border-radius:var(--radius-lg);}' +
   '.create-persona-cta h3{font-size:1.3rem;font-weight:700;color:var(--text);margin-bottom:0.5rem;}' +
   '.create-persona-cta p{color:var(--text-muted);margin-bottom:1.5rem;font-size:0.95rem;}' +
-  '.create-card{border:1px solid ' + d.brandPrimaryColor + '33;border-radius:var(--radius-lg);padding:2rem;display:flex;flex-direction:column;align-items:center;text-align:center;transition:all 0.3s ease;}' +
-  '.create-card:hover{border-color:' + d.brandPrimaryColor + '66;box-shadow:0 0 40px ' + d.brandPrimaryColor + '15;}' +
-  '.step-num{width:36px;height:36px;border-radius:50%;background:' + d.brandPrimaryColor + '22;color:' + d.brandPrimaryColor + ';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;margin-bottom:1rem;border:1px solid ' + d.brandPrimaryColor + '44;}' +
+  '.create-card{border:1px solid ' + sanitizeColor(d.brandPrimaryColor) + '33;border-radius:var(--radius-lg);padding:2rem;display:flex;flex-direction:column;align-items:center;text-align:center;transition:all 0.3s ease;}' +
+  '.create-card:hover{border-color:' + sanitizeColor(d.brandPrimaryColor) + '66;box-shadow:0 0 40px ' + sanitizeColor(d.brandPrimaryColor) + '15;}' +
+  '.step-num{width:36px;height:36px;border-radius:50%;background:' + sanitizeColor(d.brandPrimaryColor) + '22;color:' + sanitizeColor(d.brandPrimaryColor) + ';display:flex;align-items:center;justify-content:center;font-weight:700;font-size:1rem;margin-bottom:1rem;border:1px solid ' + sanitizeColor(d.brandPrimaryColor) + '44;}' +
   '.step-card{background:var(--surface-glass);border:1px solid var(--border);border-radius:var(--radius-lg);padding:2rem;text-align:center;transition:all 0.3s ease;}' +
-  '.step-card:hover{border-color:' + d.brandPrimaryColor + '44;transform:translateY(-4px);}' +
+  '.step-card:hover{border-color:' + sanitizeColor(d.brandPrimaryColor) + '44;transform:translateY(-4px);}' +
   '.step-card h4{color:var(--text);font-weight:600;margin-bottom:0.5rem;}' +
   '.step-card p{color:var(--text-muted);font-size:0.85rem;line-height:1.5;}' +
   '</style></head><body>' +
@@ -189,7 +206,7 @@ function buildSitePage(d) {
   '<div class="site-tech-card"><div class="site-tech-icon">🌍</div><h4>i18n</h4><p>pt-BR, en-US, es-ES</p></div>' +
   '</div></div></section>' +
   '<section class="site-section site-section-cta"><div class="site-container site-cta-content" style="text-align:center;">' +
-  '<h2 style="font-size:clamp(1.5rem,3vw,2.5rem);font-weight:800;color:var(--text);margin-bottom:0.75rem;">Crie sua persona. <span style="background:linear-gradient(135deg,' + d.brandPrimaryColor + ',' + d.brandPrimaryColor + 'cc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Converse agora.</span></h2>' +
+  '<h2 style="font-size:clamp(1.5rem,3vw,2.5rem);font-weight:800;color:var(--text);margin-bottom:0.75rem;">Crie sua persona. <span style="background:linear-gradient(135deg,' + sanitizeColor(d.brandPrimaryColor) + ',' + sanitizeColor(d.brandPrimaryColor) + 'cc);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;">Converse agora.</span></h2>' +
   '<p style="color:var(--text-muted);font-size:1.05rem;margin-bottom:2rem;">Grátis. Sem limite de personas. Conhecimento ilimitado.</p>' +
   '<div class="site-cta-actions"><a href="/" class="hero-btn primary" style="font-size:1.05rem;padding:1rem 2.5rem;">Começar agora</a><a href="#personas" class="hero-btn secondary">Ver personas</a></div>' +
   '</div></section>' +
@@ -204,11 +221,12 @@ function buildSitePage(d) {
 }
 
 function buildCreatePersonaPage(d) {
-  var favicon = d.brandLogoUrl
-    ? '<link rel="icon" href="' + d.brandLogoUrl + '">'
+  var logoUrl = sanitizeUrl(d.brandLogoUrl);
+  var favicon = logoUrl
+    ? '<link rel="icon" href="' + logoUrl + '">'
     : '<link rel="icon" href="data:image/svg+xml,<svg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'><text y=\'.9em\' font-size=\'90\'>🤖</text></svg>">';
-  var logoImg = d.brandLogoUrl
-    ? '<img src="' + d.brandLogoUrl + '" alt="' + escapeHtml(d.brandName) + '" style="height:28px;margin-right:8px;border-radius:4px;">'
+  var logoImg = logoUrl
+    ? '<img src="' + logoUrl + '" alt="' + escapeHtml(d.brandName) + '" style="height:28px;margin-right:8px;border-radius:4px;">'
     : '<span class="persona-icon">🤖</span>';
 
   return '<!DOCTYPE html><html lang="pt-BR"><head>' +
@@ -218,45 +236,45 @@ function buildCreatePersonaPage(d) {
   '<link rel="stylesheet" href="/css/style.css"><link rel="stylesheet" href="/css/site.css">' +
   favicon +
   '<style>' +
-  ':root{--gold:' + d.brandPrimaryColor + ';--dark-bg:' + d.brandSecondaryColor + ';}' +
+  ':root{--gold:' + sanitizeColor(d.brandPrimaryColor) + ';--dark-bg:' + sanitizeColor(d.brandSecondaryColor) + ';}' +
   '.cp-container{max-width:720px;margin:0 auto;padding:7rem 2rem 4rem;min-height:100vh;position:relative;z-index:1;}' +
   '.cp-back{display:inline-flex;align-items:center;gap:0.5rem;color:var(--text-muted);font-size:0.9rem;text-decoration:none;margin-bottom:2rem;transition:color 0.2s;}' +
-  '.cp-back:hover{color:' + d.brandPrimaryColor + ';}' +
+  '.cp-back:hover{color:' + sanitizeColor(d.brandPrimaryColor) + ';}' +
   '.cp-title{font-size:clamp(1.8rem,4vw,2.5rem);font-weight:800;color:var(--text);margin-bottom:0.5rem;letter-spacing:-0.02em;}' +
   '.cp-subtitle{color:var(--text-muted);font-size:1rem;margin-bottom:2.5rem;line-height:1.6;}' +
-  '.cp-subtitle span{color:' + d.brandPrimaryColor + ';font-weight:600;}' +
+  '.cp-subtitle span{color:' + sanitizeColor(d.brandPrimaryColor) + ';font-weight:600;}' +
   '.cp-steps{display:flex;gap:0.5rem;margin-bottom:2.5rem;}' +
   '.cp-step{flex:1;height:4px;border-radius:2px;background:var(--border);transition:background 0.3s;}' +
-  '.cp-step.active{background:' + d.brandPrimaryColor + ';}' +
-  '.cp-step.done{background:' + d.brandPrimaryColor + '88;}' +
+  '.cp-step.active{background:' + sanitizeColor(d.brandPrimaryColor) + ';}' +
+  '.cp-step.done{background:' + sanitizeColor(d.brandPrimaryColor) + '88;}' +
   '.cp-form{display:flex;flex-direction:column;gap:1.5rem;}' +
   '.cp-field{display:flex;flex-direction:column;gap:0.5rem;}' +
   '.cp-label{font-weight:600;color:var(--text);font-size:0.9rem;}' +
   '.cp-hint{color:var(--text-muted);font-size:0.8rem;line-height:1.4;}' +
   '.cp-input,.cp-textarea,.cp-select{background:var(--surface-glass);border:1px solid var(--border);border-radius:var(--radius);padding:0.75rem 1rem;color:var(--text);font-size:0.95rem;font-family:inherit;transition:border-color 0.2s;outline:none;}' +
-  '.cp-input:focus,.cp-textarea:focus,.cp-select:focus{border-color:' + d.brandPrimaryColor + ';}' +
+  '.cp-input:focus,.cp-textarea:focus,.cp-select:focus{border-color:' + sanitizeColor(d.brandPrimaryColor) + ';}' +
   '.cp-input::placeholder,.cp-textarea::placeholder{color:var(--text-muted);opacity:0.6;}' +
   '.cp-textarea{min-height:120px;resize:vertical;}' +
   '.cp-select{cursor:pointer;}' +
   '.cp-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}' +
   '.cp-actions{display:flex;gap:0.75rem;margin-top:1rem;}' +
   '.cp-btn{padding:0.75rem 1.5rem;border-radius:var(--radius);font-weight:600;font-size:0.95rem;cursor:pointer;border:none;transition:all 0.2s;}' +
-  '.cp-btn-primary{background:' + d.brandPrimaryColor + ';color:#fff;}' +
+  '.cp-btn-primary{background:' + sanitizeColor(d.brandPrimaryColor) + ';color:#fff;}' +
   '.cp-btn-primary:hover{opacity:0.9;transform:translateY(-1px);}' +
   '.cp-btn-primary:disabled{opacity:0.5;cursor:not-allowed;transform:none;}' +
   '.cp-btn-secondary{background:var(--surface-glass);color:var(--text);border:1px solid var(--border);}' +
-  '.cp-btn-secondary:hover{border-color:' + d.brandPrimaryColor + '44;}' +
+  '.cp-btn-secondary:hover{border-color:' + sanitizeColor(d.brandPrimaryColor) + '44;}' +
   '.cp-loading{display:none;align-items:center;gap:0.75rem;color:var(--text-muted);font-size:0.9rem;margin-top:1rem;}' +
   '.cp-loading.show{display:flex;}' +
-  '.cp-spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:' + d.brandPrimaryColor + ';border-radius:50%;animation:spin 0.8s linear infinite;}' +
+  '.cp-spinner{width:20px;height:20px;border:2px solid var(--border);border-top-color:' + sanitizeColor(d.brandPrimaryColor) + ';border-radius:50%;animation:spin 0.8s linear infinite;}' +
   '@keyframes spin{to{transform:rotate(360deg);}}' +
-  '.cp-result{display:none;margin-top:2rem;padding:2rem;background:var(--surface-glass);border:1px solid ' + d.brandPrimaryColor + '33;border-radius:var(--radius-lg);text-align:center;}' +
+  '.cp-result{display:none;margin-top:2rem;padding:2rem;background:var(--surface-glass);border:1px solid ' + sanitizeColor(d.brandPrimaryColor) + '33;border-radius:var(--radius-lg);text-align:center;}' +
   '.cp-result.show{display:block;}' +
   '.cp-result-icon{font-size:3rem;margin-bottom:1rem;}' +
   '.cp-result h3{font-size:1.3rem;font-weight:700;color:var(--text);margin-bottom:0.5rem;}' +
   '.cp-result p{color:var(--text-muted);font-size:0.95rem;margin-bottom:1.5rem;line-height:1.5;}' +
   '.cp-result-details{text-align:left;background:rgba(255,255,255,0.03);border:1px solid var(--border);border-radius:var(--radius);padding:1rem;margin-bottom:1.5rem;max-height:300px;overflow-y:auto;}' +
-  '.cp-result-details dt{color:' + d.brandPrimaryColor + ';font-weight:600;font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;margin-top:0.75rem;}' +
+  '.cp-result-details dt{color:' + sanitizeColor(d.brandPrimaryColor) + ';font-weight:600;font-size:0.82rem;text-transform:uppercase;letter-spacing:0.05em;margin-top:0.75rem;}' +
   '.cp-result-details dt:first-child{margin-top:0;}' +
   '.cp-result-details dd{color:var(--text-muted);font-size:0.88rem;line-height:1.5;margin:0.25rem 0 0;}' +
   '.cp-error{display:none;color:#f44336;font-size:0.9rem;margin-top:1rem;padding:0.75rem;background:rgba(244,67,54,0.08);border-radius:var(--radius);}' +
@@ -361,7 +379,7 @@ function buildCreatePersonaPage(d) {
   '</div>' +
   '</div>' +
   '<footer style="text-align:center;padding:2rem;border-top:1px solid var(--border);margin-top:3rem;position:relative;z-index:1;">' +
-  '<p style="color:var(--text-muted);font-size:0.82rem;">' + escapeHtml(d.brandName) + ' &copy; ' + new Date().getFullYear() + ' · <a href="/site" style="color:' + d.brandPrimaryColor + ';text-decoration:none;">Plataforma</a> · <a href="/admin" style="color:var(--text-muted);text-decoration:none;">Admin</a></p>' +
+  '<p style="color:var(--text-muted);font-size:0.82rem;">' + escapeHtml(d.brandName) + ' &copy; ' + new Date().getFullYear() + ' · <a href="/site" style="color:' + sanitizeColor(d.brandPrimaryColor) + ';text-decoration:none;">Plataforma</a> · <a href="/admin" style="color:var(--text-muted);text-decoration:none;">Admin</a></p>' +
   '</footer></div>' +
   '<script>' +
   'var generatedData=null;' +

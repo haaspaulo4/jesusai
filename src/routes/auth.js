@@ -1,5 +1,5 @@
 const express = require('express');
-const { generateToken, generateRefreshToken, authMiddleware, getUser, updateUser, getUserWithRole, findOrCreateFromGoogle, generateLinkCode, linkAccount, findLinkedUser, pool, verifyToken } = require('../auth');
+const { generateToken, generateRefreshToken, authMiddleware, getUser, updateUser, getUserWithRole, findOrCreateFromGoogle, generateLinkCode, linkAccount, findLinkedUser, pool, verifyToken, safeUser } = require('../auth');
 const { register, login } = require('../auth/index');
 const bcrypt = require('bcryptjs');
 
@@ -161,7 +161,7 @@ router.get('/me', authMiddleware, async (req, res) => {
   if (!user) {
     return res.status(404).json({ error: 'Usuário não encontrado' });
   }
-  res.json(user);
+  res.json(safeUser(user));
 });
 
 router.put('/me', authMiddleware, async (req, res) => {
@@ -170,7 +170,7 @@ router.put('/me', authMiddleware, async (req, res) => {
   if (!updated) {
     return res.status(404).json({ error: 'Usuário não encontrado' });
   }
-  res.json(updated);
+  res.json(safeUser(updated));
 });
 
 router.post('/link-code', authMiddleware, async (req, res) => {
@@ -250,11 +250,138 @@ router.post('/change-password', authMiddleware, async (req, res) => {
     if (!valid) return res.status(401).json({ error: 'Senha atual incorreta' });
     const hashed = await bcrypt.hash(newPassword, 12);
     await pool.execute('UPDATE users SET password = ?, token_version = token_version + 1 WHERE id = ?', [hashed, req.userId]);
-    const newToken = generateToken(req.userId, user.email, user.role);
-    const newRefresh = generateRefreshToken(req.userId);
+    const updatedUser = await getUserWithRole(req.userId);
+    const newToken = generateToken(updatedUser);
+    const newRefresh = generateRefreshToken(updatedUser);
     res.json({ success: true, message: 'Senha alterada com sucesso', token: newToken, refreshToken: newRefresh });
   } catch (err) {
     console.error('[Auth] Change password error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/consent', authMiddleware, async (req, res) => {
+  try {
+    const { data_processing, cookie_consent } = req.body;
+    const updates = [];
+    const values = [];
+
+    if (typeof data_processing === 'number') {
+      updates.push('data_processing_consent = ?');
+      values.push(data_processing ? 1 : 0);
+    }
+    if (cookie_consent && ['all', 'necessary', 'custom'].includes(cookie_consent)) {
+      updates.push('cookie_consent = ?');
+      values.push(cookie_consent);
+      updates.push('cookie_consent_date = NOW()');
+    }
+    if (updates.length === 0) {
+      return res.status(400).json({ error: 'Nenhum consentimento válido fornecido' });
+    }
+
+    updates.push('consent_date = NOW()');
+    updates.push("consent_version = '1.0'");
+    values.push(req.userId);
+
+    await pool.execute(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, values);
+    res.json({ success: true, message: 'Consentimento registrado' });
+  } catch (err) {
+    console.error('[Auth] Consent error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/data-export', authMiddleware, async (req, res) => {
+  try {
+    const [users] = await pool.execute('SELECT * FROM users WHERE id = ?', [req.userId]);
+    if (!users.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+
+    const user = { ...users[0] };
+    delete user.password;
+    delete user.ollama_api_key;
+    delete user.link_code;
+    delete user.link_code_expires;
+    delete user.token_version;
+
+    const [profiles] = await pool.execute('SELECT * FROM profiles WHERE id = ?', [req.userId]);
+    const [sessions] = await pool.execute('SELECT id, user_name, persona_id, created_at, last_activity FROM sessions WHERE user_id = ?', [req.userId]);
+    const [xp] = await pool.execute('SELECT * FROM user_xp WHERE user_id = ?', [req.userId]);
+    const [progress] = await pool.execute('SELECT * FROM user_progress WHERE user_id = ?', [req.userId]);
+    const [goals] = await pool.execute('SELECT * FROM persona_goals WHERE owner_id = ?', [req.userId]);
+    const [tasks] = await pool.execute('SELECT * FROM persona_tasks WHERE owner_id = ?', [req.userId]);
+    const [contacts] = await pool.execute('SELECT * FROM persona_contacts WHERE owner_id = ?', [req.userId]);
+    const [onboarding] = await pool.execute('SELECT * FROM user_onboarding WHERE user_id = ?', [req.userId]);
+    const [ratings] = await pool.execute('SELECT * FROM ratings WHERE user_id = ?', [req.userId]);
+
+    const exportData = {
+      exported_at: new Date().toISOString(),
+      user,
+      profile: profiles[0] || null,
+      sessions,
+      xp,
+      progress,
+      goals,
+      tasks,
+      contacts,
+      onboarding,
+      ratings,
+    };
+
+    res.setHeader('Content-Disposition', 'attachment; filename="metapersona_data_export.json"');
+    res.setHeader('Content-Type', 'application/json');
+    res.json(exportData);
+  } catch (err) {
+    console.error('[Auth] Data export error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/data-delete', authMiddleware, async (req, res) => {
+  try {
+    const userId = req.userId;
+    const [users] = await pool.execute('SELECT id, email FROM users WHERE id = ?', [userId]);
+    if (!users.length) return res.status(404).json({ error: 'Usuário não encontrado' });
+    const userEmail = users[0].email;
+
+    await pool.execute('DELETE FROM persona_messages WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM user_xp WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM user_progress WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM user_onboarding WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM ratings WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM follow_ups WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM persona_tasks WHERE owner_id = ?', [userId]);
+    await pool.execute('DELETE FROM persona_goals WHERE owner_id = ?', [userId]);
+    await pool.execute('DELETE FROM persona_contacts WHERE owner_id = ?', [userId]);
+    await pool.execute('DELETE FROM persona_calendar WHERE owner_id = ?', [userId]);
+    await pool.execute('DELETE FROM persona_automations WHERE owner_id = ?', [userId]);
+    await pool.execute('DELETE FROM persona_org_memory WHERE owner_id = ?', [userId]);
+    await pool.execute('DELETE FROM cognitive_states WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM human_overrides WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM agent_thoughts WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM rate_limits WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM login_attempts WHERE email = ?', [userEmail]);
+    await pool.execute('DELETE FROM profiles WHERE id = ?', [userId]);
+
+    const [sessions] = await pool.execute('SELECT id FROM sessions WHERE user_id = ?', [userId]);
+    for (const s of sessions) {
+      await pool.execute('DELETE FROM messages WHERE session_id = ?', [s.id]);
+    }
+    await pool.execute('DELETE FROM sessions WHERE user_id = ?', [userId]);
+    await pool.execute('DELETE FROM users WHERE id = ?', [userId]);
+
+    res.json({ success: true, message: 'Todos os dados foram excluídos permanentemente' });
+  } catch (err) {
+    console.error('[Auth] Data delete error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/consent/revoke', authMiddleware, async (req, res) => {
+  try {
+    await pool.execute('UPDATE users SET data_processing_consent = 0, consent_date = NULL WHERE id = ?', [req.userId]);
+    res.json({ success: true, message: 'Consentimento revogado. Seus dados serão processados apenas para cumprimento de obrigação legal.' });
+  } catch (err) {
+    console.error('[Auth] Revoke consent error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

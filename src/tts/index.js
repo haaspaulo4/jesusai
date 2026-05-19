@@ -239,7 +239,7 @@ function normalizeTextForTTS(text, lang = 'pt-BR') {
 }
 
 function numberToWords(n, lang = 'pt-BR') {
-  if (n === 0) return isLang(lang, 'zero', 'zero', 'cero');
+  if (n === 0) return isLang(lang, 'zero', 'cero', 'zero');
   if (n < 0) return isLang(lang, 'menos', 'menos', 'minus') + ' ' + numberToWords(Math.abs(n), lang);
 
   const intPart = Math.floor(n);
@@ -284,6 +284,7 @@ function integerToWords(n, lang = 'pt-BR') {
 
   const isPT = lang === 'pt-BR';
   const isES = lang === 'es-ES';
+  const isEN = lang === 'en-US';
 
   const ones = isPT ? ONES_PT : isES ? ONES_ES : ONES_EN;
   const teens = isPT ? TEENS_PT : isES ? TEENS_ES : TEENS_EN;
@@ -330,7 +331,7 @@ function integerToWords(n, lang = 'pt-BR') {
   if (n >= 20) {
     const d = Math.floor(n / 10);
     const u = n % 10;
-    if (isPT && n >= 16 && n <= 19) return 'dezessete dezessete'.split(' ')[0]; // won't hit, handled below
+    if (isPT && n >= 16 && n <= 19) return teens[n - 10];
     if (u === 0) return tens[d];
     if (isPT) return tens[d] + ' e ' + ones[u];
     if (isES) return tens[d] + ' y ' + ones[u];

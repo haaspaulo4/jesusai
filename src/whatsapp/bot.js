@@ -347,6 +347,99 @@ async function markAsRead(remoteJid, messageId) {
   } catch {}
 }
 
+async function sendWhatsAppImage(remoteJid, imageSource, caption = '') {
+  const resolvedJid = resolveJid(remoteJid) || remoteJid;
+  const isGroupJid = resolvedJid.includes('@g.us');
+  const isLid = resolvedJid.includes('@lid');
+  let number;
+  if (isGroupJid || isLid) {
+    number = resolvedJid;
+  } else {
+    number = resolvedJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+  }
+  const payload = { number, caption, mediatype: 'image' };
+  if (Buffer.isBuffer(imageSource)) {
+    payload.media = imageSource.toString('base64');
+    payload.mimetype = 'image/jpeg';
+  } else {
+    payload.media = imageSource;
+  }
+  try {
+    return await evoRequest('POST', `/message/sendMedia/${EVO_INSTANCE}`, payload);
+  } catch {
+    if (!isGroupJid && !isLid) {
+      const alt = alternateBrazilianNumber(number);
+      if (alt) {
+        payload.number = alt;
+        return await evoRequest('POST', `/message/sendMedia/${EVO_INSTANCE}`, payload);
+      }
+    }
+    throw new Error('Failed to send image');
+  }
+}
+
+async function sendWhatsAppVideo(remoteJid, videoSource, caption = '') {
+  const resolvedJid = resolveJid(remoteJid) || remoteJid;
+  const isGroupJid = resolvedJid.includes('@g.us');
+  const isLid = resolvedJid.includes('@lid');
+  let number;
+  if (isGroupJid || isLid) {
+    number = resolvedJid;
+  } else {
+    number = resolvedJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+  }
+  const payload = { number, caption, mediatype: 'video' };
+  if (Buffer.isBuffer(videoSource)) {
+    payload.media = videoSource.toString('base64');
+    payload.mimetype = 'video/mp4';
+  } else {
+    payload.media = videoSource;
+  }
+  try {
+    return await evoRequest('POST', `/message/sendMedia/${EVO_INSTANCE}`, payload);
+  } catch {
+    if (!isGroupJid && !isLid) {
+      const alt = alternateBrazilianNumber(number);
+      if (alt) {
+        payload.number = alt;
+        return await evoRequest('POST', `/message/sendMedia/${EVO_INSTANCE}`, payload);
+      }
+    }
+    throw new Error('Failed to send video');
+  }
+}
+
+async function sendWhatsAppDocument(remoteJid, documentSource, fileName = 'document.pdf', caption = '') {
+  const resolvedJid = resolveJid(remoteJid) || remoteJid;
+  const isGroupJid = resolvedJid.includes('@g.us');
+  const isLid = resolvedJid.includes('@lid');
+  let number;
+  if (isGroupJid || isLid) {
+    number = resolvedJid;
+  } else {
+    number = resolvedJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+  }
+  const payload = { number, fileName, caption, mediatype: 'document' };
+  if (Buffer.isBuffer(documentSource)) {
+    payload.media = documentSource.toString('base64');
+    payload.mimetype = 'application/pdf';
+  } else {
+    payload.media = documentSource;
+  }
+  try {
+    return await evoRequest('POST', `/message/sendMedia/${EVO_INSTANCE}`, payload);
+  } catch {
+    if (!isGroupJid && !isLid) {
+      const alt = alternateBrazilianNumber(number);
+      if (alt) {
+        payload.number = alt;
+        return await evoRequest('POST', `/message/sendMedia/${EVO_INSTANCE}`, payload);
+      }
+    }
+    throw new Error('Failed to send document');
+  }
+}
+
 async function sendPresence(remoteJid, presence = 'composing') {
   try {
     let number;
@@ -1149,4 +1242,4 @@ function verifyWebhookSecret(req) {
   return provided === WEBHOOK_SECRET;
 }
 
-module.exports = { handleWhatsAppMessage, startWhatsAppBot, sendWhatsAppText, sendWhatsAppAudio, generateTTSAudioUrl, generateAudioBuffer, splitTextForTTS, sendReplyWithAudio, setupWebhook, verifyWebhookSecret, cleanTextForTTS, extractAudioInfo, downloadWhatsAppMedia, createGroup, addGroupParticipant, removeGroupParticipant, setGroupDescription, leaveGroup };
+module.exports = { handleWhatsAppMessage, startWhatsAppBot, sendWhatsAppText, sendWhatsAppAudio, sendWhatsAppImage, sendWhatsAppVideo, sendWhatsAppDocument, generateTTSAudioUrl, generateAudioBuffer, splitTextForTTS, sendReplyWithAudio, setupWebhook, verifyWebhookSecret, cleanTextForTTS, extractAudioInfo, downloadWhatsAppMedia, createGroup, addGroupParticipant, removeGroupParticipant, setGroupDescription, leaveGroup };

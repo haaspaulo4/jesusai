@@ -205,4 +205,31 @@ function makeTelegramHandler(options = {}) {
   };
 }
 
-module.exports = { makeTelegramHandler };
+async function sendTelegramPhoto(chatId, photoSource, caption = '') {
+  const bot = _activeBots.get('telegram');
+  if (!bot) throw new Error('No active Telegram bot');
+  if (Buffer.isBuffer(photoSource)) {
+    return await bot.sendPhoto(chatId, photoSource, { caption });
+  }
+  return await bot.sendPhoto(chatId, photoSource, { caption });
+}
+
+async function sendTelegramDocument(chatId, documentSource, fileName = 'document.pdf', caption = '') {
+  const bot = _activeBots.get('telegram');
+  if (!bot) throw new Error('No active Telegram bot');
+  if (Buffer.isBuffer(documentSource)) {
+    return await bot.sendDocument(chatId, documentSource, { caption }, { filename: fileName });
+  }
+  return await bot.sendDocument(chatId, documentSource, { caption }, { filename: fileName });
+}
+
+async function sendTelegramVoice(chatId, audioBuffer, contentType = 'audio/ogg') {
+  const bot = _activeBots.get('telegram');
+  if (!bot) throw new Error('No active Telegram bot');
+  const ext = contentType.includes('mp3') ? 'mp3' : 'ogg';
+  return await bot.sendVoice(chatId, audioBuffer, { caption: '' }, { filename: `voice.${ext}`, contentType });
+}
+
+const _activeBots = new Map();
+
+module.exports = { makeTelegramHandler, sendTelegramPhoto, sendTelegramDocument, sendTelegramVoice, _activeBots };

@@ -167,12 +167,11 @@ Three modes per session: **full** (human takes over entirely), **approval** (hum
 |-------|-----------|
 | Runtime | Node.js 18+ / Express |
 | Database | MySQL 8.4 (mysql2/promise) |
-| LLM | Ollama Cloud API (OpenAI-compatible, multi-key fallback) |
+| LLM | Ollama Cloud API (native `/chat`, multi-key fallback, tool calling) |
 | RAG | TF-IDF pluggable + multimodal ingestion |
 | Auth | JWT + bcrypt + Google OAuth + role-based + rate limiting |
 | Telegram | Multi-instance via bot manager |
 | WhatsApp | Multi-instance via Evolution API v2 |
-| Instagram | Multi-instance via instagram-private-api (DM polling) |
 | TTS | Kokoro-82M + Edge TTS + Google Translate (fallback) |
 | STT | Groq Whisper + OpenAI Whisper (fallback) |
 | i18n | pt-BR, en-US, es-ES |
@@ -212,7 +211,7 @@ npm run tts:start     # Start Kokoro server on port 8001
 
 | Module | File | Description |
 |--------|------|-------------|
-| Chat Engine | `src/chat/engine.js` | Rate limit, onboarding, persona-aware RAG, tools, cognitive, override, event emission |
+| Chat Engine | `src/chat/engine.js` | Rate limit, onboarding, persona-aware RAG, tools, cognitive, override, tool call execution loop |
 | Persona Manager | `src/persona/manager.js` | Multi-persona DB, cache, invalidation |
 | Meta-RAG | `src/persona/meta-rag.js` | LLM persona generation, switchPersona |
 | Agent | `src/agent/index.js` | Tasks, calendar, contacts, automations, history, dashboard |
@@ -230,7 +229,7 @@ npm run tts:start     # Start Kokoro server on port 8001
 | Events | `src/events/index.js` | Event bus (on_goal_completed, on_badge_earned, on_churn_risk_high, etc.) |
 | Blueprints | `src/blueprints/index.js` | Cloneable persona templates, CRUD, clone, seed |
 | LLM Tools | `src/llm/tools.js` | 36 tool definitions + execution logic (29 base + 7 language skills) |
-| Integration Mgr | `src/llm/integrationManager.js` | Multi-key fallback for all integrations |
+| Integration Mgr | `src/llm/integrationManager.js` | Multi-key fallback, Ollama/Groq auto-detect, normalizeLLMResponse (Ollama + OpenAI + inline) |
 | Knowledge | `src/knowledge/` | TF-IDF RAG, multimodal ingestion, per-persona sources, 11 language sources |
 | Skills (seed) | `src/seed/skillsAndBlueprints.js` | 57 global skills + 7 language skills + 6 blueprint templates |
 | Auth | `src/auth/` | JWT, bcrypt, Google OAuth, role-based, rate limiting |

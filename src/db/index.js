@@ -9,7 +9,6 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: parseInt(process.env.DB_CONNECTION_LIMIT || '10'),
   connectTimeout: 10000,
-  acquireTimeout: 15000,
   queueLimit: 50,
   charset: 'utf8mb4',
   timezone: '+00:00',
@@ -27,10 +26,24 @@ CREATE TABLE IF NOT EXISTS users (
   telegram_chat_id VARCHAR(50),
   role VARCHAR(20) DEFAULT 'user',
   persona_id VARCHAR(60) DEFAULT NULL,
+  consent_date TIMESTAMP NULL DEFAULT NULL,
+  consent_version VARCHAR(20) DEFAULT '1.0',
+  data_processing_consent TINYINT(1) DEFAULT 0,
+  cookie_consent VARCHAR(20) DEFAULT NULL,
+  cookie_consent_date TIMESTAMP NULL DEFAULT NULL,
+  token_version INT DEFAULT 1,
+  link_code VARCHAR(10) DEFAULT NULL,
+  link_code_expires TIMESTAMP NULL DEFAULT NULL,
+  whatsapp_id VARCHAR(100) DEFAULT NULL,
+  telegram_id VARCHAR(100) DEFAULT NULL,
+  phone VARCHAR(50) DEFAULT NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   UNIQUE KEY idx_users_email (email),
   KEY idx_users_google_id (google_id),
-  KEY idx_users_role (role)
+  KEY idx_users_role (role),
+  UNIQUE KEY idx_users_link_code (link_code),
+  UNIQUE KEY idx_users_whatsapp_id (whatsapp_id),
+  UNIQUE KEY idx_users_telegram_id (telegram_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS sessions (
@@ -40,6 +53,8 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_context JSON,
   summary TEXT,
   persona_id VARCHAR(60) DEFAULT NULL,
+  silence_count INT DEFAULT 0,
+  silence_infinite TINYINT(1) DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   KEY idx_sessions_user (user_id)
@@ -291,7 +306,7 @@ CREATE TABLE IF NOT EXISTS follow_ups (
 
 CREATE TABLE IF NOT EXISTS bot_instances (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  platform ENUM('telegram', 'whatsapp', 'instagram') NOT NULL,
+  platform ENUM('telegram', 'whatsapp') NOT NULL,
   name VARCHAR(255) NOT NULL,
   token VARCHAR(500) DEFAULT NULL,
   webhook_url VARCHAR(500) DEFAULT NULL,
@@ -312,12 +327,22 @@ CREATE TABLE IF NOT EXISTS onboarding_steps (
   question TEXT NOT NULL,
   question_en TEXT,
   question_es TEXT,
-  field VARCHAR(100) NOT NULL,
-  field_type ENUM('text','choice','email','phone','number') DEFAULT 'text',
+  field VARCHAR(100) DEFAULT NULL,
+  field_type ENUM('text','choice','email','phone','number','multichoice','confirm','message') DEFAULT 'text',
   choices JSON,
+  choices_en JSON,
+  choices_es JSON,
   required TINYINT(1) DEFAULT 1,
   is_active TINYINT(1) DEFAULT 1,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  persona_id VARCHAR(60) DEFAULT NULL,
+  condition_field VARCHAR(100) DEFAULT NULL,
+  condition_value VARCHAR(255) DEFAULT NULL,
+  icon VARCHAR(10) DEFAULT NULL,
+  placeholder JSON DEFAULT NULL,
+  skip_label JSON DEFAULT NULL,
+  max_choices INT DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE KEY idx_step_persona (step_key, persona_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS user_onboarding (
@@ -528,6 +553,8 @@ CREATE TABLE IF NOT EXISTS user_xp (
   best_streak INT DEFAULT 0,
   last_activity TIMESTAMP NULL,
   badges JSON,
+  total_messages INT DEFAULT 0,
+  goals_completed INT DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   PRIMARY KEY (user_id, persona_id),
@@ -827,9 +854,8 @@ async function initDatabase() {
   try { await pool.execute("ALTER TABLE persona_calendar ADD INDEX idx_calendar_owner_start (owner_id, start_time)"); } catch {}
   try { await pool.execute("ALTER TABLE persona_automations ADD INDEX idx_auto_owner_active (owner_id, is_active)"); } catch {}
   try { await pool.execute("ALTER TABLE agent_thoughts ADD INDEX idx_thoughts_persona_created (persona_id, created_at)"); } catch {}
-
-  // Fix bot_instances ENUM to include instagram
-  try { await pool.execute("ALTER TABLE bot_instances MODIFY COLUMN platform ENUM('telegram', 'whatsapp', 'instagram') NOT NULL"); } catch (e) { if (!e.message.includes('Duplicate') && !e.message.includes('already')) console.error('[DB Migration] bot_instances ENUM:', e.message); }
+  try { await pool.execute("DELETE FROM bot_instances WHERE platform = 'instagram'"); } catch {}
+  try { await pool.execute("ALTER TABLE bot_instances MODIFY COLUMN platform ENUM('telegram', 'whatsapp') NOT NULL"); } catch (e) { if (!e.message.includes('Duplicate') && !e.message.includes('already')) console.error('[DB Migration] bot_instances ENUM:', e.message); }
 
   // Business config on personas
   try { await pool.execute("ALTER TABLE personas ADD COLUMN business_config JSON DEFAULT NULL"); } catch {}
@@ -953,6 +979,13 @@ async function initDatabase() {
 
   try { await pool.execute("ALTER TABLE user_xp ADD COLUMN total_messages INT DEFAULT 0"); } catch {}
   try { await pool.execute("ALTER TABLE user_xp ADD COLUMN goals_completed INT DEFAULT 0"); } catch {}
+
+  // LGPD consent columns
+  try { await pool.execute("ALTER TABLE users ADD COLUMN consent_date TIMESTAMP NULL DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD COLUMN consent_version VARCHAR(20) DEFAULT '1.0'"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD COLUMN data_processing_consent TINYINT(1) DEFAULT 0"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD COLUMN cookie_consent VARCHAR(20) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD COLUMN cookie_consent_date TIMESTAMP NULL DEFAULT NULL"); } catch {}
 
   console.log('Database schema initialized (with migrations)');
 }

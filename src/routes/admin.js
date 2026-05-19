@@ -17,6 +17,8 @@ const overrideModule = require('../override');
 const thoughtsModule = require('../thoughts');
 const optimizationModule = require('../optimization');
 const eventsModule = require('../events');
+const { billingManager, PLANS } = require('../billing');
+const { workspaceManager, ruleEngine } = require('../workspace');
 
 const router = express.Router();
 
@@ -36,6 +38,14 @@ function premiumMiddleware(req, res, next) {
   if (!req.userId) return res.status(401).json({ error: 'Unauthorized' });
   if (!['admin', 'premium', 'user'].includes(req.userRole)) return res.status(403).json({ error: 'Access denied' });
   next();
+}
+
+function safeError(err, userRole) {
+  if (userRole === 'admin') return err.message;
+  const safeMessages = ['not found', 'already exists', 'required', 'invalid', 'expired', 'unauthorized'];
+  const msg = (err.message || '').toLowerCase();
+  if (safeMessages.some(s => msg.includes(s))) return err.message;
+  return 'Internal error';
 }
 
 function checkOwner(ownerId, userId, userRole) {
@@ -2105,6 +2115,100 @@ router.delete('/media/:id', authMiddleware, adminMiddleware, async (req, res) =>
     res.json(result);
   } catch (err) {
     console.error('[Admin] Delete media error:', err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Billing
+router.get('/billing/plans', authMiddleware, adminMiddleware, (req, res) => {
+  res.json(billingManager.getAllPlans());
+});
+
+router.get('/billing/usage', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const workspaceId = req.query.workspace_id || 'default';
+    const report = await billingManager.getUsageReport(workspaceId);
+    res.json(report);
+  } catch (err) {
+    console.error('[Admin] Billing usage error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Workspace
+router.get('/workspace/members', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const workspaceId = req.query.workspace_id || 'default';
+    const members = await workspaceManager.getMembers(workspaceId);
+    res.json(members);
+  } catch (err) {
+    console.error('[Admin] Workspace members error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/workspace', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const workspaceId = req.query.workspace_id || 'default';
+    const workspace = await workspaceManager.getWorkspace(workspaceId);
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
+    res.json(workspace);
+  } catch (err) {
+    console.error('[Admin] Get workspace error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/workspace', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const workspace = await workspaceManager.createWorkspace(req.body);
+    res.json(workspace);
+  } catch (err) {
+    console.error('[Admin] Create workspace error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/workspace/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const workspace = await workspaceManager.updateWorkspace(req.params.id, req.body);
+    if (!workspace) return res.status(404).json({ error: 'Workspace not found' });
+    res.json(workspace);
+  } catch (err) {
+    console.error('[Admin] Update workspace error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Business Rules
+router.get('/workspace/rules', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const workspaceId = req.query.workspace_id || 'default';
+    const rules = await ruleEngine.listRules(workspaceId);
+    res.json(rules);
+  } catch (err) {
+    console.error('[Admin] List rules error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/workspace/rules', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const workspaceId = req.body.workspace_id || 'default';
+    const rule = await ruleEngine.addRule(workspaceId, req.body);
+    res.json(rule);
+  } catch (err) {
+    console.error('[Admin] Add rule error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/workspace/rules/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await ruleEngine.removeRule(req.query.workspace_id || 'default', req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Admin] Remove rule error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });

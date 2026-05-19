@@ -17,20 +17,8 @@ const STEP_TYPES = {
 
 const GLOBAL_ONBOARDING_STEPS = [
   {
-    step_key: 'welcome',
-    step_order: 0,
-    question: 'Bem-vindo! Vou personalizar sua experiência. Isso leva menos de 1 minuto.',
-    question_en: 'Welcome! I\'ll personalize your experience. This takes less than 1 minute.',
-    question_es: '¡Bienvenido! Personalizaré tu experiencia. Toma menos de 1 minuto.',
-    field: null,
-    field_type: 'message',
-    required: false,
-    persona_id: null,
-    icon: '👋',
-  },
-  {
     step_key: 'name',
-    step_order: 1,
+    step_order: 0,
     question: 'Como posso te chamar?',
     question_en: 'What should I call you?',
     question_es: '¿Cómo puedo llamarte?',
@@ -43,15 +31,15 @@ const GLOBAL_ONBOARDING_STEPS = [
   },
   {
     step_key: 'interest',
-    step_order: 2,
+    step_order: 1,
     question: 'O que mais te interessa?',
     question_en: 'What interests you most?',
     question_es: '¿Qué te interesa más?',
     field: 'topics',
     field_type: 'multichoice',
-    choices: ['fé', 'paz', 'família', 'propósito', 'perdão', 'cura', 'sabedoria', 'liderança', 'negócios', 'saúde', 'educação', 'outro'],
-    choices_en: ['faith', 'peace', 'family', 'purpose', 'forgiveness', 'healing', 'wisdom', 'leadership', 'business', 'health', 'education', 'other'],
-    choices_es: ['fe', 'paz', 'familia', 'propósito', 'perdón', 'curación', 'sabiduría', 'liderazgo', 'negocios', 'salud', 'educación', 'otro'],
+    choices: ['autoconhecimento', 'relacionamentos', 'carreira', 'saúde', 'finanças', 'aprendizado', 'motivação', 'criatividade', 'equilíbrio', 'liderança', 'bem-estar', 'outro'],
+    choices_en: ['self-improvement', 'relationships', 'career', 'health', 'finances', 'learning', 'motivation', 'creativity', 'balance', 'leadership', 'wellness', 'other'],
+    choices_es: ['autoconocimiento', 'relaciones', 'carrera', 'salud', 'finanzas', 'aprendizaje', 'motivación', 'creatividad', 'equilibrio', 'liderazgo', 'bienestar', 'otro'],
     required: true,
     persona_id: null,
     icon: '🎯',
@@ -59,7 +47,7 @@ const GLOBAL_ONBOARDING_STEPS = [
   },
   {
     step_key: 'feeling',
-    step_order: 3,
+    step_order: 2,
     question: 'Como você está se sentindo hoje?',
     question_en: 'How are you feeling today?',
     question_es: '¿Cómo te sientes hoy?',
@@ -75,7 +63,7 @@ const GLOBAL_ONBOARDING_STEPS = [
   },
   {
     step_key: 'email',
-    step_order: 4,
+    step_order: 3,
     question: 'Quer receber conteúdos exclusivos? Deixe seu email (opcional):',
     question_en: 'Want exclusive content? Leave your email (optional):',
     question_es: '¿Quieres contenido exclusivo? Deja tu email (opcional):',
@@ -491,16 +479,33 @@ async function shouldOnboard(userId, personaId) {
   return nextStep;
 }
 
-function formatOnboardingQuestion(step, lang) {
+async function formatOnboardingQuestion(step, lang, brandName) {
   if (!step) return null;
   const l = lang.startsWith('en') ? 'en' : (lang.startsWith('es') ? 'es' : 'pt');
   let question = step[`question${l === 'pt' ? '' : l === 'en' ? '_en' : '_es'}`] || step.question;
   if (!question) question = step.question;
 
+  const brand = brandName || await getSetting('brand_name', '') || '';
+  const personalization = brand
+    ? (l === 'en' ? ` at ${brand}` : l === 'es' ? ` en ${brand}` : ` no ${brand}`)
+    : '';
+  question = question.replace('{brand}', brand).replace('{personalization}', personalization);
+
   const choicesKey = `choices${l === 'pt' ? '' : l === 'en' ? '_en' : '_es'}`;
   const choices = step[choicesKey] || step.choices;
 
   let msg = question;
+
+  if (step.step_key === 'name' && step.step_order === 0) {
+    const greeting = l === 'en'
+      ? await getSetting('onboarding_greeting_en', '')
+      : l === 'es'
+        ? await getSetting('onboarding_greeting_es', '')
+        : await getSetting('onboarding_greeting', '');
+    if (greeting) {
+      msg = greeting + '\n\n' + question;
+    }
+  }
 
   if (step.field_type === 'message') {
     return msg;
@@ -519,6 +524,14 @@ function formatOnboardingQuestion(step, lang) {
   const placeholder = step.placeholder;
   if (placeholder && placeholder[l === 'pt' ? 'pt-BR' : l === 'en' ? 'en-US' : 'es-ES']) {
     msg += '\n\n_' + placeholder[l === 'pt' ? 'pt-BR' : l === 'en' ? 'en-US' : 'es-ES'] + '_';
+  }
+
+  const skipLabel = step.skip_label;
+  if (skipLabel && !step.required) {
+    const skipText = skipLabel[l === 'pt' ? 'pt-BR' : l === 'en' ? 'en-US' : 'es-ES'];
+    if (skipText) {
+      msg += `\n\n_${skipText}_`;
+    }
   }
 
   return msg;

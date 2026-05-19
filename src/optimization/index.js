@@ -137,5 +137,3 @@ async function generateSuggestions(personaId, days = 7) {
 }
 
 module.exports = { generateSuggestions };
-
-module.exports = { generateSuggestions };

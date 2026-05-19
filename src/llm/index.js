@@ -142,7 +142,7 @@ async function* parseStream(response) {
       if (trimmed === 'data: [DONE]') return;
       const dataStr = trimmed.startsWith('data: ') ? trimmed.slice(6) : trimmed;
 
-      try {
+        try {
         const data = JSON.parse(dataStr);
         if (data.done) return;
 
@@ -151,6 +151,36 @@ async function* parseStream(response) {
           if (content) yield content;
           const thinking = data.message.thinking || data.message.reasoning_content || '';
           if (thinking && !content) yield thinking;
+        }
+
+        if (data.message?.tool_calls && data.message.tool_calls.length > 0) {
+          yield { type: 'tool_calls', tool_calls: data.message.tool_calls };
+        }
+
+        if (data.tool_calls && data.tool_calls.length > 0) {
+          yield { type: 'tool_calls', tool_calls: data.tool_calls };
+        }
+
+        if (data.choices?.[0]?.delta) {
+          const delta = data.choices[0].delta;
+          const content = delta.content || '';
+          if (content) yield content;
+          const thinking = delta.reasoning_content || delta.thinking || '';
+          if (thinking && !content) yield thinking;
+          if (delta.tool_calls && delta.tool_calls.length > 0) {
+            yield { type: 'tool_calls', tool_calls: delta.tool_calls };
+          }
+        }
+
+        if (data.choices?.[0]?.message) {
+          const msg = data.choices[0].message;
+          const content = msg.content || '';
+          if (content) yield content;
+          const thinking = msg.reasoning_content || msg.thinking || '';
+          if (thinking && !content) yield thinking;
+          if (msg.tool_calls && msg.tool_calls.length > 0) {
+            yield { type: 'tool_calls', tool_calls: msg.tool_calls };
+          }
         }
 
         if (data.choices?.[0]?.delta) {
@@ -163,6 +193,21 @@ async function* parseStream(response) {
 
         if (data.tool_calls && data.tool_calls.length > 0) {
           yield { type: 'tool_calls', tool_calls: data.tool_calls };
+        }
+
+        if (data.choices?.[0]?.delta?.tool_calls) {
+          const tc = data.choices[0].delta.tool_calls;
+          if (tc.length > 0) {
+            yield { type: 'tool_calls', tool_calls: tc };
+          }
+        }
+
+        if (data.choices?.[0]?.delta) {
+          const delta = data.choices[0].delta;
+          const content = delta.content || '';
+          if (content) yield content;
+          const thinking = delta.reasoning_content || delta.thinking || '';
+          if (thinking && !content) yield thinking;
         }
 
         if (data.choices?.[0]?.message) {
@@ -181,17 +226,43 @@ async function* parseStream(response) {
 
 function normalizeLLMResponse(data) {
   if (!data) return data;
-  if (data.message && typeof data.message === 'object') return data;
+
+  if (data.message && typeof data.message === 'object') {
+    let toolCalls = data.message.tool_calls || data.tool_calls || null;
+    if (!toolCalls && data.message.content && typeof data.message.content === 'string') {
+      const inlineMatch = data.message.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
+      if (inlineMatch) {
+        try {
+          toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
+          data.message.content = '';
+        } catch {}
+      }
+    }
+    if (toolCalls?.length > 0) {
+      return { message: { role: data.message.role || 'assistant', content: data.message.content || '', thinking: data.message.thinking || data.message.reasoning_content || '' }, tool_calls: toolCalls, done: data.done ?? true };
+    }
+    return data;
+  }
 
   if (data.choices?.[0]?.message) {
     const msg = data.choices[0].message;
+    let toolCalls = msg.tool_calls || data.tool_calls || null;
+    if (!toolCalls && msg.content && typeof msg.content === 'string') {
+      const inlineMatch = msg.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
+      if (inlineMatch) {
+        try {
+          toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
+          msg.content = '';
+        } catch {}
+      }
+    }
     return {
       message: {
         role: msg.role || 'assistant',
         content: msg.content || '',
         thinking: msg.thinking || msg.reasoning_content || msg.thought || '',
       },
-      tool_calls: msg.tool_calls || data.tool_calls || null,
+      tool_calls: toolCalls,
       done: data.done ?? true,
     };
   }

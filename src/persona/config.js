@@ -483,9 +483,18 @@ function buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, use
     const sourcesConfig = require('../knowledge/config').getAllEnabledSources();
     let contextTemplate = null;
     if (knowledgeSources && knowledgeSources.length > 0) {
-      const matchingSource = sourcesConfig.find(s => knowledgeSources.includes(s.id));
-      if (matchingSource && matchingSource.contextTemplate) {
-        contextTemplate = matchingSource.contextTemplate[lang] || matchingSource.contextTemplate['pt-BR'];
+      for (const sourceId of knowledgeSources) {
+        const matchingSource = sourcesConfig.find(s => s.id === sourceId);
+        if (matchingSource && matchingSource.contextTemplate) {
+          contextTemplate = matchingSource.contextTemplate[lang] || matchingSource.contextTemplate['pt-BR'];
+          break;
+        }
+      }
+    }
+    if (!contextTemplate) {
+      const nonBiblicalSource = sourcesConfig.find(s => !s.id.includes('bible'));
+      if (nonBiblicalSource && nonBiblicalSource.contextTemplate) {
+        contextTemplate = nonBiblicalSource.contextTemplate[lang] || nonBiblicalSource.contextTemplate['pt-BR'];
       }
     }
     if (!contextTemplate) {
@@ -495,9 +504,7 @@ function buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, use
       }
     }
     if (!contextTemplate) {
-      const fallbackIdentity = persona.identity['pt-BR'] || persona.identity;
-      const fallbackRules = typeof fallbackIdentity === 'string' ? '' : (fallbackIdentity.rules || '');
-      contextTemplate = fallbackRules || 'CONTEXT:\n{context}';
+      contextTemplate = 'CONTEXT:\n{context}';
     }
     prompt += '\n\n' + contextTemplate.replace('{context}', contextStr);
     prompt += '\n\nIMPORTANTE: O conhecimento acima JÁ ESTÁ DISPONÍVEL para você. NUNCA diga "deixe-me buscar", "vou procurar", "espere enquanto busco" ou similar. Responda DIRETAMENTE usando as informações do contexto.';

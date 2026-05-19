@@ -204,20 +204,20 @@ class KeyManager {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), 10000);
 
-      const response = await fetch(`${key.baseUrl}/chat`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(key.key ? { Authorization: `Bearer ${key.key}` } : {}),
-        },
-        body: JSON.stringify({
-          model: key.model,
-          messages: [{ role: 'user', content: 'Hi' }],
-          stream: false,
-          options: { num_predict: 1 },
-        }),
-        signal: controller.signal,
-      });
+        const response = await fetch(`${key.baseUrl}/chat`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(key.key ? { Authorization: `Bearer ${key.key}` } : {}),
+          },
+          body: JSON.stringify({
+            model: key.model,
+            messages: [{ role: 'user', content: 'Hi' }],
+            stream: false,
+            options: { temperature: 0.1, num_predict: 1 },
+          }),
+          signal: controller.signal,
+        });
 
       clearTimeout(timer);
 
@@ -343,19 +343,19 @@ class KeyManager {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), timeout);
 
-        const response = await fetch(`${key.baseUrl}/chat`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(key.key ? { Authorization: `Bearer ${key.key}` } : {}),
-          },
-          body: JSON.stringify(body),
-          signal: controller.signal,
-        });
+      const response = await fetch(`${key.baseUrl}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(key.key ? { Authorization: `Bearer ${key.key}` } : {}),
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
 
-        clearTimeout(timer);
+      clearTimeout(timer);
 
-        if (response.status === 429) {
+      if (response.status === 429) {
           const err = await response.text().catch(() => '');
           key.consecutiveFailures++;
           key.lastError = `429 rate limit: ${err.substring(0, 200)}`;
@@ -440,8 +440,12 @@ class KeyManager {
 
         const data = await response.json();
 
+        if (data.message?.tool_calls && data.message.tool_calls.length > 0) {
+          return { message: data.message, tool_calls: data.message.tool_calls, done: data.done ?? true };
+        }
+
         if (data.tool_calls && data.tool_calls.length > 0) {
-          return { message: data.message, tool_calls: data.tool_calls, done: data.done };
+          return { message: data.message, tool_calls: data.tool_calls, done: data.done ?? true };
         }
 
         return data;

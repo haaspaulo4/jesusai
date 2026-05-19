@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Política de Cookies — MetaPersona.AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>tailwind.config={theme:{extend:{colors:{brand:{50:'#fdf8e8',100:'#fbe9b8',200:'#f7d978',300:'#f3c338',400:'#e5a820',500:'#d4a843',600:'#b8862e',700:'#8f6520',800:'#6d4e1a',900:'#4a3512'},surface:{50:'#f8f8ff',100:'#e8e8f0',200:'#c8c8d8',300:'#9898b0',400:'#686888',500:'#3a3a5c',600:'#2a2a4c',700:'#1a1a3c',800:'#12122e',900:'#0a0a1a'}}}}}</script>
+</head>
+<body class="bg-surface-900 text-gray-200 min-h-screen">
+  <nav class="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-surface-900/80 border-b border-white/5">
+    <div class="max-w-4xl mx-auto px-4 h-14 flex items-center justify-between">
+      <a href="/" class="font-bold text-lg text-brand-400">MetaPersona.AI</a>
+      <div class="flex gap-4 text-sm">
+        <a href="/privacidade" class="text-gray-400 hover:text-white transition">Privacidade</a>
+        <a href="/cookies" class="text-brand-400 font-medium">Cookies</a>
+        <a href="/termos" class="text-gray-400 hover:text-white transition">Termos</a>
+      </div>
+    </div>
+  </nav>
+
+  <main class="max-w-4xl mx-auto px-4 pt-24 pb-16">
+    <h1 class="text-3xl font-bold mb-2 text-brand-400">Política de Cookies</h1>
+    <p class="text-sm text-gray-500 mb-8">Última atualização: Janeiro de 2025 · Em conformidade com a LGPD e Diretiva ePrivacy</p>
+
+    <section class="space-y-8">
+      <div>
+        <h2 class="text-xl font-semibold mb-3 text-white">1. O que são Cookies</h2>
+        <p class="text-gray-300 text-sm leading-relaxed">Cookies são pequenos arquivos de texto armazenados no seu dispositivo quando você visita nosso site. Eles servem para lembrar suas preferências, manter sua sessão ativa, e melhorar sua experiência. Também utilizamos tecnologias semelhantes como localStorage e sessionStorage.</p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold mb-3 text-white">2. Tipos de Cookies que Utilizamos</h2>
+        <div class="space-y-4">
+          <div class="bg-surface-800 rounded-xl p-4">
+            <div class="flex items-center gap-2 mb-2"><span class="bg-green-500/20 text-green-400 text-xs font-bold px-2 py-0.5 rounded">Essenciais</span><span class="text-white font-medium">Necessários para funcionamento</span></div>
+            <table class="w-full text-sm text-gray-300">
+              <thead><tr class="text-left text-gray-500 border-b border-white/5"><th class="py-1">Cookie</th><th class="py-1">Finalidade</th><th class="py-1">Duração</th></tr></thead>
+              <tbody>
+                <tr class="border-b border-white/5"><td class="py-1.5 font-mono text-xs">mp_token</td><td>Token JWT de autenticação</td><td>1 hora</td></tr>
+                <tr class="border-b border-white/5"><td class="py-1.5 font-mono text-xs">mp_refresh_token</td><td>Token de renovação de sessão</td><td>7 dias</td></tr>
+                <tr class="border-b border-white/5"><td class="py-1.5 font-mono text-xs">mp_session_id</td><td>ID da sessão de conversa atual</td><td>Sessão</td></tr>
+                <tr class="border-b border-white/5"><td class="py-1.5 font-mono text-xs">mp_persona</td><td>Persona selecionada pelo usuário</td><td>30 dias</td></tr>
+                <tr><td class="py-1.5 font-mono text-xs">mp_lang</td><td>Idioma preferido (pt-BR, en-US, es-ES)</td><td>365 dias</td></tr>
+              </tbody>
+            </table>
+            <p class="text-xs text-gray-500 mt-2">Estes cookies são necessários para o funcionamento básico da plataforma e não podem ser desativados.</p>
+          </div>
+
+          <div class="bg-surface-800 rounded-xl p-4">
+            <div class="flex items-center gap-2 mb-2"><span class="bg-yellow-500/20 text-yellow-400 text-xs font-bold px-2 py-0.5 rounded">Preferência</span><span class="text-white font-medium">Personalização e funcionalidade</span></div>
+            <table class="w-full text-sm text-gray-300">
+              <thead><tr class="text-left text-gray-500 border-b border-white/5"><th class="py-1">Cookie</th><th class="py-1">Finalidade</th><th class="py-1">Duração</th></tr></thead>
+              <tbody>
+                <tr class="border-b border-white/5"><td class="py-1.5 font-mono text-xs">mp_user_id</td><td>ID do usuário logado</td><td>30 dias</td></tr>
+                <tr class="border-b border-white/5"><td class="py-1.5 font-mono text-xs">mp_cookie_consent</td><td>Preferências de consentimento de cookies</td><td>365 dias</td></tr>
+                <tr><td class="py-1.5 font-mono text-xs">localStorage</td><td>Preferências de tema, sidebar, onboarding</td><td>Persistente</td></tr>
+              </tbody>
+            </table>
+            <p class="text-xs text-gray-500 mt-2">Estes cookies melhoram sua experiência e podem ser desativados, mas isso pode afetar a funcionalidade.</p>
+          </div>
+
+          <div class="bg-surface-800 rounded-xl p-4">
+            <div class="flex items-center gap-2 mb-2"><span class="bg-blue-500/20 text-blue-400 text-xs font-bold px-2 py-0.5 rounded">Analytics</span><span class="text-white font-medium">Análise de uso e desempenho</span></div>
+            <p class="text-sm text-gray-300">Utilizamos Socket.IO para comunicação em tempo real, que pode criar cookies de sessão temporários. Não utilizamos Google Analytics, Facebook Pixel ou outros rastreadores de terceiros.</p>
+            <table class="w-full text-sm text-gray-300 mt-3">
+              <thead><tr class="text-left text-gray-500 border-b border-white/5"><th class="py-1">Cookie</th><th class="py-1">Finalidade</th><th class="py-1">Duração</th></tr></thead>
+              <tbody>
+                <tr><td class="py-1.5 font-mono text-xs">io</td><td>Socket.IO — conexão em tempo real (chat, eventos)</td><td>Sessão</td></tr>
+              </tbody>
+            </table>
+            <p class="text-xs text-gray-500 mt-2">Estes cookies são necessários para funcionalidade em tempo real (chat, notificações, eventos de XP).</p>
+          </div>
+
+          <div class="bg-surface-800 rounded-xl p-4">
+            <div class="flex items-center gap-2 mb-2"><span class="bg-red-500/20 text-red-400 text-xs font-bold px-2 py-0.5 rounded">Marketing</span><span class="text-white font-medium">Nenhum cookie de marketing</span></div>
+            <p class="text-sm text-gray-300">Não utilizamos cookies de marketing, rastreamento de publicidade, retargeting ou pixels de redes sociais.</p>
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold mb-3 text-white">3. Gerenciamento de Cookies</h2>
+        <div class="text-gray-300 text-sm leading-relaxed space-y-3">
+          <p><strong class="text-white">Aceitar todos:</strong> Clique em "Aceitar todos" no banner de cookies para permitir todos os cookies necessários e de preferência.</p>
+          <p><strong class="text-white">Apenas essenciais:</strong> Clique em "Apenas necessários" para permitir apenas cookies essenciais. Algumas funcionalidades podem ser limitadas.</p>
+          <p><strong class="text-white">Navegador:</strong> Você pode gerenciar cookies nas configurações do seu navegador. Note que cookies essenciais não podem ser removidos sem afetar o funcionamento.</p>
+          <p><strong class="text-white">Revogação:</strong> Você pode revogar seu consentimento a qualquer momento nas configurações da plataforma ou limpando os cookies do navegador.</p>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold mb-3 text-white">4. Dados Coletados Automaticamente</h2>
+        <div class="text-gray-300 text-sm leading-relaxed space-y-2">
+          <p>Quando você utiliza a plataforma, os seguintes dados são coletados automaticamente:</p>
+          <ul class="list-disc list-inside space-y-1">
+            <li>Endereço IP (para rate limiting e segurança)</li>
+            <li>User-Agent do navegador</li>
+            <li>Páginas acessadas e horários</li>
+            <li>Duração da sessão</li>
+            <li>Tipo de dispositivo e resolução de tela (via headers HTTP)</li>
+          </ul>
+          <p>Estes dados são necessários para segurança e funcionamento da plataforma (base legal: legítimo interesse e execução de contrato).</p>
+        </div>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold mb-3 text-white">5. Cookies de Terceiros</h2>
+        <p class="text-gray-300 text-sm leading-relaxed">Nossos provedores de serviço podem criar cookies temporários:</p>
+        <ul class="list-disc list-inside text-gray-300 text-sm space-y-1 mt-2">
+          <li><strong class="text-white">CDN (cdn.tailwindcss.com, unpkg.com, cdnjs.cloudflare.com):</strong> Bibliotecas JavaScript para renderização do frontend.</li>
+          <li><strong class="text-white">Socket.IO:</strong> Conexão em tempo real para chat e eventos.</li>
+          <li><strong class="text-white">Google OAuth:</strong> Botão de login com Google — cookie temporário de estado CSRF.</li>
+        </ul>
+        <p class="text-gray-300 text-sm leading-relaxed mt-2">Não temos controle sobre os cookies criados por serviços de terceiros. Consulte as políticas de privacidade desses provedores para mais informações.</p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold mb-3 text-white">6. Alterações</h2>
+        <p class="text-gray-300 text-sm leading-relaxed">Esta política pode ser atualizada periodicamente. Alterações significativas serão comunicadas via banner de consentimento ou notificação na plataforma.</p>
+      </div>
+
+      <div>
+        <h2 class="text-xl font-semibold mb-3 text-white">7. Contato</h2>
+        <p class="text-gray-300 text-sm">Para dúvidas sobre cookies e processamento de dados: <a href="mailto:privacidade@metapersona.ai" class="text-brand-400 hover:underline">privacidade@metapersona.ai</a></p>
+      </div>
+    </section>
+
+    <div class="mt-12 pt-8 border-t border-white/10 text-center text-sm text-gray-500">
+      <p>MetaPersona.AI · Plataforma de Agentes Cognitivos</p>
+      <p class="mt-1"><a href="/privacidade" class="text-brand-400 hover:underline">Privacidade</a> · <a href="/cookies" class="text-brand-400 hover:underline">Cookies</a> · <a href="/termos" class="text-brand-400 hover:underline">Termos</a></p>
+    </div>
+  </main>
+</body>
+</html>

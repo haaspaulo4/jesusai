@@ -155,7 +155,7 @@ async function createPersona(data) {
   const name = data.name || id;
   const name_en = data.name_en || data.nameEn || name;
   const name_es = data.name_es || data.nameEs || name;
-  const priority = data.priority || 100;
+  const priority = data.priority !== undefined ? data.priority : 100;
 
   const stringFields = (val) => val && typeof val === 'object' ? JSON.stringify(val) : (val || null);
 

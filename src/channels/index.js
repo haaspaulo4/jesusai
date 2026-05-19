@@ -1,7 +1,9 @@
 require('dotenv').config();
 const { pool } = require('../db');
+const { sendWhatsAppImage, sendWhatsAppVideo, sendWhatsAppDocument, sendWhatsAppText } = require('../whatsapp/bot');
+const { sendTelegramPhoto, sendTelegramDocument, sendTelegramVoice } = require('../telegram/handler');
 
-const CHANNEL_TYPES = ['web', 'telegram', 'whatsapp', 'instagram', 'email'];
+const CHANNEL_TYPES = ['web', 'telegram', 'whatsapp', 'email'];
 
 class ChannelManager {
   constructor() {
@@ -66,12 +68,52 @@ class ChannelManager {
   }
 
   async sendMedia(channelType, payload) {
-    const handler = this.handlers.get(channelType);
-    if (!handler || !handler.sendMedia) {
-      return { error: `Media sending not supported for: ${channelType}` };
+    const { sessionId, userId, personaId, type, data, caption, fileName } = payload;
+
+    if (channelType === 'whatsapp') {
+      const recipient = sessionId || userId;
+      if (!recipient) return { error: 'No recipient for WhatsApp media' };
+      if (type === 'image') return await sendWhatsAppImage(recipient, data, caption || '');
+      if (type === 'video') return await sendWhatsAppVideo(recipient, data, caption || '');
+      if (type === 'document') return await sendWhatsAppDocument(recipient, data, fileName || 'document.pdf', caption || '');
+      if (type === 'audio') {
+        const { sendWhatsAppAudio } = require('../whatsapp/bot');
+        return await sendWhatsAppAudio(recipient, data);
+      }
     }
 
-    return handler.sendMedia(payload);
+    if (channelType === 'telegram') {
+      let chatId = null;
+      if (sessionId && sessionId.startsWith('tg_')) {
+        const parts = sessionId.split('_');
+        chatId = parts.length >= 3 && parts[1].startsWith('-') ? parts.slice(1, -1).join('_') : parts[1];
+      } else if (userId && userId.startsWith('tg_')) {
+        chatId = userId.replace('tg_', '');
+      }
+      if (!chatId) return { error: 'No chatId for Telegram media' };
+      if (type === 'image') return await sendTelegramPhoto(chatId, data, caption || '');
+      if (type === 'document') return await sendTelegramDocument(chatId, data, fileName || 'document.pdf', caption || '');
+      if (type === 'audio' || type === 'voice') return await sendTelegramVoice(chatId, data);
+    }
+
+    const handler = this.handlers.get(channelType);
+    if (handler && handler.sendMedia) return handler.sendMedia(payload);
+
+    return { error: `Media sending not supported for: ${channelType}` };
+  }
+
+  async sendText(channelType, sessionId, userId, message, personaId) {
+    if (channelType === 'whatsapp') {
+      const recipient = sessionId || userId;
+      if (recipient) return await sendWhatsAppText(recipient, message);
+    }
+
+    const handler = this.handlers.get(channelType);
+    if (handler && handler.send) {
+      return handler.send({ sessionId, userId, message, personaId });
+    }
+
+    return { error: `Text sending not supported for: ${channelType}` };
   }
 
   async _logMessage(data) {

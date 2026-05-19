@@ -17,7 +17,7 @@ const {
   buildProfileContext,
   saveProfile,
 } = require('../memory/profile');
-const { authMiddleware, getUser, roleMiddleware } = require('../auth');
+const { authMiddleware, getUser } = require('../auth');
 const { pool } = require('../db');
 const chatEngine = require('../chat/engine');
 const { generateSessionId } = chatEngine;

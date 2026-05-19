@@ -31,9 +31,8 @@ async function checkRateLimit(userId, role) {
     `INSERT INTO rate_limits (user_id, service_type, request_count, window_start) VALUES (?, ?, 1, NOW())
      ON DUPLICATE KEY UPDATE
        request_count = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, 1, request_count + 1),
-       window_start = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, NOW(), window_start),
-       new_count = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, 1, request_count + 1)`,
-    [userId, serviceType, windowHours, windowHours, windowHours]
+       window_start = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, NOW(), window_start)`,
+    [userId, serviceType, windowHours, windowHours]
   );
 
   const [rows] = await pool.execute(

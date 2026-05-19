@@ -104,24 +104,6 @@ async function startBot(id) {
     return { id, platform: 'whatsapp', name: bot.name, status: 'registered' };
   }
 
-  if (bot.platform === 'instagram') {
-    const { startInstagramBot } = require('../instagram/bot');
-    const botConfig = typeof bot.config === 'string' ? JSON.parse(bot.config || '{}') : (bot.config || {});
-    const igBot = await startInstagramBot({
-      username: botConfig.username || process.env.IG_USERNAME,
-      password: botConfig.password || process.env.IG_PASSWORD,
-      proxyUrl: botConfig.proxyUrl || process.env.IG_PROXY_URL,
-      personaId: bot.personaId || null,
-      botName: bot.name,
-      instanceId: id,
-      pollInterval: botConfig.pollInterval || 10000,
-    });
-
-    activeBots.set(id, { platform: 'instagram', client: igBot, name: bot.name });
-    console.log(`[BotManager] Instagram bot "${bot.name}" (id:${id}) started`);
-    return { id, platform: 'instagram', name: bot.name, status: 'running' };
-  }
-
   throw new Error(`Unknown platform: ${bot.platform}`);
 }
 

@@ -15,14 +15,12 @@ const quizRoute = require('./routes/quiz');
 const mediaRoute = require('./routes/media');
 const { startTelegramBot } = require('./telegram/bot');
 const { startWhatsAppBot } = require('./whatsapp/bot');
-const { startInstagramFromDB } = require('./instagram/bot');
 const { generateDailyPost, scheduleDailyPost } = require('./blog');
 const { scheduleDailyDevotional } = require('./email');
 const { initDatabase } = require('./db');
 const personaManager = require('./persona/manager');
 const { loadPersonas } = personaManager;
 const { startKokoroServer, stopKokoroServer } = require('./tts/kokoro-manager');
-const { stopInstagramBot } = require('./instagram/bot');
 const { escapeHtml, buildPersonaPage, buildSitePage, buildCreatePersonaPage } = require('./server/templates');
 const integrations = require('./llm/integrationManager');
 const { loadSettings, getSetting } = require('./settings');
@@ -96,7 +94,6 @@ async function gracefulShutdown(signal) {
     process.exit(1);
   }, 10000);
   stopKokoroServer();
-  stopInstagramBot();
   try {
     const jobQueue = require('./queue');
     if (jobQueue.isAvailable()) await jobQueue.shutdown();
@@ -116,6 +113,10 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads/media', express.static(path.join(__dirname, '..', 'public', 'uploads', 'media')));
+
+app.get('/privacidade', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'privacidade.html')));
+app.get('/cookies', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'cookies.html')));
+app.get('/termos', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'termos.html')));
 
 app.use('/api', chatRoute);
 app.use('/api/auth', authRoute);
@@ -600,7 +601,7 @@ async function seedDefaultBlueprints(bm) {
   ║  /create-persona — Criar persona
   ║  /admin          — Painel administrativo
   ║  
-  ║  Channels: Telegram, WhatsApp, Instagram
+  ║  Channels: Telegram, WhatsApp, Web
   ║  Realtime: Socket.IO enabled
   ║  Meta-persona: /persona meta-persona
   ║  Skills, Tasks, Calendar, CRM, Goals, Events
@@ -609,11 +610,12 @@ async function seedDefaultBlueprints(bm) {
 
     await startKokoroServer();
 
-    startTelegramBot();
+    const tgBot = startTelegramBot();
+    if (tgBot && tgBot.catch) tgBot.catch(err => console.error('[Telegram] Bot error:', err.message));
 
-    await startWhatsAppBot(SERVER_URL);
-
-    startInstagramFromDB().catch(err => console.error('[Instagram] Bot startup error:', err.message));
+    if (SERVER_URL) {
+      startWhatsAppBot(SERVER_URL).catch(err => console.error('[WhatsApp] Bot startup error:', err.message));
+    }
 
     generateDailyPost().then(() => {
       generateDailyPostForPersonas().catch(err => console.error('[Blog] Persona posts error:', err.message));

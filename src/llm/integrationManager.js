@@ -328,14 +328,14 @@ class IntegrationManager {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeout);
 
-      const isOllama = integ.baseUrl?.includes('ollama.com') || integ.id === 'env_llm';
+      const isOllama = integ.baseUrl?.includes('ollama.com') || integ.baseUrl?.includes(':11434');
       const endpoint = isOllama ? '/chat' : '/chat/completions';
 
       let body;
       if (isOllama) {
         body = { model: options.model || integ.model, messages, stream, options: { temperature, num_predict: numPredict } };
       } else {
-        body = { model: options.model || integ.model, messages, temperature, max_tokens: numPredict };
+        body = { model: options.model || integ.model, messages, temperature, max_tokens: numPredict, stream };
       }
       if (tools?.length > 0) body.tools = tools;
 
@@ -489,14 +489,14 @@ class IntegrationManager {
       if (integ.type === 'llm' || integ.type === 'llm_groq') {
         const controller = new AbortController();
         const timer = setTimeout(() => controller.abort(), 10000);
-        const isOllama = integ.baseUrl?.includes('ollama.com') || integ.id === 'env_llm';
-        const endpoint = isOllama ? '/chat' : '/chat/completions';
 
+      const isOllama = integ.baseUrl?.includes('ollama.com') || integ.baseUrl?.includes(':11434');
+        const endpoint = isOllama ? '/chat' : '/chat/completions';
         let body;
         if (isOllama) {
           body = { model: integ.model || 'glm-5.1', messages: [{ role: 'user', content: 'ok' }], stream: false, options: { temperature: 0.1, num_predict: 1 } };
         } else {
-          body = { model: integ.model || 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: 'ok' }], temperature: 0.1, max_tokens: 1 };
+          body = { model: integ.model || 'llama-3.3-70b-versatile', messages: [{ role: 'user', content: 'ok' }], temperature: 0.1, max_tokens: 1, stream: false };
         }
 
         const response = await fetch(`${integ.baseUrl}${endpoint}`, {
@@ -694,17 +694,43 @@ class IntegrationManager {
 
 function normalizeLLMResponse(data) {
   if (!data) return data;
-  if (data.message && typeof data.message === 'object') return data;
+
+  if (data.message && typeof data.message === 'object') {
+    let toolCalls = data.message.tool_calls || data.tool_calls || null;
+    if (!toolCalls && data.message.content && typeof data.message.content === 'string') {
+      const inlineMatch = data.message.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
+      if (inlineMatch) {
+        try {
+          toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
+          data.message.content = '';
+        } catch {}
+      }
+    }
+    if (toolCalls?.length > 0) {
+      return { message: { role: data.message.role || 'assistant', content: data.message.content || '', thinking: data.message.thinking || data.message.reasoning_content || '' }, tool_calls: toolCalls, done: data.done ?? true };
+    }
+    return data;
+  }
 
   if (data.choices?.[0]?.message) {
     const msg = data.choices[0].message;
+    let toolCalls = msg.tool_calls || data.tool_calls || null;
+    if (!toolCalls && msg.content && typeof msg.content === 'string') {
+      const inlineMatch = msg.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
+      if (inlineMatch) {
+        try {
+          toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
+          msg.content = '';
+        } catch {}
+      }
+    }
     return {
       message: {
         role: msg.role || 'assistant',
         content: msg.content || '',
         thinking: msg.thinking || msg.reasoning_content || msg.thought || '',
       },
-      tool_calls: msg.tool_calls || data.tool_calls || null,
+      tool_calls: toolCalls,
       done: data.done ?? true,
     };
   }

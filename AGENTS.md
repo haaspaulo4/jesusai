@@ -9,7 +9,7 @@ Plataforma de agentes cognitivos persistentes com RAG multimodal, multi-persona 
 ## Tech Stack
 - **Backend**: Node.js 18+ + Express
 - **Database**: MySQL 8.4 (via mysql2/promise)
-- **LLM**: Ollama Cloud API (OpenAI-compatible) — model glm-5.1, **multi-key fallback automático**
+- **LLM**: Ollama Cloud API (native `/chat` endpoint) — model glm-5.1, **multi-key fallback automático**, tool calling via native Ollama format
 - **RAG**: **Hybrid TF-IDF + Vector Embeddings** (Ollama embeddings via API, MySQL vector storage, hybrid search scoring) + multimodal ingestion (PDF, DOCX, images/OCR, audio/STT, JSON, text, APIs)
 - **Fulltext Search**: FlexSearch — in-memory fulltext search across personas, contacts, goals, org memory, tasks, skills
 - **Persona**: **Multi-persona com Meta-RAG** — criar via LLM, trocar com `/persona`, **skills configuráveis e criáveis**, whitelabel
@@ -57,9 +57,31 @@ User message → Rate limit check + Ban check
              → Build goal context + Search org memory + Get conversation stage
              → buildSystemPrompt(persona, lang, context, memory, profile, name, isGroup, knowledgeSources) + extra context (goals, org memory, stage)
              → LLM call via IntegrationManager (with tools if enabled)
-             → Tool calls loop (bible_lookup, user_stats, manage_goals, manage_org_memory, etc.)
+             → normalizeLLMResponse: extracts tool_calls from Ollama format (message.tool_calls) or OpenAI format (choices[0].message.tool_calls), plus inline tool call detection
+             → Tool calls loop (up to 5 rounds): execute tools, push results as role:tool, retry LLM
+             → Strip inline tool calls from content
+             → Empty content retry (no tools): direct prompt asking for natural language
              → CJK check → Save message → Auto follow-up scheduling
              → Return response + sources + persona info + ttsVoice
+```
+
+### LLM Integration Architecture
+```
+IntegrationManager.callLLM()
+  → Uses callWithFallback() for multi-key failover
+  → Auto-detects Ollama vs OpenAI-compatible by URL pattern:
+    - ollama.com or :11434 → /chat endpoint, body: {model, messages, stream, options: {temperature, num_predict}}
+    - groq.com or /v1/ → /chat/completions endpoint, body: {model, messages, stream, temperature, max_tokens}
+  → normalizeLLMResponse() handles both response formats:
+    - Ollama: {message: {role, content, tool_calls}, done}
+    - OpenAI: {choices: [{message: {role, content, tool_calls}}]}
+    - Inline: detects tool calls embedded in content text
+  → Tool calls in Ollama format: {id, function: {name, arguments: {object}}}
+  → Tool calls in OpenAI format: {id, type: "function", function: {name, arguments: "json_string"}}
+  → Both formats handled transparently
+
+KeyManager (deprecated, not imported): Legacy key management, superseded by IntegrationManager
+processMessageStream (removed): Dead code, streaming path had no tool call support
 ```
 
 ### Persona-Aware System Prompt
@@ -811,7 +833,7 @@ Integration: Chat engine emits events on message save, XP update, cognitive stat
 - **event_log** — id (PK), event_type, user_id, persona_id, session_id, data (JSON), results (JSON), created_at
 
 ## Key File Structure
-- `src/chat/engine.js` — Central chat engine (rate limit, onboarding, persona-aware RAG, tools, agentic loop for meta-persona)
+- `src/chat/engine.js` — Central chat engine (rate limit, onboarding, persona-aware RAG, tools, agentic loop for meta-persona, inline tool call stripping)
 - `src/auth/index.js` — Auth core (register, login, Google OAuth, JWT, role-based, createUser)
 - `src/auth/rateLimit.js` — Rate limiting per role + ban enforcement
 - `src/onboarding/index.js` — Onboarding state machine (whitelabel, 3 langs, ensureUser)
@@ -834,7 +856,9 @@ Integration: Chat engine emits events on message save, XP update, cognitive stat
 - `src/events/index.js` — Event bus (emit, on, off, logEvent, getEventLog, getEventStats, processAutomations) — 12 event types
 - `src/blueprints/index.js` — Blueprint CRUD + clone + seed (createBlueprint, cloneBlueprint, savePersonaAsBlueprint, getBlueprintStats)
 - `src/llm/tools.js` — LLM tool definitions (29 tools: create_persona, manage_tasks, manage_calendar, manage_contacts, manage_automations, manage_goals, manage_conversation_stages, manage_org_memory, manage_xp, manage_progress, get_cognitive_state, human_override, get_suggestions, get_dashboard, get_history, manage_blueprints, etc.)
-- `src/llm/integrationManager.js` — Multi-key fallback for ALL integrations
+- `src/llm/integrationManager.js` — Multi-key fallback for ALL integrations (Ollama `/chat` native, Groq `/chat/completions` OpenAI-compatible; auto-detect by URL pattern; normalizeLLMResponse handles both formats + inline tool calls)
+- `src/llm/keyManager.js` — **DEPRECATED** (not imported) — Legacy key management, superseded by IntegrationManager
+- `src/llm/index.js` — LLM chat, parseStream, extractContent, normalizeLLMResponse (Ollama `/chat` native, Groq `/chat/completions` OpenAI-compatible; auto-detect by URL pattern)
 - `src/bot/manager.js` — Multi-instance bot manager (Telegram + WhatsApp)
 - `src/telegram/handler.js` — Telegram handler factory (persona per instance)
 - `src/whatsapp/bot.js` — WhatsApp handler (persona-aware, voice pass-through, chunk size)

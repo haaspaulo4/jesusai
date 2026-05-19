@@ -326,6 +326,27 @@ const DEFAULT_SOURCES = [
     sourceFormat: (docs) => docs.map(d => `${d.reference}: "${d.text}"`).join('\n'),
     ingester: 'json',
   },
+  {
+    id: 'platform-docs',
+    name: 'Documentação da Plataforma',
+    nameEn: 'Platform Documentation',
+    nameEs: 'Documentación de la Plataforma',
+    description: 'Documentação completa da plataforma MetaPersona.AI — capacidades, ferramentas, APIs, configuração whitelabel',
+    type: 'json',
+    enabled: true,
+    personaFilter: ['meta-persona'],
+    dataPath: path.join(__dirname, '..', '..', 'data', 'platform', 'platform-docs.json'),
+    indexPath: path.join(__dirname, '..', '..', 'data', 'platform', 'platform-docs_index.json'),
+    searchFields: ['reference', 'text'],
+    defaultTopK: 6,
+    contextTemplate: {
+      'pt-BR': 'DOCUMENTAÇÃO DA PLATAFORMA (CONTEXTO PARA ESTA RESPOSTA):\n{context}\n\nUse esta documentação para responder com precisão sobre capacidades, APIs, ferramentas e configurações.',
+      'en-US': 'PLATFORM DOCUMENTATION (CONTEXT FOR THIS RESPONSE):\n{context}\n\nUse this documentation to respond accurately about capabilities, APIs, tools and configurations.',
+      'es-ES': 'DOCUMENTACIÓN DE LA PLATAFORMA (CONTEXTO PARA ESTA RESPUESTA):\n{context}\n\nUsa esta documentación para responder con precisión sobre capacidades, APIs, herramientas y configuraciones.',
+    },
+    sourceFormat: (docs) => docs.map(d => `${d.reference}: "${d.text}"`).join('\n'),
+    ingester: 'json',
+  },
 ];
 
 function loadUploadedSources() {
