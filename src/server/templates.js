@@ -98,7 +98,7 @@ function buildPersonaPage(d) {
   '<footer style="text-align:center;padding:2rem;border-top:1px solid var(--border);position:relative;z-index:1;">' +
   '<p style="color:var(--text-muted);font-size:0.82rem;">' + escapeHtml(d.brandName) + ' © ' + new Date().getFullYear() + ' · <a href="/site" style="color:' + sanitizeColor(d.brandPrimaryColor) + ';text-decoration:none;">Plataforma</a> · <a href="/admin" style="color:var(--text-muted);text-decoration:none;">Admin</a></p>' +
   '</footer></div>' +
-  '<script>const PERSONA_ID=\'' + d.personaId + '\';function startChat(){window.location.href=\'/?persona=\'+PERSONA_ID;}</script>' +
+   '<script>const PERSONA_ID=\'' + escapeHtml(d.personaId).replace(/'/g, "\\'") + '\';function startChat(){window.location.href=\'/?persona=\'+PERSONA_ID;}</script>' +
   '</body></html>';
 }
 

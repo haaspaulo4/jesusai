@@ -46,9 +46,10 @@ const PORT = process.env.PORT || 3000;
 const SERVER_URL = process.env.SERVER_URL || `http://localhost:${PORT}`;
 
 const allowedOrigins = process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',').map(s => s.trim()) : ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:8000'];
+const allowAllOrigins = allowedOrigins.includes('*');
 app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
+    if (!origin || allowAllOrigins || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'), false);

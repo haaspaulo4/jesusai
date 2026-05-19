@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 const BOT_COL_MAP = { whatsapp: 'whatsapp_id', telegram: 'telegram_id' };
+const ALLOWED_BOT_COLS = new Set(Object.values(BOT_COL_MAP));
 if (!JWT_SECRET) {
   console.error('[AUTH] FATAL: JWT_SECRET environment variable is required. Set it in .env');
   process.exit(1);
@@ -19,11 +20,10 @@ async function getUserByGoogleId(googleId) {
   return rows.length > 0 ? rowToUser(rows[0]) : null;
 }
 
-function rowToUser(row) {
-  return {
+function rowToUser(row, { includePassword = false } = {}) {
+  const user = {
     id: row.id,
     email: row.email,
-    password: row.password,
     name: row.name,
     googleId: row.google_id,
     avatar: row.avatar,
@@ -38,6 +38,10 @@ function rowToUser(row) {
     personaId: row.persona_id || null,
     createdAt: row.created_at instanceof Date ? row.created_at.toISOString() : String(row.created_at),
   };
+  if (includePassword) {
+    user.password = row.password;
+  }
+  return user;
 }
 
 function safeUser(user) {
@@ -69,7 +73,7 @@ async function login(email, password) {
     throw new Error('Email ou senha incorretos');
   }
 
-  const user = rowToUser(rows[0]);
+  const user = rowToUser(rows[0], { includePassword: true });
 
   if (!user.password) {
     throw new Error('Esta conta usa login com Google. Use o botão "Entrar com Google".');
@@ -141,9 +145,7 @@ function verifyToken(token) {
 async function getUser(userId) {
   const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [userId]);
   if (rows.length === 0) return null;
-  const user = rowToUser(rows[0]);
-  const { password, ...safe } = user;
-  return safe;
+  return rowToUser(rows[0]);
 }
 
 async function updateUser(userId, updates) {
@@ -226,9 +228,7 @@ async function getUserRole(userId) {
 async function getUserWithRole(userId) {
   const [rows] = await pool.execute('SELECT * FROM users WHERE id = ?', [userId]);
   if (rows.length === 0) return null;
-  const user = rowToUser(rows[0]);
-  const { password, ...safe } = user;
-  return safe;
+  return rowToUser(rows[0]);
 }
 
 async function generateLinkCode(userId) {
@@ -262,7 +262,10 @@ async function linkAccount(linkCode, botUserId, source) {
 
   const webUser = rowToUser(rows[0]);
 
-  const col = BOT_COL_MAP[source] || 'telegram_id';
+  const col = BOT_COL_MAP[source];
+  if (!col || !ALLOWED_BOT_COLS.has(col)) {
+    throw new Error('Invalid source for account linking');
+  }
   const [existing] = await pool.execute(
     `SELECT id FROM users WHERE ${col} = ? AND id != ?`,
     [botUserId, webUser.id]
@@ -333,7 +336,8 @@ async function linkAccount(linkCode, botUserId, source) {
 }
 
 async function findLinkedUser(botUserId, source) {
-  const col = BOT_COL_MAP[source] || 'telegram_id';
+  const col = BOT_COL_MAP[source];
+  if (!col || !ALLOWED_BOT_COLS.has(col)) return null;
   const [rows] = await pool.execute(
     `SELECT * FROM users WHERE ${col} = ?`,
     [botUserId]

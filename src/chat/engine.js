@@ -37,14 +37,31 @@ const MAX_TOOL_ROUNDS = 5;
 const SILENCE_TTL = 24 * 60 * 60 * 1000;
 
 const silenceCache = new Map();
+const MAX_SILENCE_CACHE_SIZE = 10000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, val] of silenceCache) {
+    if (typeof val === 'object' && (now - val.ts) > SILENCE_TTL) silenceCache.delete(key);
+    else if (typeof val === 'number' && val <= 0) silenceCache.delete(key);
+  }
+}, 60 * 60 * 1000);
 const BOT_ID_COL_MAP = { whatsapp: 'whatsapp_id', telegram: 'telegram_id' };
-const getBotCol = (uid) => BOT_ID_COL_MAP[uid.startsWith('wa_') ? 'whatsapp' : 'telegram'];
+const ALLOWED_BOT_COLS = new Set(Object.values(BOT_ID_COL_MAP));
+const getBotCol = (uid) => {
+  const col = BOT_ID_COL_MAP[uid.startsWith('wa_') ? 'whatsapp' : 'telegram'];
+  if (!col || !ALLOWED_BOT_COLS.has(col)) throw new Error('Invalid bot column');
+  return col;
+};
 
 async function setSilence(sessionId, count = 0) {
   if (count <= 0) {
     silenceCache.delete(sessionId);
     try { await pool.execute('UPDATE sessions SET silence_count = 0, silence_infinite = 0 WHERE id = ?', [sessionId]); } catch (e) { console.error('[Silence] setSilence clear error:', e.message); }
     return { silenced: false, remaining: 0 };
+  }
+  if (silenceCache.size >= MAX_SILENCE_CACHE_SIZE) {
+    const oldest = silenceCache.keys().next().value;
+    silenceCache.delete(oldest);
   }
   const infinite = count >= 999999;
   silenceCache.set(sessionId, { count: infinite ? 999999 : count, ts: Date.now() });
@@ -357,7 +374,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : (noKnowledgeSearch ? 'none' : 'bible')}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}`);
 
   const toolsEnabled = await getSetting('tools_enabled', 'true') === 'true';
-  const historyLimit = parseInt(await getSetting('history_limit', '10')) || 10;
+  const historyLimit = Math.min(parseInt(await getSetting('history_limit', '10')) || 10, 50);
   const history = await getHistoryForLLM(sid, historyLimit);
 
   console.log(`[ChatEngine] historyLen=${history.length}, firstMsg=${history.length > 0 ? history[0].role + ':' + history[0].content?.substring(0, 50) : 'none'}`);

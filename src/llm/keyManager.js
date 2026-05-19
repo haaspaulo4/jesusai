@@ -1,3 +1,8 @@
+/**
+ * @deprecated This module is DEPRECATED and NOT IMPORTED anywhere.
+ * Use IntegrationManager (src/llm/integrationManager.js) instead.
+ * This file is kept for reference only and will be removed in a future version.
+ */
 require('dotenv').config();
 const { pool } = require('../db');
 const { getSetting } = require('../settings');

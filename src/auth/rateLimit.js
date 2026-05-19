@@ -27,7 +27,7 @@ async function checkRateLimit(userId, role) {
   const windowMs = windowHours * 60 * 60 * 1000;
   const serviceType = 'chat';
 
-  const [result] = await pool.execute(
+  await pool.execute(
     `INSERT INTO rate_limits (user_id, service_type, request_count, window_start) VALUES (?, ?, 1, NOW())
      ON DUPLICATE KEY UPDATE
        request_count = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, 1, request_count + 1),
@@ -36,7 +36,7 @@ async function checkRateLimit(userId, role) {
   );
 
   const [rows] = await pool.execute(
-    'SELECT request_count, window_start FROM rate_limits WHERE user_id = ? AND service_type = ?',
+    'SELECT request_count, window_start FROM rate_limits WHERE user_id = ? AND service_type = ? FOR UPDATE',
     [userId, serviceType]
   );
 

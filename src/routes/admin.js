@@ -1,5 +1,6 @@
 const express = require('express');
 const { authMiddleware } = require('../auth');
+const { pool } = require('../db');
 const admin = require('../admin');
 const surveyEngine = require('../survey');
 const metaRag = require('../persona/meta-rag');
@@ -46,6 +47,15 @@ function safeError(err, userRole) {
   const msg = (err.message || '').toLowerCase();
   if (safeMessages.some(s => msg.includes(s))) return err.message;
   return 'Internal error';
+}
+
+async function resolveOwnerId(req) {
+  if (req.userRole === 'admin' && req.body.owner_id) {
+    const [rows] = await pool.execute('SELECT id FROM users WHERE id = ?', [req.body.owner_id]);
+    if (rows.length === 0) throw new Error('owner_id not found');
+    return req.body.owner_id;
+  }
+  return req.userId;
 }
 
 function checkOwner(ownerId, userId, userRole) {
@@ -815,7 +825,7 @@ router.get('/tasks', authMiddleware, premiumMiddleware, async (req, res) => {
 
 router.post('/tasks', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const task = await agentModule.createTask({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
+    const task = await agentModule.createTask({ ...req.body, owner_id: await resolveOwnerId(req) });
     res.json(task);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -860,7 +870,7 @@ router.get('/calendar', authMiddleware, premiumMiddleware, async (req, res) => {
 
 router.post('/calendar', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const event = await agentModule.createCalendarEvent({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
+    const event = await agentModule.createCalendarEvent({ ...req.body, owner_id: await resolveOwnerId(req) });
     res.json(event);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -907,7 +917,7 @@ router.get('/contacts', authMiddleware, premiumMiddleware, async (req, res) => {
 
 router.post('/contacts', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const contact = await agentModule.createContact({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
+    const contact = await agentModule.createContact({ ...req.body, owner_id: await resolveOwnerId(req) });
     res.json(contact);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -954,7 +964,7 @@ router.get('/automations', authMiddleware, premiumMiddleware, async (req, res) =
 
 router.post('/automations', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const auto = await agentModule.createAutomation({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
+    const auto = await agentModule.createAutomation({ ...req.body, owner_id: await resolveOwnerId(req) });
     res.json(auto);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1011,7 +1021,7 @@ router.get('/goals', authMiddleware, premiumMiddleware, async (req, res) => {
 
 router.post('/goals', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const goal = await goalsModule.createGoal({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
+    const goal = await goalsModule.createGoal({ ...req.body, owner_id: await resolveOwnerId(req) });
     res.json(goal);
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -1155,7 +1165,7 @@ router.get('/org-memory', authMiddleware, premiumMiddleware, async (req, res) =>
 
 router.post('/org-memory', authMiddleware, premiumMiddleware, async (req, res) => {
   try {
-    const mem = await orgMemoryModule.createOrgMemory({ ...req.body, owner_id: req.userRole === "admin" ? (req.body.owner_id || req.userId) : req.userId });
+    const mem = await orgMemoryModule.createOrgMemory({ ...req.body, owner_id: await resolveOwnerId(req) });
     res.json(mem);
   } catch (err) {
     res.status(500).json({ error: err.message });
