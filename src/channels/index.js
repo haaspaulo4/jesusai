@@ -1,7 +1,7 @@
 require('dotenv').config();
 const { pool } = require('../db');
-const { sendWhatsAppImage, sendWhatsAppVideo, sendWhatsAppDocument, sendWhatsAppText } = require('../whatsapp/bot');
-const { sendTelegramPhoto, sendTelegramDocument, sendTelegramVoice } = require('../telegram/handler');
+const { sendWhatsAppImage, sendWhatsAppVideo, sendWhatsAppDocument, sendWhatsAppText, sendWhatsAppButtons, sendWhatsAppList, sendWhatsAppPoll, sendWhatsAppReaction } = require('../whatsapp/bot');
+const { sendTelegramPhoto, sendTelegramDocument, sendTelegramVoice, sendTelegramInlineKeyboard, sendTelegramReplyKeyboard, sendTelegramPoll, removeTelegramKeyboard } = require('../telegram/handler');
 
 const CHANNEL_TYPES = ['web', 'telegram', 'whatsapp', 'email'];
 
@@ -65,6 +65,126 @@ class ChannelManager {
     });
 
     return { processed: true, sessionId, userId };
+  }
+
+  async sendInteractive(channelType, sessionId, userId, message, options) {
+    if (!options || !options.type) {
+      return await this.sendText(channelType, sessionId, userId, message);
+    }
+
+    if (channelType === 'whatsapp') {
+      const recipient = sessionId || userId;
+      if (!recipient) return { error: 'No recipient for WhatsApp interactive' };
+
+      if (options.type === 'buttons' && options.items?.length) {
+        const buttons = options.items.map((item, i) => ({
+          id: item.id || `btn_${i}`,
+          text: item.text || item.label || String(i + 1),
+        }));
+        try {
+          return await sendWhatsAppButtons(recipient, message, buttons);
+        } catch (err) {
+          console.error('[ChannelManager] WhatsApp buttons error:', err.message);
+          return await sendWhatsAppText(recipient, message);
+        }
+      }
+
+      if (options.type === 'list' && options.sections?.length) {
+        try {
+          return await sendWhatsAppList(recipient, message, options.title || 'Opções', options.sections);
+        } catch (err) {
+          console.error('[ChannelManager] WhatsApp list error:', err.message);
+          return await sendWhatsAppText(recipient, message);
+        }
+      }
+
+      if (options.type === 'poll' && options.pollOptions?.length) {
+        try {
+          return await sendWhatsAppPoll(recipient, message, options.pollOptions);
+        } catch (err) {
+          console.error('[ChannelManager] WhatsApp poll error:', err.message);
+          return await sendWhatsAppText(recipient, message);
+        }
+      }
+
+      return await sendWhatsAppText(recipient, message);
+    }
+
+    if (channelType === 'telegram') {
+      let chatId = null;
+      if (sessionId && sessionId.startsWith('tg_')) {
+        const parts = sessionId.split('_');
+        chatId = parts.length >= 3 && parts[1].startsWith('-') ? parts.slice(1, -1).join('_') : parts[1];
+      } else if (userId && userId.startsWith('tg_')) {
+        chatId = userId.replace('tg_', '');
+      }
+      if (!chatId) return { error: 'No chatId for Telegram interactive' };
+
+      if (options.type === 'buttons' && options.items?.length) {
+        const inlineKeyboard = options.items.map(row => {
+          if (Array.isArray(row)) return row.map(b => ({ text: b.text || b.label, callback_data: b.id || b.data }));
+          return [{ text: row.text || row.label || 'OK', callback_data: row.id || row.data || 'ok' }];
+        });
+        try {
+          return await sendTelegramInlineKeyboard(chatId, message, inlineKeyboard);
+        } catch (err) {
+          console.error('[ChannelManager] Telegram inline keyboard error:', err.message);
+          return { error: err.message };
+        }
+      }
+
+      if (options.type === 'list' && options.sections?.length) {
+        const allButtons = [];
+        for (const section of options.sections) {
+          if (section.rows) {
+            for (const row of section.rows) {
+              allButtons.push([{ text: `${section.title ? section.title + ': ' : ''}${row.title || row.text}`, callback_data: row.id || row.data || 'list_0' }]);
+            }
+          }
+        }
+        try {
+          return await sendTelegramInlineKeyboard(chatId, message, allButtons.slice(0, 10));
+        } catch (err) {
+          console.error('[ChannelManager] Telegram list error:', err.message);
+          return { error: err.message };
+        }
+      }
+
+      if (options.type === 'poll' && options.pollOptions?.length) {
+        try {
+          return await sendTelegramPoll(chatId, message, options.pollOptions, { is_anonymous: options.anonymous !== false });
+        } catch (err) {
+          console.error('[ChannelManager] Telegram poll error:', err.message);
+          return { error: err.message };
+        }
+      }
+
+      const handler = this.handlers.get('telegram');
+      if (handler && handler.bot) {
+        try {
+          await handler.bot.sendMessage(chatId, message, { parse_mode: 'Markdown' });
+        } catch {
+          await handler.bot.sendMessage(chatId, message);
+        }
+      }
+      return { sent: true };
+    }
+
+    return await this.sendText(channelType, sessionId, userId, message);
+  }
+
+  async sendReaction(channelType, sessionId, userId, emoji, messageId) {
+    if (channelType === 'whatsapp' && messageId) {
+      const recipient = sessionId || userId;
+      if (recipient) {
+        try {
+          return await sendWhatsAppReaction(recipient, messageId, emoji);
+        } catch (err) {
+          console.error('[ChannelManager] WhatsApp reaction error:', err.message);
+        }
+      }
+    }
+    return null;
   }
 
   async sendMedia(channelType, payload) {

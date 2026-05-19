@@ -410,7 +410,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     const llmTools = getToolDefinitions();
     const extTools = getExtToolDefs ? getExtToolDefs() : [];
     const allTools = [...llmTools, ...extTools];
-    const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools'];
+    const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools', 'manage_quizzes'];
 
     let tools;
   const hasContextVerses = relevantVerses && relevantVerses.length > 0;
@@ -639,9 +639,14 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
   try {
     const xpResult = await gamificationModule.awardMessageXp(uid, persona.id);
-    await gamificationModule.checkAndAwardBadges(uid, persona.id);
-    if (xpResult.xpGained > 0) {
+    const newBadges = await gamificationModule.checkAndAwardBadges(uid, persona.id);
+    if (xpResult.xpGained > 0 || xpResult.leveledUp) {
       realtime.emitXpUpdate(uid, await gamificationModule.getXp(uid, persona.id));
+    }
+    if (newBadges.length > 0) {
+      for (const badge of newBadges) {
+        realtime.emitBadgeEarned(uid, badge);
+      }
     }
   } catch (err) { console.error('[ChatEngine] message XP error:', err.message); }
 
@@ -1174,7 +1179,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (!isAdmin) return '⛔ Apenas administradores.';
       const [rows] = await require('../db').pool.execute('SELECT id, email, name, role, created_at FROM users ORDER BY created_at DESC LIMIT 20');
       const lines = rows.map(r => `• ${r.name || r.email} (${r.role || 'user'}) - ${r.id}`);
-      return `👥 Ãšltimos usuários:\n${lines.join('\n')}`;
+      return `👥 Últimos usuários:\n${lines.join('\n')}`;
     }
 
     case '/promote': {
@@ -1259,7 +1264,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       try {
         const result = await surveyEngine.getRatings({ limit: 10 });
         const dist = Object.entries(result.distribution).map(([k, v]) => `${'⭐'.repeat(parseInt(k))} ${k}: ${v}`).join(', ');
-        return `📊 Avaliações (média: ${result.average}/5, total: ${result.totalRatings})\n\nDistribuição: ${dist || 'Nenhuma ainda'}\n\nÃšltimas:\n${result.ratings.slice(0, 5).map(r => `• ${r.rating}⭐ ${r.category} - ${r.feedback?.substring(0, 40) || ''} (${r.source})`).join('\n')}`;
+        return `📊 Avaliações (média: ${result.average}/5, total: ${result.totalRatings})\n\nDistribuição: ${dist || 'Nenhuma ainda'}\n\nÚltimas:\n${result.ratings.slice(0, 5).map(r => `• ${r.rating}⭐ ${r.category} - ${r.feedback?.substring(0, 40) || ''} (${r.source})`).join('\n')}`;
       } catch (err) {
         return `❌ Erro: ${err.message}`;
       }
@@ -1668,13 +1673,13 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         const thoughts = await thoughtsModule.getThoughts({ limit: 10 });
         if (thoughts.length === 0) return '💭 Nenhum pensamento registrado.';
         const lines = thoughts.map(t => `• [${new Date(t.created_at).toLocaleString()}] ${t.persona_id}: ${t.reasoning || 'N/A'} → ${t.decision || 'N/A'} (${t.tools_used?.join(',') || 'none'})`);
-        return `💭 Ãšltimos pensamentos:\n${lines.join('\n')}`;
+        return `💭 Últimos pensamentos:\n${lines.join('\n')}`;
       }
       if (args === 'stats' || args === 'estatisticas') {
         const stats = await thoughtsModule.getThoughtStats(persona.id, 7);
         return `💭 Estatísticas (7d):\n• Total: ${stats.totalThoughts}\n• Tempo médio de resposta: ${stats.avgResponseTime}ms\n• Tokens médios: ${stats.avgTokens}\n• Ferramentas mais usadas: ${Object.entries(stats.toolUsage || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `${k} (${v})`).join(', ')}`;
       }
-      return '💭 Comandos:\n/thoughts recent - Ãšltimos pensamentos\n/thoughts stats - Estatísticas';
+      return '💭 Comandos:\n/thoughts recent - Últimos pensamentos\n/thoughts stats - Estatísticas';
     }
 
     case '/suggestions':
@@ -1791,7 +1796,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (!args || args === 'list' || args === 'lista') {
         const posts = await blogModule.getAllPosts({ limit: 5 });
         if (!posts || posts.length === 0) return '📝 Nenhum post encontrado.';
-        return `📝 Ãšltimos posts:\n${posts.map(p => `• ${p.title} (${p.topic || 'sem tema'}) - ${new Date(p.published_at || p.created_at).toLocaleDateString()}`).join('\n')}`;
+        return `📝 Últimos posts:\n${posts.map(p => `• ${p.title} (${p.topic || 'sem tema'}) - ${new Date(p.published_at || p.created_at).toLocaleDateString()}`).join('\n')}`;
       }
       if (args.startsWith('generate ') || args.startsWith('gerar ')) {
         const topic = args.replace(/^(generate|gerar)\s+/i, '').trim();
@@ -1833,7 +1838,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
     case '/quiz': {
       const quizModule = require('../quiz');
       if (!args || args === 'list') {
-        const quizzes = await quizModule.listQuizzes({ activeOnly: true });
+        const quizzes = await quizModule.listQuizzes({ status: 'active' });
         if (!quizzes || quizzes.length === 0) return '🎮 Nenhum quiz ativo no momento.';
         return `🎮 Quizzes disponíveis:\n${quizzes.map(q => `• ${q.id}: ${q.title} (${q.questions?.length || 0} perguntas)`).join('\n')}`;
       }
@@ -1879,14 +1884,14 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         const events = await eventsModule.getEventLog({ limit: 10 });
         if (!events || events.length === 0) return '📅 Nenhum evento registrado.';
         const lines = events.map(e => `• [${e.event_type}] ${e.data ? JSON.stringify(e.data).substring(0, 60) : ''} (${new Date(e.created_at).toLocaleString()})`);
-        return `📅 Ãšltimos eventos:\n${lines.join('\n')}`;
+        return `📅 Últimos eventos:\n${lines.join('\n')}`;
       }
       if (args === 'stats') {
         const stats = await eventsModule.getEventStats({ persona_id: persona.id, days: 7 });
         if (!stats || stats.length === 0) return '📅 Sem estatísticas.';
         return `📅 Estatísticas (7d):\n${stats.map(s => `• ${s.event_type}: ${s.count}`).join('\n')}`;
       }
-      return '📅 Comandos:\n/events recent - Ãšltimos eventos\n/events stats - Estatísticas';
+      return '📅 Comandos:\n/events recent - Últimos eventos\n/events stats - Estatísticas';
     }
 
     case '/media': {

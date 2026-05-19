@@ -122,7 +122,22 @@ function extractText(data) {
     || msg.imageMessage?.caption
     || msg.videoMessage?.caption
     || msg.documentMessage?.caption
+    || msg.buttonsResponseMessage?.selectedDisplayText
+    || msg.buttonsResponseMessage?.selectedButtonId
+    || msg.listResponseMessage?.title
+    || msg.listResponseMessage?.description
     || '';
+}
+
+function extractInteractiveResponse(data) {
+  const msg = data?.message || data?.data?.message || {};
+  if (msg.buttonsResponseMessage) {
+    return { type: 'button', id: msg.buttonsResponseMessage.selectedButtonId, text: msg.buttonsResponseMessage.selectedDisplayText };
+  }
+  if (msg.listResponseMessage) {
+    return { type: 'list', id: msg.listResponseMessage.selectedRowId, title: msg.listResponseMessage.title, description: msg.listResponseMessage.description };
+  }
+  return null;
 }
 
 function extractAudioInfo(data) {
@@ -440,6 +455,127 @@ async function sendWhatsAppDocument(remoteJid, documentSource, fileName = 'docum
   }
 }
 
+async function sendWhatsAppButtons(remoteJid, text, buttons) {
+  if (!buttons || buttons.length === 0) return null;
+  const resolvedJid = resolveJid(remoteJid) || remoteJid;
+  const isGroupJid = resolvedJid.includes('@g.us');
+  const isLid = resolvedJid.includes('@lid');
+  let number;
+  if (isGroupJid || isLid) {
+    number = resolvedJid;
+  } else {
+    number = resolvedJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+  }
+  const buttonRows = buttons.slice(0, 3).map((b, i) => ({
+    type: 'reply',
+    reply: { id: b.id || `btn_${i}`, title: (b.text || b.label || String(i + 1)).substring(0, 20) },
+  }));
+  try {
+    return await evoRequest('POST', `/message/sendButtons/${EVO_INSTANCE}`, {
+      number,
+      text: text.substring(0, 4096),
+      buttons: buttonRows,
+    });
+  } catch (err) {
+    console.error('[WhatsApp] sendButtons failed:', err.message);
+    try {
+      const alt = alternateBrazilianNumber(number);
+      if (alt && alt !== number) {
+        return await evoRequest('POST', `/message/sendButtons/${EVO_INSTANCE}`, {
+          number: alt,
+          text: text.substring(0, 4096),
+          buttons: buttonRows,
+        });
+      }
+    } catch {}
+    return await sendWhatsAppText(remoteJid, text);
+  }
+}
+
+async function sendWhatsAppList(remoteJid, text, title, sections) {
+  const resolvedJid = resolveJid(remoteJid) || remoteJid;
+  const isGroupJid = resolvedJid.includes('@g.us');
+  const isLid = resolvedJid.includes('@lid');
+  let number;
+  if (isGroupJid || isLid) {
+    number = resolvedJid;
+  } else {
+    number = resolvedJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+  }
+  const formattedSections = sections.slice(0, 10).map((section, si) => ({
+    title: section.title || `Opção ${si + 1}`,
+    rows: (section.rows || section.items || []).slice(0, 10).map((row, ri) => ({
+      title: (row.title || row.text || `${ri + 1}`).substring(0, 24),
+      description: (row.description || '').substring(0, 72),
+      id: row.id || row.data || `item_${si}_${ri}`,
+    })),
+  }));
+  try {
+    return await evoRequest('POST', `/message/sendList/${EVO_INSTANCE}`, {
+      number,
+      text: text.substring(0, 4096),
+      title: (title || 'Menu').substring(0, 60),
+      buttonText: title || 'Opções',
+      sections: formattedSections,
+    });
+  } catch (err) {
+    console.error('[WhatsApp] sendList failed:', err.message);
+    try {
+      const alt = alternateBrazilianNumber(number);
+      if (alt && alt !== number) {
+        return await evoRequest('POST', `/message/sendList/${EVO_INSTANCE}`, {
+          number: alt,
+          text: text.substring(0, 4096),
+          title: (title || 'Menu').substring(0, 60),
+          buttonText: title || 'Opções',
+          sections: formattedSections,
+        });
+      }
+    } catch {}
+    return await sendWhatsAppText(remoteJid, text);
+  }
+}
+
+async function sendWhatsAppPoll(remoteJid, question, options) {
+  if (!options || options.length === 0) return null;
+  const resolvedJid = resolveJid(remoteJid) || remoteJid;
+  const isGroupJid = resolvedJid.includes('@g.us');
+  const isLid = resolvedJid.includes('@lid');
+  let number;
+  if (isGroupJid || isLid) {
+    number = resolvedJid;
+  } else {
+    number = resolvedJid.replace('@s.whatsapp.net', '').replace('@c.us', '');
+  }
+  try {
+    return await evoRequest('POST', `/message/sendPoll/${EVO_INSTANCE}`, {
+      number,
+      name: question.substring(0, 256),
+      options: options.slice(0, 12).map(o => ({ option: typeof o === 'string' ? o : o.text || o.label })),
+      selectableCount: 1,
+    });
+  } catch (err) {
+    console.error('[WhatsApp] sendPoll failed:', err.message);
+    const formatted = options.map((o, i) => `${i + 1}. ${typeof o === 'string' ? o : o.text || o.label}`).join('\n');
+    return await sendWhatsAppText(remoteJid, `📊 *${question}*\n\n${formatted}`);
+  }
+}
+
+async function sendWhatsAppReaction(remoteJid, messageId, emoji) {
+  if (!messageId) return null;
+  const resolvedJid = resolveJid(remoteJid) || remoteJid;
+  try {
+    return await evoRequest('POST', `/message/sendReaction/${EVO_INSTANCE}`, {
+      remoteJid: resolvedJid,
+      key: { id: messageId },
+      reaction: emoji || '👍',
+    });
+  } catch (err) {
+    console.error('[WhatsApp] sendReaction failed:', err.message);
+    return null;
+  }
+}
+
 async function sendPresence(remoteJid, presence = 'composing') {
   try {
     let number;
@@ -655,6 +791,16 @@ async function handleWhatsAppMessage(data) {
     const messageContent = msg.message || data.message || {};
     let text = extractText(data);
 
+    const interactiveResponse = extractInteractiveResponse(data);
+    if (interactiveResponse) {
+      text = interactiveResponse.text || interactiveResponse.id || text;
+      if (interactiveResponse.type === 'button' && !text.startsWith('/')) {
+        const buttonId = interactiveResponse.id || '';
+        const cmdMap = { yes: '/yes', no: '/no', ok: '/ok', confirmar: '/confirmar', cancelar: '/cancelar' };
+        if (cmdMap[buttonId.toLowerCase()]) text = cmdMap[buttonId.toLowerCase()];
+      }
+    }
+
     if (isGroup) {
       const mentionedJidList = messageContent.extendedTextMessage?.contextInfo?.mentionedJid || [];
       const quotedMsg = messageContent.extendedTextMessage?.contextInfo?.quotedMessage;
@@ -779,7 +925,27 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
       const { handleChatCommand } = require('../chat/engine');
       const cmdResult = await handleChatCommand(text.trim(), uid, 'whatsapp', sid, null);
       if (cmdResult) {
-        await sendWhatsAppText(remoteJid, cmdResult);
+        if (typeof cmdResult === 'object' && cmdResult.interactiveOptions) {
+          const { interactiveOptions } = cmdResult;
+          const textReply = cmdResult.response || cmdResult.text || '';
+          if (interactiveOptions.type === 'buttons' && interactiveOptions.items?.length) {
+            try {
+              await sendWhatsAppButtons(remoteJid, textReply, interactiveOptions.items);
+            } catch {
+              await sendWhatsAppText(remoteJid, textReply + '\n\n' + interactiveOptions.items.map(i => `${i.text ? '👉 ' + i.text : ''}`).filter(Boolean).join('\n'));
+            }
+          } else if (interactiveOptions.type === 'list' && interactiveOptions.sections?.length) {
+            try {
+              await sendWhatsAppList(remoteJid, textReply, interactiveOptions.title || 'Menu', interactiveOptions.sections);
+            } catch {
+              await sendWhatsAppText(remoteJid, textReply);
+            }
+          } else {
+            await sendWhatsAppText(remoteJid, textReply);
+          }
+        } else {
+          await sendWhatsAppText(remoteJid, typeof cmdResult === 'string' ? cmdResult : cmdResult.response || cmdResult.text || JSON.stringify(cmdResult));
+        }
         return;
       }
     } catch (err) {
@@ -823,6 +989,23 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
       await sendWhatsAppText(remoteJid, reply).catch(() => {});
     } else {
       await sendReplyWithAudio(remoteJid, reply, DEFAULT_LANG, result.ttsVoice || null);
+    }
+
+    if (result.interactiveOptions) {
+      const { interactiveOptions } = result;
+      if (interactiveOptions.type === 'buttons' && interactiveOptions.items?.length) {
+        try {
+          await sendWhatsAppButtons(remoteJid, interactiveOptions.prompt || reply, interactiveOptions.items);
+        } catch {}
+      } else if (interactiveOptions.type === 'list' && interactiveOptions.sections?.length) {
+        try {
+          await sendWhatsAppList(remoteJid, interactiveOptions.prompt || reply, interactiveOptions.title || 'Opções', interactiveOptions.sections);
+        } catch {}
+      } else if (interactiveOptions.type === 'poll' && interactiveOptions.pollOptions?.length) {
+        try {
+          await sendWhatsAppPoll(remoteJid, reply, interactiveOptions.pollOptions);
+        } catch {}
+      }
     }
 
     if (result.sources && result.sources.length > 0) {
@@ -1242,4 +1425,4 @@ function verifyWebhookSecret(req) {
   return provided === WEBHOOK_SECRET;
 }
 
-module.exports = { handleWhatsAppMessage, startWhatsAppBot, sendWhatsAppText, sendWhatsAppAudio, sendWhatsAppImage, sendWhatsAppVideo, sendWhatsAppDocument, generateTTSAudioUrl, generateAudioBuffer, splitTextForTTS, sendReplyWithAudio, setupWebhook, verifyWebhookSecret, cleanTextForTTS, extractAudioInfo, downloadWhatsAppMedia, createGroup, addGroupParticipant, removeGroupParticipant, setGroupDescription, leaveGroup };
+module.exports = { handleWhatsAppMessage, startWhatsAppBot, sendWhatsAppText, sendWhatsAppAudio, sendWhatsAppImage, sendWhatsAppVideo, sendWhatsAppDocument, sendWhatsAppButtons, sendWhatsAppList, sendWhatsAppPoll, sendWhatsAppReaction, generateTTSAudioUrl, generateAudioBuffer, splitTextForTTS, sendReplyWithAudio, setupWebhook, verifyWebhookSecret, cleanTextForTTS, extractAudioInfo, downloadWhatsAppMedia, createGroup, addGroupParticipant, removeGroupParticipant, setGroupDescription, leaveGroup };

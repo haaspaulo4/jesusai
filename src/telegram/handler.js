@@ -134,6 +134,8 @@ function makeTelegramHandler(options = {}) {
     const { processMessage } = require('../chat/engine');
 
     try {
+      bot.sendChatAction(chatId, 'typing').catch(() => {});
+
       const result = await processMessage({
         message: finalText,
         sessionId: sid,
@@ -191,6 +193,26 @@ function makeTelegramHandler(options = {}) {
         } catch {}
       }
 
+      if (result.interactiveOptions) {
+        const { interactiveOptions } = result;
+        if (interactiveOptions.type === 'buttons' && interactiveOptions.items?.length) {
+          const inlineKeyboard = interactiveOptions.items.map(row => {
+            if (Array.isArray(row)) return row.map(b => ({ text: b.text || b.label, callback_data: b.id || b.data || 'action' }));
+            return [{ text: row.text || row.label || 'OK', callback_data: row.id || row.data || 'action' }];
+          });
+          try {
+            await bot.sendMessage(chatId, interactiveOptions.prompt || 'Escolha uma opção:', { reply_markup: { inline_keyboard: inlineKeyboard } });
+          } catch {}
+        } else if (interactiveOptions.type === 'poll' && interactiveOptions.pollOptions?.length) {
+          try {
+            await bot.sendPoll(chatId, reply.substring(0, 300), interactiveOptions.pollOptions, {
+              is_anonymous: interactiveOptions.anonymous !== false,
+              type: interactiveOptions.quiz ? 'quiz' : 'regular',
+            });
+          } catch {}
+        }
+      }
+
       if (result.personaId && result.personaName) {
         try {
           await bot.sendMessage(chatId, `🎭 Persona: ${result.personaName}`, { disable_notification: true });
@@ -230,6 +252,58 @@ async function sendTelegramVoice(chatId, audioBuffer, contentType = 'audio/ogg')
   return await bot.sendVoice(chatId, audioBuffer, { caption: '' }, { filename: `voice.${ext}`, contentType });
 }
 
+async function sendTelegramInlineKeyboard(chatId, text, inlineKeyboard) {
+  const bot = _activeBots.get('telegram');
+  if (!bot) throw new Error('No active Telegram bot');
+  try {
+    return await bot.sendMessage(chatId, escapeMarkdown(text), {
+      parse_mode: 'Markdown',
+      reply_markup: { inline_keyboard: inlineKeyboard },
+    });
+  } catch {
+    return await bot.sendMessage(chatId, text, {
+      reply_markup: { inline_keyboard: inlineKeyboard },
+    });
+  }
+}
+
+async function sendTelegramReplyKeyboard(chatId, text, keyboard, options = {}) {
+  const bot = _activeBots.get('telegram');
+  if (!bot) throw new Error('No active Telegram bot');
+  const reply_markup = {
+    keyboard: keyboard,
+    resize_keyboard: options.resize !== false,
+    one_time_keyboard: options.oneTime !== false,
+  };
+  try {
+    return await bot.sendMessage(chatId, escapeMarkdown(text), { parse_mode: 'Markdown', reply_markup });
+  } catch {
+    return await bot.sendMessage(chatId, text, { reply_markup });
+  }
+}
+
+async function removeTelegramKeyboard(chatId, text) {
+  const bot = _activeBots.get('telegram');
+  if (!bot) throw new Error('No active Telegram bot');
+  const reply_markup = { remove_keyboard: true };
+  try {
+    return await bot.sendMessage(chatId, escapeMarkdown(text), { parse_mode: 'Markdown', reply_markup });
+  } catch {
+    return await bot.sendMessage(chatId, text, { reply_markup });
+  }
+}
+
+async function sendTelegramPoll(chatId, question, options, pollOptions = {}) {
+  const bot = _activeBots.get('telegram');
+  if (!bot) throw new Error('No active Telegram bot');
+  return await bot.sendPoll(chatId, question, options, {
+    is_anonymous: pollOptions.anonymous !== false,
+    type: pollOptions.quiz ? 'quiz' : 'regular',
+    correct_option_id: pollOptions.correctOption,
+    explanation: pollOptions.explanation,
+  });
+}
+
 const _activeBots = new Map();
 
-module.exports = { makeTelegramHandler, sendTelegramPhoto, sendTelegramDocument, sendTelegramVoice, _activeBots };
+module.exports = { makeTelegramHandler, sendTelegramPhoto, sendTelegramDocument, sendTelegramVoice, sendTelegramInlineKeyboard, sendTelegramReplyKeyboard, removeTelegramKeyboard, sendTelegramPoll, _activeBots };

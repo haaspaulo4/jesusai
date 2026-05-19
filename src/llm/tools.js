@@ -618,7 +618,7 @@ const TOOL_DEFINITIONS = [
           description: { type: 'string', description: 'Descrição do quiz (para create)' },
           quiz_type: { type: 'string', enum: ['multiple_choice', 'true_false', 'open_ended', 'ordered', 'fill_blank', 'survey'], description: 'Tipo do quiz (para create)' },
           questions: { type: 'array', description: 'Array de questões (para create). Cada questão: {id, text, type, options, correctAnswer, explanation, points}' },
-          xp_reward: { type: 'integer', description: 'XP奖励 ao completar (padrão: 10)' },
+          xp_reward: { type: 'integer', description: 'Recompensa XP ao completar (padrão: 10)' },
           user_id: { type: 'string', description: 'ID do usuário (para progress)' },
         },
         required: ['action'],

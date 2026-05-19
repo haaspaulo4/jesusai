@@ -81,6 +81,46 @@ async function startBot(id) {
     tgBot.on('message', (msg) => {
       handler(tgBot, msg).catch(err => console.error(`[TG:${bot.name}] Error:`, err.message));
     });
+    tgBot.on('callback_query', async (query) => {
+      const chatId = query.message?.chat?.id;
+      const userId = query.from?.id;
+      if (!chatId || !userId) {
+        try { await tgBot.answerCallbackQuery(query.id); } catch {}
+        return;
+      }
+      const data = query.data || '';
+      try {
+        const { handleChatCommand } = require('../chat/engine');
+        const uid = `tg_${userId}`;
+        const sid = `tg_${chatId}`;
+        let response = null;
+        if (data.startsWith('persona:')) {
+          const personaId = data.substring(7);
+          const cmdResult = await handleChatCommand(`/persona ${personaId}`, uid, 'telegram', sid, bot.personaId);
+          response = cmdResult || `✅ Persona alterada!`;
+        } else if (data.startsWith('action:')) {
+          const action = data.substring(7);
+          const cmdResult = await handleChatCommand(`/${action}`, uid, 'telegram', sid, bot.personaId);
+          if (cmdResult) response = cmdResult;
+        } else {
+          const cmdResult = await handleChatCommand(data, uid, 'telegram', sid, bot.personaId);
+          if (cmdResult) response = cmdResult;
+        }
+        if (response) {
+          const MAX_LEN = 800;
+          const reply = response.length > MAX_LEN ? response.substring(0, MAX_LEN) + '...' : response;
+          try {
+            await tgBot.editMessageText(reply, { chat_id: chatId, message_id: query.message.message_id, parse_mode: 'Markdown' });
+          } catch {
+            await tgBot.sendMessage(chatId, reply, { parse_mode: 'Markdown' });
+          }
+        }
+        await tgBot.answerCallbackQuery(query.id);
+      } catch (err) {
+        console.error(`[TG:${bot.name}] Callback query error:`, err.message);
+        try { await tgBot.answerCallbackQuery(query.id); } catch {}
+      }
+    });
     tgBot.on('polling_error', (err) => {
       console.error(`[TG:${bot.name}] Polling error:`, err.message);
     });
