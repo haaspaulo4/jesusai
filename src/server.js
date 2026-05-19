@@ -61,6 +61,7 @@ app.use(helmet({ contentSecurityPolicy: false, crossOriginEmbedderPolicy: false 
 app.use(compression());
 app.set('trust proxy', 1);
 app.use(express.json({ limit: '1mb' }));
+app.use((req, res, next) => { res.charset = 'utf-8'; next(); });
 
 const globalLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 500, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many requests, please try again later.' } });
 const authLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 20, standardHeaders: true, legacyHeaders: false, message: { error: 'Too many login attempts, please try again later.' } });

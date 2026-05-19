@@ -225,7 +225,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
       await addMessage(sid, 'assistant', override.human_message);
       return { response: override.human_message, sessionId: sid, sources: [], language: lang, humanOverride: true, overrideType: 'full' };
     }
-    return { response: 'Um atendente humano estÃ¡ cuidando desta conversa. Aguarde um momento.', sessionId: sid, sources: [], language: lang, humanOverride: true, overrideType: 'full' };
+    return { response: 'Um atendente humano está cuidando desta conversa. Aguarde um momento.', sessionId: sid, sources: [], language: lang, humanOverride: true, overrideType: 'full' };
   }
 
   const silence = await getSilenceStatus(sid);
@@ -234,9 +234,9 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     if (stillSilenced) {
       const status = await getSilenceStatus(sid);
       const remain = status.remaining;
-      return { response: `ðŸ”‡ Modo silÃªncio ativo. Restam ${remain} mensagem(Ãµes) em silÃªncio. Use /silence off para desativar.`, sessionId: sid, sources: [], language: lang, silenced: true };
+      return { response: `ðŸ”‡ Modo silêncio ativo. Restam ${remain} mensagem(ões) em silêncio. Use /silence off para desativar.`, sessionId: sid, sources: [], language: lang, silenced: true };
     }
-    return { response: 'ðŸ”‡ Modo silÃªncio encerrado. Estou de volta!', sessionId: sid, sources: [], language: lang, silenced: false };
+    return { response: 'ðŸ”‡ Modo silêncio encerrado. Estou de volta!', sessionId: sid, sources: [], language: lang, silenced: false };
   }
 
   const persona = await getPersonaForContext(personaId, sid, uid);
@@ -355,10 +355,10 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
   if (relevantVerses && relevantVerses.length > 0) {
     const isBiblical = !noKnowledgeSearch && (personaSources === null || (persona.knowledgeSources && persona.knowledgeSources.some(s => s.includes('bible') || s.includes('biblia'))));
-    const contextLabel = isBiblical ? 'CONTEXTO BÃBLICO FORNECIDO - NÃƒO BUSCAR, USAR DIRETAMENTE' : 'CONHECIMENTO FORNECIDO - USAR DIRETAMENTE';
+    const contextLabel = isBiblical ? 'CONTEXTO BÍBLICO FORNECIDO - NÃƒO BUSCAR, USAR DIRETAMENTE' : 'CONHECIMENTO FORNECIDO - USAR DIRETAMENTE';
     const versesText = relevantVerses.slice(0, 8).map(v => `${v.reference}: "${v.text}"`).join('\n');
-    const instructText = isBiblical ? 'Responda DIRETAMENTE citando os versÃ­culos acima. NÃƒO diga que vai buscar.' : 'Responda usando as informaÃ§Ãµes acima diretamente.';
-    messages.push({ role: 'user', content: `[${contextLabel}]:\n${versesText}\n\n${instructText}\n\nPergunta do usuÃ¡rio: ${message}` });
+    const instructText = isBiblical ? 'Responda DIRETAMENTE citando os versículos acima. NÃƒO diga que vai buscar.' : 'Responda usando as informações acima diretamente.';
+    messages.push({ role: 'user', content: `[${contextLabel}]:\n${versesText}\n\n${instructText}\n\nPergunta do usuário: ${message}` });
   } else {
     messages.push({ role: 'user', content: message });
   }
@@ -464,8 +464,8 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
         const retryPrompt = lang === 'en-US'
           ? `You MUST provide your complete answer NOW in natural language. Do NOT output JSON, function calls, or tool syntax. Just talk to the user as ${personaName}. Answer their question directly in plain text.`
           : lang === 'es-ES'
-          ? `Debes dar tu respuesta COMPLETA AHORA en lenguaje natural. NO generes JSON, llamadas de funciÃ³n ni sintaxis de tools. Habla con el usuario como ${personaName}. Responde directamente en texto simple.`
-          : `VocÃª DEVE dar sua resposta completa AGORA em linguagem natural. NÃƒO gere JSON, chamadas de funÃ§Ã£o ou sintaxe de tools. Apenas converse com o usuÃ¡rio como ${personaName}. Responda diretamente em texto simples.`;
+          ? `Debes dar tu respuesta COMPLETA AHORA en lenguaje natural. NO generes JSON, llamadas de función ni sintaxis de tools. Habla con el usuario como ${personaName}. Responde directamente en texto simple.`
+          : `Você DEVE dar sua resposta completa AGORA em linguagem natural. NÃƒO gere JSON, chamadas de função ou sintaxe de tools. Apenas converse com o usuário como ${personaName}. Responda diretamente em texto simples.`;
         console.log('[ChatEngine] Empty response, retrying with direct instruction...');
         messages.push({ role: 'user', content: retryPrompt });
         try {
@@ -562,7 +562,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
       }
       if (!fullResponse) {
         const fallbacks = {
-          'pt-BR': 'NÃ£o consegui formular uma resposta agora. Por favor, tente novamente.',
+          'pt-BR': 'Não consegui formular uma resposta agora. Por favor, tente novamente.',
           'en-US': 'I could not formulate a response right now. Please try again.',
           'es-ES': 'No pude formular una respuesta ahora. Por favor, intente de nuevo.',
         };
@@ -581,8 +581,8 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
       /\bdeixe-me buscar\b/gi, /\bvou procurar\b/gi, /\bvou buscar\b/gi,
       /\bespere enquanto\b/gi, /\bperdoe-me pela demora\b/gi,
       /\blet me search\b/gi, /\blet me look\b/gi, /\bi will search\b/gi,
-      /\bdÃ©jame buscar\b/gi, /\bvoy a buscar\b/gi,
-      /\bnÃ£o encontrei\b/gi, /\bno encuentro\b/gi,
+      /\bdéjame buscar\b/gi, /\bvoy a buscar\b/gi,
+      /\bnão encontrei\b/gi, /\bno encuentro\b/gi,
     ];
     const original = fullResponse;
     for (const phrase of searchPhrases) {
@@ -720,48 +720,48 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
 
   switch (cmd) {
     case '/stop': {
-      return 'ðŸ›‘ GeraÃ§Ã£o interrompida. Use /silence <N> para silenciar por N mensagens ou /silence off para reativar.';
+      return 'ðŸ›‘ Geração interrompida. Use /silence <N> para silenciar por N mensagens ou /silence off para reativar.';
     }
 
     case '/vincular':
     case '/link': {
       if (!uid.startsWith('wa_') && !uid.startsWith('tg_')) {
-        return 'ðŸ”— Este comando Ã© para uso no WhatsApp ou Telegram.\n\nNo site, acesse ConfiguraÃ§Ãµes â†’ Vincular Conta para gerar um cÃ³digo.';
+        return 'ðŸ”— Este comando é para uso no WhatsApp ou Telegram.\n\nNo site, acesse Configurações â†’ Vincular Conta para gerar um código.';
       }
       const linkCode = parts[1];
       if (!linkCode) {
         const { findLinkedUser } = require('../auth');
         const linked = await findLinkedUser(uid, uid.startsWith('wa_') ? 'whatsapp' : 'telegram');
         if (linked) {
-          return `âœ… Sua conta jÃ¡ estÃ¡ vinculada a ${linked.email} (${linked.name || 'sem nome'}).\n\nUse /desvincular para desvincular.`;
+          return `âœ… Sua conta já está vinculada a ${linked.email} (${linked.name || 'sem nome'}).\n\nUse /desvincular para desvincular.`;
         }
-        return 'ðŸ”— Para vincular sua conta:\n\n1. Acesse o site e faÃ§a login\n2. Clique em ConfiguraÃ§Ãµes â†’ Vincular Conta\n3. Copie o cÃ³digo de 6 dÃ­gitos\n4. Envie /vincular SEUCODIGO aqui\n\nExemplo: /vincular ABC123';
+        return 'ðŸ”— Para vincular sua conta:\n\n1. Acesse o site e faça login\n2. Clique em Configurações â†’ Vincular Conta\n3. Copie o código de 6 dígitos\n4. Envie /vincular SEUCODIGO aqui\n\nExemplo: /vincular ABC123';
       }
       try {
         const { linkAccount } = require('../auth');
         const result = await linkAccount(linkCode.toUpperCase(), uid, uid.startsWith('wa_') ? 'whatsapp' : 'telegram');
-        return `âœ… Conta vinculada com sucesso! Agora suas conversas aqui estÃ£o conectadas Ã  sua conta web.\n\nSeus dados, histÃ³rico e perfil foram unificados.`;
+        return `âœ… Conta vinculada com sucesso! Agora suas conversas aqui estão conectadas à sua conta web.\n\nSeus dados, histórico e perfil foram unificados.`;
       } catch (err) {
-        return `âŒ Erro ao vincular: ${err.message}`;
+        return `❌ Erro ao vincular: ${err.message}`;
       }
     }
 
     case '/desvincular':
     case '/unlink': {
       if (!uid.startsWith('wa_') && !uid.startsWith('tg_')) {
-        return 'ðŸ”— Este comando Ã© para uso no WhatsApp ou Telegram.';
+        return 'ðŸ”— Este comando é para uso no WhatsApp ou Telegram.';
       }
       try {
         const { findLinkedUser, pool } = require('../auth');
         const linked = await findLinkedUser(uid, uid.startsWith('wa_') ? 'whatsapp' : 'telegram');
         if (!linked) {
-          return 'âŒ Sua conta nÃ£o estÃ¡ vinculada a nenhuma conta web.';
+          return '❌ Sua conta não está vinculada a nenhuma conta web.';
         }
         const col = getBotCol(uid);
         await pool.execute(`UPDATE users SET ${col} = NULL WHERE id = ?`, [linked.id]);
         return 'âœ… Conta desvinculada. Suas conversas agora usam uma conta separada do bot.';
       } catch (err) {
-        return `âŒ Erro ao desvincular: ${err.message}`;
+        return `❌ Erro ao desvincular: ${err.message}`;
       }
     }
 
@@ -772,23 +772,23 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const passwordReg = parts[2];
       const nameReg = parts.slice(3).join(' ') || userName || uid.replace(/^(wa_|tg_)/, '');
       if (!emailReg || !passwordReg) {
-        return 'ðŸ“ Para criar sua conta web e poder acessar pelo site:\n\n/cadastrar email senha [nome]\n\nExemplo:\n/cadastrar joao@email.com Minhasenha1! JoÃ£o\n\nâ€¢ Senha: mÃ­nimo 8 caracteres, 1 maiÃºscula, 1 nÃºmero, 1 especial\nâ€¢ JÃ¡ tem conta? Use /entrar';
+        return 'ðŸ“ Para criar sua conta web e poder acessar pelo site:\n\n/cadastrar email senha [nome]\n\nExemplo:\n/cadastrar joao@email.com Minhasenha1! João\n\nâ€¢ Senha: mínimo 8 caracteres, 1 maiúscula, 1 número, 1 especial\nâ€¢ Já tem conta? Use /entrar';
       }
       const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
       if (!emailRegex.test(emailReg)) {
-        return 'âŒ Email invÃ¡lido. Use o formato: nome@dominio.com';
+        return '❌ Email inválido. Use o formato: nome@dominio.com';
       }
       if (passwordReg.length < 8) {
-        return 'âŒ A senha deve ter no mÃ­nimo 8 caracteres.';
+        return '❌ A senha deve ter no mínimo 8 caracteres.';
       }
       if (!/[A-Z]/.test(passwordReg)) {
-        return 'âŒ A senha deve conter pelo menos uma letra maiÃºscula.';
+        return '❌ A senha deve conter pelo menos uma letra maiúscula.';
       }
       if (!/[0-9]/.test(passwordReg)) {
-        return 'âŒ A senha deve conter pelo menos um nÃºmero.';
+        return '❌ A senha deve conter pelo menos um número.';
       }
       if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(passwordReg)) {
-        return 'âŒ A senha deve conter pelo menos um caractere especial (!@#$% etc).';
+        return '❌ A senha deve conter pelo menos um caractere especial (!@#$% etc).';
       }
       try {
         const { register, pool: authPool } = require('../auth');
@@ -799,8 +799,8 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           const user = await register(emailReg, passwordReg, nameReg);
           userId = user.id;
         } catch (regErr) {
-          if (regErr.message.includes('jÃ¡ cadastrado') || regErr.message.includes('already')) {
-            return `âŒ Este email jÃ¡ estÃ¡ cadastrado.\n\nSe Ã© sua conta, use /entrar ${emailReg} suaSenha`;
+          if (regErr.message.includes('já cadastrado') || regErr.message.includes('already')) {
+            return `❌ Este email já está cadastrado.\n\nSe é sua conta, use /entrar ${emailReg} suaSenha`;
           }
           throw regErr;
         }
@@ -814,9 +814,9 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
             await authPool.execute('DELETE FROM users WHERE id = ?', [uid]).catch(() => {});
           }
         }
-        return `âœ… Conta criada com sucesso!\n\nðŸ“§ ${emailReg}\nðŸ‘¤ ${nameReg}\n\nðŸ”— Sua conta deste dispositivo jÃ¡ estÃ¡ vinculada.\n\nAgora vocÃª pode acessar pelo site:\n${process.env.SERVER_URL || 'http://localhost:3000'}\n\nUse o mesmo email e senha para entrar no site.`;
+        return `âœ… Conta criada com sucesso!\n\nðŸ“§ ${emailReg}\nðŸ‘¤ ${nameReg}\n\nðŸ”— Sua conta deste dispositivo já está vinculada.\n\nAgora você pode acessar pelo site:\n${process.env.SERVER_URL || 'http://localhost:3000'}\n\nUse o mesmo email e senha para entrar no site.`;
       } catch (err) {
-        return `âŒ Erro ao criar conta: ${err.message}`;
+        return `❌ Erro ao criar conta: ${err.message}`;
       }
     }
 
@@ -825,7 +825,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const emailLogin = parts[1];
       const passwordLogin = parts[2];
       if (!emailLogin || !passwordLogin) {
-        return 'ðŸ”‘ Para fazer login com sua conta web:\n\n/entrar email senha\n\nExemplo:\n/entrar joao@email.com minhasenha123\n\nNÃ£o tem conta ainda? Use /cadastrar';
+        return 'ðŸ”‘ Para fazer login com sua conta web:\n\n/entrar email senha\n\nExemplo:\n/entrar joao@email.com minhasenha123\n\nNão tem conta ainda? Use /cadastrar';
       }
       try {
         const { login, generateToken: genToken, pool: authPool } = require('../auth');
@@ -838,11 +838,11 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           if (delRows.length > 0 && uid !== fullUser.id) {
             await authPool.execute('DELETE FROM users WHERE id = ?', [uid]);
           }
-          return `âœ… Login realizado! Conta vinculada.\n\nðŸ“§ ${fullUser.email}\nðŸ‘¤ ${fullUser.name}\n\nSeus dados daqui estÃ£o sincronizados com o site.`;
+          return `âœ… Login realizado! Conta vinculada.\n\nðŸ“§ ${fullUser.email}\nðŸ‘¤ ${fullUser.name}\n\nSeus dados daqui estão sincronizados com o site.`;
         }
         return `âœ… Login realizado!\n\nðŸ“§ ${fullUser.email}\nðŸ‘¤ ${fullUser.name}\nðŸ‘‘ ${fullUser.role}`;
       } catch (err) {
-        return `âŒ Erro no login: ${err.message}`;
+        return `❌ Erro no login: ${err.message}`;
       }
     }
 
@@ -854,24 +854,24 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const silenceStatus = await getSilenceStatus(sid);
       if (!silenceArg || silenceArg === 'status') {
         if (silenceStatus.silenced) {
-          return `ðŸ”‡ Modo silÃªncio ATIVO. Restam ${silenceStatus.remaining} mensagem(Ãµes). Use /silence off para desativar.`;
+          return `ðŸ”‡ Modo silêncio ATIVO. Restam ${silenceStatus.remaining} mensagem(ões). Use /silence off para desativar.`;
         }
-        return 'ðŸ”‡ Modo silÃªncio DESATIVADO. Use:\nâ€¢ /silence <N> â€” silenciar por N mensagens\nâ€¢ /silence off â€” desativar silÃªncio\nâ€¢ /silence infinite â€” silenciar indefinidamente';
+        return 'ðŸ”‡ Modo silêncio DESATIVADO. Use:\nâ€¢ /silence <N> â€” silenciar por N mensagens\nâ€¢ /silence off â€” desativar silêncio\nâ€¢ /silence infinite â€” silenciar indefinidamente';
       }
       if (silenceArg === 'off' || silenceArg === 'desativar' || silenceArg === 'stop') {
         await setSilence(sid, 0);
-        return 'ðŸ”Š SilÃªncio desativado! Estou de volta Ã  conversa.';
+        return 'ðŸ”Š Silêncio desativado! Estou de volta à conversa.';
       }
       if (silenceArg === 'infinite' || silenceArg === 'infinito' || silenceArg === 'sempre') {
         await setSilence(sid, 999999);
-        return 'ðŸ”‡ Modo silÃªncio INFINITO ativado. A persona nÃ£o vai responder atÃ© vocÃª usar /silence off.';
+        return 'ðŸ”‡ Modo silêncio INFINITO ativado. A persona não vai responder até você usar /silence off.';
       }
       const count = parseInt(silenceArg);
       if (isNaN(count) || count < 1) {
-        return 'âŒ Use: /silence <nÃºmero> (ex: /silence 5), /silence infinite, ou /silence off';
+        return '❌ Use: /silence <número> (ex: /silence 5), /silence infinite, ou /silence off';
       }
       await setSilence(sid, count);
-      return `ðŸ”‡ Modo silÃªncio ativado por ${count} mensagem(Ãµes). A persona nÃ£o vai responder. Use /silence off para desativar.`;
+      return `ðŸ”‡ Modo silêncio ativado por ${count} mensagem(ões). A persona não vai responder. Use /silence off para desativar.`;
     }
 
     case '/stats': {
@@ -880,7 +880,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         `SELECT COUNT(*) as total FROM messages m INNER JOIN sessions s ON m.session_id = s.id WHERE s.user_id = ?`,
         [uid]
       );
-      return `ðŸ“Š Suas estatÃ­sticas:\nâ€¢ SessÃµes: ${sessionRows[0].total}\nâ€¢ Mensagens: ${msgRows[0].total}`;
+      return `ðŸ“Š Suas estatísticas:\nâ€¢ Sessões: ${sessionRows[0].total}\nâ€¢ Mensagens: ${msgRows[0].total}`;
     }
 
     case '/myprofile':
@@ -889,7 +889,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const lines = ['ðŸ“‹ Seu perfil:'];
       if (profile.name) lines.push(`â€¢ Nome: ${profile.name}`);
       if (profile.topics?.length) lines.push(`â€¢ Temas: ${profile.topics.join(', ')}`);
-      if (profile.emotions?.length) lines.push(`â€¢ EmoÃ§Ãµes: ${profile.emotions.join(', ')}`);
+      if (profile.emotions?.length) lines.push(`â€¢ Emoções: ${profile.emotions.join(', ')}`);
       if (profile.spiritualJourney) lines.push(`â€¢ Jornada: ${profile.spiritualJourney}`);
       try {
         const { pool: authPool } = require('../auth');
@@ -902,7 +902,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           if (u.whatsapp_id) lines.push('ðŸ”— WhatsApp: vinculado');
           if (u.telegram_id) lines.push('ðŸ”— Telegram: vinculado');
           if (!u.whatsapp_id && !u.telegram_id && !u.email.includes('.bot')) {
-            lines.push('ðŸ“± Dispositivo nÃ£o vinculado â€” use /vincular');
+            lines.push('ðŸ“± Dispositivo não vinculado â€” use /vincular');
           }
         }
       } catch {}
@@ -916,7 +916,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const lines = allPersonas.map(p => {
         const tag = cur && p.id === cur.id ? ' â—€' : '';
         const meta = p.id === 'meta-persona' ? 'ðŸ§™ ' : '';
-        return `${p.isActive ? 'âœ…' : 'âŒ'} ${meta}${p.name} â†’ /persona ${p.id}${tag}`;
+        return `${p.isActive ? 'âœ…' : '❌'} ${meta}${p.name} â†’ /persona ${p.id}${tag}`;
       });
       return `ðŸŽ­ Personas (${allPersonas.length}):\n${lines.join('\n')}\n\nUse /persona <id> para trocar.`;
     }
@@ -928,14 +928,14 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         const currentPersona = persona;
         const lines = personas.map(p => {
           const isCurrent = currentPersona && p.id === currentPersona.id ? ' â—€ atual' : '';
-          const status = p.isActive ? 'âœ…' : 'âŒ';
+          const status = p.isActive ? 'âœ…' : '❌';
           const voice = p.ttsVoice ? `ðŸ”Š${p.ttsVoice}` : '';
           const lang = p.ttsLang === 'p' ? 'ðŸ‡§ðŸ‡·' : p.ttsLang === 'a' ? 'ðŸ‡ºðŸ‡¸' : p.ttsLang === 'e' ? 'ðŸ‡ªðŸ‡¸' : '';
           const meta = p.id === 'meta-persona' ? ' ðŸ§™' : '';
           return `${status} ${p.name}${meta} (${p.id}) ${voice}${lang}${isCurrent}`;
         });
         const metaLine = personas.some(p => p.id === 'meta-persona') ? '' : '\nðŸ’¡ Dica: /meta para ativar a meta-persona';
-        return `ðŸŽ­ Personas disponÃ­veis (${personas.length}):\n${lines.join('\n')}${metaLine}\n\nComandos:\n/persona <id> - Trocar de persona\n/persona info <id> - Ver detalhes da persona\n/meta - Ativar meta-persona (admin)\n/persona reset - Voltar para padrÃ£o\n/persona create <desc> - Criar persona (admin)\n/persona edit <id> <campo> <valor> - Editar (admin)\n/persona delete <id> - Deletar (admin)`;
+        return `ðŸŽ­ Personas disponíveis (${personas.length}):\n${lines.join('\n')}${metaLine}\n\nComandos:\n/persona <id> - Trocar de persona\n/persona info <id> - Ver detalhes da persona\n/meta - Ativar meta-persona (admin)\n/persona reset - Voltar para padrão\n/persona create <desc> - Criar persona (admin)\n/persona edit <id> <campo> <valor> - Editar (admin)\n/persona delete <id> - Deletar (admin)`;
       }
 
       if (args === 'reset' || args === 'default') {
@@ -948,12 +948,12 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (args.startsWith('create ')) {
         if (!isAdmin) return 'â›” Apenas administradores podem criar personas.';
         const description = args.slice(7).trim();
-        if (!description) return 'Uso: /persona create <nome ou descriÃ§Ã£o>';
+        if (!description) return 'Uso: /persona create <nome ou descrição>';
         try {
           const newPersona = await metaRag.createPersonaFromDescription(description, uid);
           return `âœ¨ Persona "${newPersona.name}" (${newPersona.id}) criada com sucesso!\n\nUse /persona ${newPersona.id} para ativar.`;
         } catch (err) {
-          return `âŒ Erro ao criar persona: ${err.message}`;
+          return `❌ Erro ao criar persona: ${err.message}`;
         }
       }
 
@@ -961,7 +961,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         const infoId = args.slice(5).trim().toLowerCase();
         try {
           const p = await personaManager.getPersona(infoId);
-          if (!p) return `âŒ Persona "${infoId}" nÃ£o encontrada.`;
+          if (!p) return `❌ Persona "${infoId}" não encontrada.`;
           const ident = p.identity;
           let identPreview = '';
           if (typeof ident === 'object' && ident !== null) {
@@ -979,16 +979,16 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           return [
             `ðŸŽ­ Detalhes da persona "${p.name}" (${p.id}):`,
             `â€¢ Nome: ${p.name} / ${p.nameEn || '-'} / ${p.nameEs || '-'}`,
-            `â€¢ Ativa: ${p.isActive !== false ? 'âœ… Sim' : 'âŒ NÃ£o'}`,
+            `â€¢ Ativa: ${p.isActive !== false ? 'âœ… Sim' : '❌ Não'}`,
             `â€¢ Prioridade: ${p.priority || 100}`,
             `â€¢ Voz TTS: ${p.ttsVoice || 'pm_alex'} (${p.ttsLang === 'p' ? 'pt-BR' : p.ttsLang === 'a' ? 'en-US' : p.ttsLang === 'e' ? 'es-ES' : p.ttsLang || 'pt-BR'})`,
-            `â€¢ Modelo: ${p.model || 'padrÃ£o'}`,
+            `â€¢ Modelo: ${p.model || 'padrão'}`,
             `â€¢ Fontes de conhecimento: ${sources}`,
             `â€¢ Identidade:`,
-            identPreview || '  (nÃ£o definida)',
+            identPreview || '  (não definida)',
             `â€¢ Comandos: ${p.commands ? Object.keys(p.commands).join(', ') : 'nenhum'}`,
           ].join('\n');
-        } catch (err) { return `âŒ Erro: ${err.message}`; }
+        } catch (err) { return `❌ Erro: ${err.message}`; }
       }
 
       if (args.startsWith('edit ')) {
@@ -1008,37 +1008,37 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           else if (field === 'model') updates.model = value;
           else if (field === 'priority') updates.priority = parseInt(value) || 100;
           else if (field === 'active' || field === 'isActive') updates.isActive = value === 'true' || value === '1';
-          else return `Campo invÃ¡lido: ${field}\nCampos: name, nameEn, nameEs, ttsVoice, ttsLang, model, priority, active`;
+          else return `Campo inválido: ${field}\nCampos: name, nameEn, nameEs, ttsVoice, ttsLang, model, priority, active`;
           await personaManager.createPersona({ id: personaId, ...updates });
           return `âœ… Persona "${personaId}" atualizada: ${field} = ${value}`;
         } catch (err) {
-          return `âŒ Erro: ${err.message}`;
+          return `❌ Erro: ${err.message}`;
         }
       }
 
       if (args.startsWith('delete ')) {
         if (!isAdmin) return 'â›” Apenas administradores podem deletar personas.';
         const personaId = args.slice(7).trim();
-        if (personaId === 'jesus') return 'â›” NÃ£o Ã© possÃ­vel deletar a persona padrÃ£o.';
-        if (personaId === 'meta-persona') return 'â›” NÃ£o Ã© possÃ­vel deletar a meta-persona.';
+        if (personaId === 'jesus') return 'â›” Não é possível deletar a persona padrão.';
+        if (personaId === 'meta-persona') return 'â›” Não é possível deletar a meta-persona.';
         try {
           await personaManager.deletePersona(personaId);
-          return `ðŸ—‘ï¸ Persona "${personaId}" deletada.`;
+          return `ðŸ—‘️ Persona "${personaId}" deletada.`;
         } catch (err) {
-          return `âŒ Erro: ${err.message}`;
+          return `❌ Erro: ${err.message}`;
         }
       }
 
       const targetPersona = args.trim().toLowerCase();
       if (targetPersona === 'meta-persona' && !isAdmin) {
-        return 'â›” Meta-persona Ã© restrita a administradores. Use /persona para listar personas disponÃ­veis.';
+        return 'â›” Meta-persona é restrita a administradores. Use /persona para listar personas disponíveis.';
       }
       try {
         const result = await metaRag.switchPersona(uid, sessionId, targetPersona);
         const freshPersona = await personaManager.getPersona(targetPersona);
         return metaRag.formatPersonaSwitchMessage(freshPersona, 'pt-BR');
       } catch (err) {
-        return `âŒ Persona "${args}" nÃ£o encontrada. Use /persona para listar.`;
+        return `❌ Persona "${args}" não encontrada. Use /persona para listar.`;
       }
     }
 
@@ -1056,7 +1056,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         }
         return `ðŸŽ­ ${brandName}\n\nOrquestradora ativada. Posso criar personas, gerenciar conhecimento, skills e mais.`;
       } catch (err) {
-        return `âŒ Erro ao ativar meta-persona: ${err.message}`;
+        return `❌ Erro ao ativar meta-persona: ${err.message}`;
       }
     }
 
@@ -1064,7 +1064,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (!isAdmin) return 'â›” Apenas administradores podem usar este comando.';
       const settings = await require('../settings').getAllSettings();
       const lines = Object.entries(settings).map(([k, v]) => `â€¢ ${k}: ${v}`);
-      return `âš™ï¸ ConfiguraÃ§Ãµes:\n${lines.join('\n')}`;
+      return `âš™️ Configurações:\n${lines.join('\n')}`;
     }
 
     case '/set': {
@@ -1073,7 +1073,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const [key, ...rest] = args.split('=');
       const value = rest.join('=').trim();
       await require('../settings').setSetting(key.trim(), value);
-      return `âœ… ConfiguraÃ§Ã£o "${key.trim()}" atualizada para "${value}".`;
+      return `âœ… Configuração "${key.trim()}" atualizada para "${value}".`;
     }
 
     case '/keys': {
@@ -1088,7 +1088,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           lines.push(`  [${integ.healthy ? 'âœ“' : 'âœ—'}] ${integ.label} ${integ.healthy ? '' : integ.lastError?.substring(0, 50) || ''}`);
         }
       }
-      return `ðŸ”‘ IntegraÃ§Ãµes:${lines.join('\n')}`;
+      return `ðŸ”‘ Integrações:${lines.join('\n')}`;
     }
 
     case '/addkey': {
@@ -1102,9 +1102,9 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const label = keyParts[4] || '';
       try {
         const result = await integrations.addIntegration(sType, apiKey, { baseUrl, model, label });
-        return `âœ… IntegraÃ§Ã£o adicionada: ${result.label} (${result.id})`;
+        return `âœ… Integração adicionada: ${result.label} (${result.id})`;
       } catch (err) {
-        return `âŒ Erro: ${err.message}`;
+        return `❌ Erro: ${err.message}`;
       }
     }
 
@@ -1113,9 +1113,9 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (!args) return 'Uso: /removekey <id>';
       try {
         await integrations.removeIntegration(parseInt(args));
-        return `âœ… IntegraÃ§Ã£o ${args} removida.`;
+        return `âœ… Integração ${args} removida.`;
       } catch (err) {
-        return `âŒ Erro: ${err.message}`;
+        return `❌ Erro: ${err.message}`;
       }
     }
 
@@ -1125,9 +1125,9 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (toggleParts.length < 2) return 'Uso: /togglekey <id> <on|off>';
       try {
         await integrations.toggleIntegration(parseInt(toggleParts[0]), toggleParts[1] === 'on');
-        return `âœ… IntegraÃ§Ã£o ${toggleParts[0]} ${toggleParts[1] === 'on' ? 'ativada' : 'desativada'}.`;
+        return `âœ… Integração ${toggleParts[0]} ${toggleParts[1] === 'on' ? 'ativada' : 'desativada'}.`;
       } catch (err) {
-        return `âŒ Erro: ${err.message}`;
+        return `❌ Erro: ${err.message}`;
       }
     }
 
@@ -1138,7 +1138,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         if (!info.total) continue;
         lines.push(`${info.label}: ${info.healthy}/${info.total} OK`);
       }
-      return `ðŸ¥ SaÃºde das integraÃ§Ãµes:\n${lines.join('\n') || 'Nenhuma integraÃ§Ã£o configurada'}`;
+      return `ðŸ¥ Saúde das integrações:\n${lines.join('\n') || 'Nenhuma integração configurada'}`;
     }
 
     case '/admin': {
@@ -1150,14 +1150,14 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const okCount = Object.values(integStatus).reduce((acc, v) => acc + (v.healthy || 0), 0);
       const totalKeys = Object.values(integStatus).reduce((acc, v) => acc + (v.total || 0), 0);
       const personas = await personaManager.listPersonas();
-      return `ðŸ‘‘ Painel Admin:\nâ€¢ UsuÃ¡rios: ${userCount[0].total}\nâ€¢ Mensagens: ${msgCount[0].total}\nâ€¢ SessÃµes: ${sessionCount[0].total}\nâ€¢ Personas: ${personas.length}\nâ€¢ IntegraÃ§Ãµes: ${okCount}/${totalKeys} OK\n\nComandos:\n/persona - Gerenciar personas\n/keys, /addkey - IntegraÃ§Ãµes\n/settings, /set - Config\n/users, /promote, /ban - UsuÃ¡rios\n/survey - Pesquisas\n/ratings - AvaliaÃ§Ãµes\n/health - SaÃºde`;
+      return `ðŸ‘‘ Painel Admin:\nâ€¢ Usuários: ${userCount[0].total}\nâ€¢ Mensagens: ${msgCount[0].total}\nâ€¢ Sessões: ${sessionCount[0].total}\nâ€¢ Personas: ${personas.length}\nâ€¢ Integrações: ${okCount}/${totalKeys} OK\n\nComandos:\n/persona - Gerenciar personas\n/keys, /addkey - Integrações\n/settings, /set - Config\n/users, /promote, /ban - Usuários\n/survey - Pesquisas\n/ratings - Avaliações\n/health - Saúde`;
     }
 
     case '/voice': {
       const { KOKORO_VOICES: kv } = require('../tts');
       const voiceList = Object.entries(kv).map(([lang, cfg]) => `  ${lang}: ${cfg.voice}`).join('\n');
       if (!args) {
-        return `ðŸ”Š Voz atual: ${persona.ttsVoice || 'pm_alex'}\n\nVozes Kokoro disponÃ­veis:\n${voiceList}\n\nUse: /voice <nome_da_voz>\nExemplo: /voice pm_alex, /voice pf_dora`;
+        return `ðŸ”Š Voz atual: ${persona.ttsVoice || 'pm_alex'}\n\nVozes Kokoro disponíveis:\n${voiceList}\n\nUse: /voice <nome_da_voz>\nExemplo: /voice pm_alex, /voice pf_dora`;
       }
       const newVoice = args.trim();
       try {
@@ -1165,7 +1165,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         personaManager.invalidateCache();
         return `âœ… Voz da persona "${persona.name}" alterada para: ${newVoice}`;
       } catch (err) {
-        return `âŒ Erro: ${err.message}`;
+        return `❌ Erro: ${err.message}`;
       }
     }
 
@@ -1173,7 +1173,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (!isAdmin) return 'â›” Apenas administradores.';
       const [rows] = await require('../db').pool.execute('SELECT id, email, name, role, created_at FROM users ORDER BY created_at DESC LIMIT 20');
       const lines = rows.map(r => `â€¢ ${r.name || r.email} (${r.role || 'user'}) - ${r.id}`);
-      return `ðŸ‘¥ Ãšltimos usuÃ¡rios:\n${lines.join('\n')}`;
+      return `ðŸ‘¥ Ãšltimos usuários:\n${lines.join('\n')}`;
     }
 
     case '/promote': {
@@ -1184,53 +1184,53 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const role = promoteParts[1] || 'premium';
       if (!['user', 'premium', 'admin'].includes(role)) return 'Roles: user, premium, admin';
       await require('../db').pool.execute('UPDATE users SET role = ? WHERE id = ?', [role, targetId]);
-      return `âœ… UsuÃ¡rio ${targetId} promovido para ${role}.`;
+      return `âœ… Usuário ${targetId} promovido para ${role}.`;
     }
 
     case '/ban': {
       if (!isAdmin) return 'â›” Apenas administradores.';
       if (!args) return 'Uso: /ban <user_id>';
       await require('../db').pool.execute('UPDATE users SET role = ? WHERE id = ?', ['banned', args.trim()]);
-      return `ðŸš« UsuÃ¡rio ${args.trim()} banido.`;
+      return `ðŸš« Usuário ${args.trim()} banido.`;
     }
 
     case '/survey': {
       if (!isAdmin) return 'â›” Apenas administradores.';
       if (!args) {
         const surveys = await surveyEngine.listSurveys({ activeOnly: false });
-        if (surveys.surveys.length === 0) return 'ðŸ“‹ Nenhuma pesquisa criada. Use /survey create <tÃ­tulo>';
-        const lines = surveys.surveys.map(s => `â€¢ ${s.id}: "${s.title}" ${s.isActive ? 'âœ…' : 'âŒ'} (${s.triggerType})`);
-        return `ðŸ“‹ Pesquisas:\n${lines.join('\n')}\n\nComandos:\n/survey create <tÃ­tulo>\n/survey <id> - Ver detalhes\n/survey <id> toggle\n/survey <id> responses`;
+        if (surveys.surveys.length === 0) return 'ðŸ“‹ Nenhuma pesquisa criada. Use /survey create <título>';
+        const lines = surveys.surveys.map(s => `â€¢ ${s.id}: "${s.title}" ${s.isActive ? 'âœ…' : '❌'} (${s.triggerType})`);
+        return `ðŸ“‹ Pesquisas:\n${lines.join('\n')}\n\nComandos:\n/survey create <título>\n/survey <id> - Ver detalhes\n/survey <id> toggle\n/survey <id> responses`;
       }
 
       const surveyArgs = args.split(' ');
       if (surveyArgs[0] === 'create') {
         const title = surveyArgs.slice(1).join(' ');
-        if (!title) return 'Uso: /survey create <tÃ­tulo>';
+        if (!title) return 'Uso: /survey create <título>';
         try {
           const survey = await surveyEngine.createSurvey({
             title,
             questions: [
-              { id: 'q1', type: 'rating', text: 'Como vocÃª avalia sua experiÃªncia?', required: true },
+              { id: 'q1', type: 'rating', text: 'Como você avalia sua experiência?', required: true },
               { id: 'q2', type: 'text', text: 'O que podemos melhorar?', required: false },
-              { id: 'q3', type: 'choice', text: 'Recomendaria para alguÃ©m?', choices: ['Sim', 'Talvez', 'NÃ£o'], required: true },
+              { id: 'q3', type: 'choice', text: 'Recomendaria para alguém?', choices: ['Sim', 'Talvez', 'Não'], required: true },
             ],
             triggerType: 'manual',
           });
           return `ðŸ“‹ Pesquisa criada: "${survey.title}" (${survey.id})\nAtive com: /survey ${survey.id} toggle`;
         } catch (err) {
-          return `âŒ Erro: ${err.message}`;
+          return `❌ Erro: ${err.message}`;
         }
       }
 
       if (surveyArgs[1] === 'toggle') {
         try {
           const s = await surveyEngine.getSurvey(surveyArgs[0]);
-          if (!s) return 'Pesquisa nÃ£o encontrada.';
+          if (!s) return 'Pesquisa não encontrada.';
           await surveyEngine.updateSurvey(surveyArgs[0], { isActive: !s.isActive });
           return `âœ… Pesquisa "${s.title}" ${s.isActive ? 'desativada' : 'ativada'}.`;
         } catch (err) {
-          return `âŒ Erro: ${err.message}`;
+          return `❌ Erro: ${err.message}`;
         }
       }
 
@@ -1239,16 +1239,16 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           const result = await surveyEngine.getSurveyResponses(surveyArgs[0], { limit: 10 });
           return `ðŸ“‹ Respostas (${result.total}):\n${result.responses.map(r => `â€¢ ${r.user_id}: ${JSON.stringify(r.answers).substring(0, 80)}...`).join('\n')}`;
         } catch (err) {
-          return `âŒ Erro: ${err.message}`;
+          return `❌ Erro: ${err.message}`;
         }
       }
 
       try {
         const s = await surveyEngine.getSurvey(surveyArgs[0]);
-        if (!s) return 'Pesquisa nÃ£o encontrada.';
-        return `ðŸ“‹ "${s.title}" (${s.id})\nTipo: ${s.triggerType}\nAtiva: ${s.isActive ? 'âœ…' : 'âŒ'}\nPerguntas: ${s.questions.length}\nCriada: ${s.createdAt}`;
+        if (!s) return 'Pesquisa não encontrada.';
+        return `ðŸ“‹ "${s.title}" (${s.id})\nTipo: ${s.triggerType}\nAtiva: ${s.isActive ? 'âœ…' : '❌'}\nPerguntas: ${s.questions.length}\nCriada: ${s.createdAt}`;
       } catch {
-        return 'Pesquisa nÃ£o encontrada.';
+        return 'Pesquisa não encontrada.';
       }
     }
 
@@ -1258,29 +1258,29 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       try {
         const result = await surveyEngine.getRatings({ limit: 10 });
         const dist = Object.entries(result.distribution).map(([k, v]) => `${'â­'.repeat(parseInt(k))} ${k}: ${v}`).join(', ');
-        return `ðŸ“Š AvaliaÃ§Ãµes (mÃ©dia: ${result.average}/5, total: ${result.totalRatings})\n\nDistribuiÃ§Ã£o: ${dist || 'Nenhuma ainda'}\n\nÃšltimas:\n${result.ratings.slice(0, 5).map(r => `â€¢ ${r.rating}â­ ${r.category} - ${r.feedback?.substring(0, 40) || ''} (${r.source})`).join('\n')}`;
+        return `ðŸ“Š Avaliações (média: ${result.average}/5, total: ${result.totalRatings})\n\nDistribuição: ${dist || 'Nenhuma ainda'}\n\nÃšltimas:\n${result.ratings.slice(0, 5).map(r => `â€¢ ${r.rating}â­ ${r.category} - ${r.feedback?.substring(0, 40) || ''} (${r.source})`).join('\n')}`;
       } catch (err) {
-        return `âŒ Erro: ${err.message}`;
+        return `❌ Erro: ${err.message}`;
       }
     }
 
     case '/followups': {
       if (!isAdmin) return 'â›” Apenas administradores.';
       const result = await surveyEngine.getFollowUps({ limit: 10 });
-      const lines = result.followUps.map(f => `â€¢ [${f.status}] ${f.type}: "${f.question?.substring(0, 50)}..." â†’ ${f.user_id} ${f.response ? 'âœ…' : 'â³'}`);
+      const lines = result.followUps.map(f => `â€¢ [${f.status}] ${f.type}: "${f.question?.substring(0, 50)}..." â†’ ${f.user_id} ${f.response ? 'âœ…' : '⏳'}`);
       return `ðŸ“¬ Follow-ups (${result.total}):\n${lines.join('\n') || 'Nenhum follow-up'}`;
     }
 
     case '/tools': {
       const toolDefs = getToolDefinitions();
       const lines = toolDefs.map(t => `â€¢ ${t.function.name}: ${t.function.description.split('.')[0]}`);
-      return `ðŸ”§ Ferramentas disponÃ­veis:\n${lines.join('\n')}`;
+      return `ðŸ”§ Ferramentas disponíveis:\n${lines.join('\n')}`;
     }
 
     case '/skills': {
       const skills = await require('../skills').listSkills(args ? { persona_id: args.trim() } : {});
       if (skills.length === 0) return 'ðŸ“‹ Nenhuma skill encontrada.';
-      const lines = skills.map(s => `â€¢ ${s.name} (${s.type}) ${s.is_active ? 'âœ…' : 'âŒ'} ${s.persona_id ? '[' + s.persona_id + ']' : '[global]'} - ${s.description?.substring(0, 60) || ''}`);
+      const lines = skills.map(s => `â€¢ ${s.name} (${s.type}) ${s.is_active ? 'âœ…' : '❌'} ${s.persona_id ? '[' + s.persona_id + ']' : '[global]'} - ${s.description?.substring(0, 60) || ''}`);
       return `ðŸŽ­ Skills (${skills.length}):\n${lines.join('\n')}\n\nUse: /skill <id> para ver detalhes`;
     }
 
@@ -1288,7 +1288,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const taskFilters = {};
       if (args) {
         const parts = args.trim().split(/\s+/);
-        if (parts[0] === 'overdue') { const tasks = await agentModule.getOverdueTasks(uid); return `âš ï¸ Tarefas atrasadas (${tasks.length}):\n${tasks.map(t => `â€¢ [${t.priority}] ${t.title} - ${t.status} ${t.due_date ? '(Prazo: ' + t.due_date + ')' : ''}`).join('\n')}`; }
+        if (parts[0] === 'overdue') { const tasks = await agentModule.getOverdueTasks(uid); return `âš ️ Tarefas atrasadas (${tasks.length}):\n${tasks.map(t => `â€¢ [${t.priority}] ${t.title} - ${t.status} ${t.due_date ? '(Prazo: ' + t.due_date + ')' : ''}`).join('\n')}`; }
         if (['pending', 'in_progress', 'completed', 'cancelled'].includes(parts[0])) taskFilters.status = parts[0];
       }
       taskFilters.owner_id = uid;
@@ -1301,10 +1301,10 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
     case '/calendar': {
       if (!args || args === 'upcoming' || args === 'semana') {
         const events = await agentModule.getUpcomingEvents(uid, 7);
-        if (events.length === 0) return 'ðŸ“… Nenhum evento nos prÃ³ximos 7 dias.';
-        return `ðŸ“… PrÃ³ximos eventos (${events.length}):\n${events.map(e => `â€¢ ${e.start_time}: ${e.title} (${e.event_type}) ${e.location ? '@ ' + e.location : ''}`).join('\n')}`;
+        if (events.length === 0) return 'ðŸ“… Nenhum evento nos próximos 7 dias.';
+        return `ðŸ“… Próximos eventos (${events.length}):\n${events.map(e => `â€¢ ${e.start_time}: ${e.title} (${e.event_type}) ${e.location ? '@ ' + e.location : ''}`).join('\n')}`;
       }
-      return 'ðŸ“… Use: /calendar [upcoming|semana]\nOu peÃ§a para criar um evento no chat.';
+      return 'ðŸ“… Use: /calendar [upcoming|semana]\nOu peça para criar um evento no chat.';
     }
 
     case '/contacts': {
@@ -1323,43 +1323,43 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
 
     case '/automations': {
       const automations = await agentModule.listAutomations({ owner_id: uid, limit: 20 });
-      if (automations.length === 0) return 'ðŸ¤– Nenhuma automaÃ§Ã£o configurada.';
-      return `ðŸ¤– AutomaÃ§Ãµes (${automations.length}):\n${automations.map(a => `â€¢ ${a.name} [${a.trigger_type} â†’ ${a.action_type}] ${a.is_active ? 'âœ…' : 'âŒ'}`).join('\n')}`;
+      if (automations.length === 0) return 'ðŸ¤– Nenhuma automação configurada.';
+      return `ðŸ¤– Automações (${automations.length}):\n${automations.map(a => `â€¢ ${a.name} [${a.trigger_type} â†’ ${a.action_type}] ${a.is_active ? 'âœ…' : '❌'}`).join('\n')}`;
     }
 
     case '/dashboard': {
       const stats = await agentModule.getDashboardStats(uid);
       const goals2 = await goalsModule.listGoals({ owner_id: uid, status: 'active', limit: 5 });
-      return `ðŸ“Š Dashboard:\nâ€¢ Tarefas: ${stats.tasks.total} (${Object.entries(stats.tasks.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ')})\nâ€¢ Eventos (7d): ${stats.upcomingEvents}\nâ€¢ Contatos: ${stats.contacts.total} (${Object.entries(stats.contacts.byStage).map(([k, v]) => `${k}: ${v}`).join(', ')})\nâ€¢ AutomaÃ§Ãµes ativas: ${stats.activeAutomations}\nâ€¢ Personas: ${stats.activePersonas}\nâ€¢ Skills: ${stats.activeSkills}${stats.goals ? '\nâ€¢ Metas: ' + stats.goals.total + ' (' + Object.entries(stats.goals.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ') + ')' : ''}${stats.orgMemory && stats.orgMemory.total > 0 ? '\nâ€¢ MemÃ³ria Org: ' + stats.orgMemory.total + ' itens' : ''}${goals2.length > 0 ? '\nâ€¢ Metas ativas: ' + goals2.map(g => g.title).join(', ') : ''}`;
+      return `ðŸ“Š Dashboard:\nâ€¢ Tarefas: ${stats.tasks.total} (${Object.entries(stats.tasks.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ')})\nâ€¢ Eventos (7d): ${stats.upcomingEvents}\nâ€¢ Contatos: ${stats.contacts.total} (${Object.entries(stats.contacts.byStage).map(([k, v]) => `${k}: ${v}`).join(', ')})\nâ€¢ Automações ativas: ${stats.activeAutomations}\nâ€¢ Personas: ${stats.activePersonas}\nâ€¢ Skills: ${stats.activeSkills}${stats.goals ? '\nâ€¢ Metas: ' + stats.goals.total + ' (' + Object.entries(stats.goals.byStatus).map(([k, v]) => `${k}: ${v}`).join(', ') + ')' : ''}${stats.orgMemory && stats.orgMemory.total > 0 ? '\nâ€¢ Memória Org: ' + stats.orgMemory.total + ' itens' : ''}${goals2.length > 0 ? '\nâ€¢ Metas ativas: ' + goals2.map(g => g.title).join(', ') : ''}`;
     }
 
     case '/goals':
     case '/metas': {
       if (!args || args === 'list' || args === 'lista') {
         const goals = await goalsModule.listGoals({ owner_id: uid, limit: 20 });
-        if (goals.length === 0) return 'ðŸŽ¯ Nenhuma meta encontrada. Use: /goals create <tÃ­tulo>';
+        if (goals.length === 0) return 'ðŸŽ¯ Nenhuma meta encontrada. Use: /goals create <título>';
         const lines = goals.map(g => {
-          const statusIcon = g.status === 'completed' ? 'âœ…' : g.status === 'paused' ? 'â¸ï¸' : g.status === 'abandoned' ? 'âŒ' : 'ðŸŽ¯';
+          const statusIcon = g.status === 'completed' ? 'âœ…' : g.status === 'paused' ? '⏸️' : g.status === 'abandoned' ? '❌' : 'ðŸŽ¯';
           const progressStr = g.progress > 0 ? ` (${g.progress}%)` : '';
           return `${statusIcon} [${g.goal_type}] ${g.title} - ${g.status}${progressStr}`;
         });
-        return `ðŸŽ¯ Metas (${goals.length}):\n${lines.join('\n')}\n\nComandos:\n/goals create <tÃ­tulo>\n/goals <id> edit <campo> <valor>\n/goals <id> progress <0-100>\n/goals progress - Progresso geral`;
+        return `ðŸŽ¯ Metas (${goals.length}):\n${lines.join('\n')}\n\nComandos:\n/goals create <título>\n/goals <id> edit <campo> <valor>\n/goals <id> progress <0-100>\n/goals progress - Progresso geral`;
       }
 
       if (args === 'progress' || args === 'progresso') {
         const progress = await goalsModule.getGoalProgress(uid);
-        const statusLines = Object.entries(progress.byStatus).map(([s, d]) => `${s}: ${d.count} (mÃ©dia ${d.avgProgress}%)`);
+        const statusLines = Object.entries(progress.byStatus).map(([s, d]) => `${s}: ${d.count} (média ${d.avgProgress}%)`);
         return `ðŸ“Š Progresso das metas:\nâ€¢ Total: ${progress.total}\n${statusLines.join('\n')}`;
       }
 
       if (args.startsWith('create ') || args.startsWith('criar ')) {
         const title = args.replace(/^(create|criar)\s+/i, '').trim();
-        if (!title) return 'Uso: /goals create <tÃ­tulo>';
+        if (!title) return 'Uso: /goals create <título>';
         try {
           const goal = await goalsModule.createGoal({ owner_id: uid, title });
           return `ðŸŽ¯ Meta "${title}" criada! (ID: ${goal.id})\n\nUse /goals para listar, ou edite com /goals ${goal.id} edit <campo> <valor>`;
         } catch (err) {
-          return `âŒ Erro: ${err.message}`;
+          return `❌ Erro: ${err.message}`;
         }
       }
 
@@ -1380,40 +1380,40 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           else if (field === 'target_metric') updates.target_metric = value;
           else if (field === 'target_value') updates.target_value = value;
           else if (field === 'due_date') updates.due_date = value;
-          else return `Campo invÃ¡lido: ${field}`;
+          else return `Campo inválido: ${field}`;
           const goal = await goalsModule.updateGoal(goalId, updates);
-          if (!goal) return `âŒ Meta "${goalId}" nÃ£o encontrada.`;
+          if (!goal) return `❌ Meta "${goalId}" não encontrada.`;
           return `âœ… Meta "${goal.title}" atualizada: ${field} = ${value}`;
         } catch (err) {
-          return `âŒ Erro: ${err.message}`;
+          return `❌ Erro: ${err.message}`;
         }
       }
 
       if (goalParts[1] === 'progress') {
         try {
           const goal = await goalsModule.updateGoal(goalId, { progress: parseInt(goalParts[2]) || 0 });
-          if (!goal) return `âŒ Meta "${goalId}" nÃ£o encontrada.`;
+          if (!goal) return `❌ Meta "${goalId}" não encontrada.`;
           return `âœ… Progresso de "${goal.title}" atualizado para ${goalParts[2]}%`;
         } catch (err) {
-          return `âŒ Erro: ${err.message}`;
+          return `❌ Erro: ${err.message}`;
         }
       }
 
       if (goalParts[1] === 'delete') {
         try {
           await goalsModule.deleteGoal(goalId);
-          return `ðŸ—‘ï¸ Meta "${goalId}" deletada.`;
+          return `ðŸ—‘️ Meta "${goalId}" deletada.`;
         } catch (err) {
-          return `âŒ Erro: ${err.message}`;
+          return `❌ Erro: ${err.message}`;
         }
       }
 
       try {
         const goal = await goalsModule.getGoal(goalId);
-        if (!goal) return `âŒ Meta "${goalId}" nÃ£o encontrada.`;
-        return `ðŸŽ¯ ${goal.title}\nâ€¢ Tipo: ${goal.goal_type}\nâ€¢ Status: ${goal.status}\nâ€¢ Prioridade: ${goal.priority}\nâ€¢ Progresso: ${goal.progress}%${goal.target_metric ? '\nâ€¢ MÃ©trica: ' + goal.target_metric + ' = ' + (goal.current_value || '?') + '/' + (goal.target_value || '?') : ''}${goal.due_date ? '\nâ€¢ Prazo: ' + goal.due_date : ''}${goal.description ? '\nâ€¢ DescriÃ§Ã£o: ' + goal.description : ''}`;
+        if (!goal) return `❌ Meta "${goalId}" não encontrada.`;
+        return `ðŸŽ¯ ${goal.title}\nâ€¢ Tipo: ${goal.goal_type}\nâ€¢ Status: ${goal.status}\nâ€¢ Prioridade: ${goal.priority}\nâ€¢ Progresso: ${goal.progress}%${goal.target_metric ? '\nâ€¢ Métrica: ' + goal.target_metric + ' = ' + (goal.current_value || '?') + '/' + (goal.target_value || '?') : ''}${goal.due_date ? '\nâ€¢ Prazo: ' + goal.due_date : ''}${goal.description ? '\nâ€¢ Descrição: ' + goal.description : ''}`;
       } catch {
-        return `âŒ Meta "${goalId}" nÃ£o encontrada.`;
+        return `❌ Meta "${goalId}" não encontrada.`;
       }
     }
 
@@ -1422,32 +1422,32 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (!args || args === 'list') {
         const stages = await stagesModule.listConversationStages({});
         const userStage = await stagesModule.getUserStage(uid, persona.id);
-        const stageList = stages.map(s => `${s.is_active ? 'âœ…' : 'âŒ'} ${s.stage_order}: ${s.name} - ${s.description || ''}`).join('\n');
-        const currentStage = userStage ? `\n\nðŸ“ Seu estÃ¡gio atual: ${userStage.current_stage}` : '\n\nðŸ“ Seu estÃ¡gio: Nenhum definido';
-        return `ðŸ”„ EstÃ¡gios de conversa:\n${stageList || 'Nenhum estÃ¡gio configurado.'}${currentStage}\n\nComandos:\n/stages init - Criar estÃ¡gios padrÃ£o\n/stages <id> - Ver detalhes\n/stages advance - AvanÃ§ar estÃ¡gio`;
+        const stageList = stages.map(s => `${s.is_active ? 'âœ…' : '❌'} ${s.stage_order}: ${s.name} - ${s.description || ''}`).join('\n');
+        const currentStage = userStage ? `\n\nðŸ“ Seu estágio atual: ${userStage.current_stage}` : '\n\nðŸ“ Seu estágio: Nenhum definido';
+        return `ðŸ”„ Estágios de conversa:\n${stageList || 'Nenhum estágio configurado.'}${currentStage}\n\nComandos:\n/stages init - Criar estágios padrão\n/stages <id> - Ver detalhes\n/stages advance - Avançar estágio`;
       }
 
       if (args === 'init') {
         const stages = await stagesModule.ensureDefaultStages(persona.id);
-        return `âœ… ${stages.length} estÃ¡gios padrÃ£o criados!\n${stages.map(s => `â€¢ ${s.stage_order}: ${s.name}`).join('\n')}`;
+        return `âœ… ${stages.length} estágios padrão criados!\n${stages.map(s => `â€¢ ${s.stage_order}: ${s.name}`).join('\n')}`;
       }
 
       if (args === 'advance') {
         const result = await stagesModule.advanceUserStage(uid, persona.id, sid);
-        if (!result) return 'âš ï¸ NÃ£o hÃ¡ prÃ³ximo estÃ¡gio disponÃ­vel.';
+        if (!result) return 'âš ️ Não há próximo estágio disponível.';
         const stage = await stagesModule.getConversationStage(result.current_stage);
-        return `âœ… EstÃ¡gio avanÃ§ado para: ${stage ? stage.name : result.current_stage}`;
+        return `âœ… Estágio avançado para: ${stage ? stage.name : result.current_stage}`;
       }
 
       if (args.startsWith('set ')) {
         const stageId = args.slice(4).trim();
         const result = await stagesModule.setUserStage(uid, persona.id, stageId, sid);
-        return `âœ… EstÃ¡gio definido para: ${stageId}`;
+        return `âœ… Estágio definido para: ${stageId}`;
       }
 
       const stageDetail = await stagesModule.getConversationStage(args.trim());
       if (stageDetail) {
-        return `ðŸ”„ ${stageDetail.name} (Ordem: ${stageDetail.stage_order})\nâ€¢ DescriÃ§Ã£o: ${stageDetail.description || 'N/A'}\nâ€¢ Ativo: ${stageDetail.is_active ? 'âœ…' : 'âŒ'}\nâ€¢ Triggers: ${stageDetail.triggers ? JSON.stringify(stageDetail.triggers) : 'N/A'}\nâ€¢ Responses: ${stageDetail.responses ? JSON.stringify(stageDetail.responses) : 'N/A'}`;
+        return `ðŸ”„ ${stageDetail.name} (Ordem: ${stageDetail.stage_order})\nâ€¢ Descrição: ${stageDetail.description || 'N/A'}\nâ€¢ Ativo: ${stageDetail.is_active ? 'âœ…' : '❌'}\nâ€¢ Triggers: ${stageDetail.triggers ? JSON.stringify(stageDetail.triggers) : 'N/A'}\nâ€¢ Responses: ${stageDetail.responses ? JSON.stringify(stageDetail.responses) : 'N/A'}`;
       }
       return 'ðŸ”„ Use: /stages [list|init|advance|set <id>]';
     }
@@ -1456,7 +1456,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
     case '/memoria': {
       if (!args || args === 'list') {
         const memories = await orgMemoryModule.listOrgMemory({ owner_id: uid, limit: 20 });
-        if (memories.length === 0) return 'ðŸ§  Nenhuma memÃ³ria organizacional. Use: /orgmem create <tÃ­tulo>|<categoria>|<conteÃºdo>';
+        if (memories.length === 0) return 'ðŸ§  Nenhuma memória organizacional. Use: /orgmem create <título>|<categoria>|<conteúdo>';
         const grouped = {};
         for (const m of memories) {
           if (!grouped[m.category]) grouped[m.category] = [];
@@ -1465,19 +1465,19 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         const lines = Object.entries(grouped).map(([cat, items]) => {
           return `${cat.toUpperCase()}:\n${items.map(m => `  â€¢ ${m.title} [${m.priority}]`).join('\n')}`;
         }).join('\n\n');
-        return `ðŸ§  MemÃ³ria Organizacional:\n${lines}`;
+        return `ðŸ§  Memória Organizacional:\n${lines}`;
       }
 
       if (args.startsWith('create ') || args.startsWith('criar ')) {
         const parts = args.replace(/^(create|criar)\s+/i, '').trim().split('|');
-        const title = parts[0]?.trim() || 'Nova memÃ³ria';
+        const title = parts[0]?.trim() || 'Nova memória';
         const category = parts[1]?.trim() || 'custom';
         const content = parts[2]?.trim() || '';
         try {
           const mem = await orgMemoryModule.createOrgMemory({ owner_id: uid, title, category, content });
-          return `ðŸ§  MemÃ³ria "${title}" criada! (${category}) ID: ${mem.id}`;
+          return `ðŸ§  Memória "${title}" criada! (${category}) ID: ${mem.id}`;
         } catch (err) {
-          return `âŒ Erro: ${err.message}`;
+          return `❌ Erro: ${err.message}`;
         }
       }
 
@@ -1491,10 +1491,10 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (args.startsWith('delete ')) {
         const memId = args.slice(7).trim();
         await orgMemoryModule.deleteOrgMemory(memId);
-        return `ðŸ—‘ï¸ MemÃ³ria "${memId}" deletada.`;
+        return `ðŸ—‘️ Memória "${memId}" deletada.`;
       }
 
-      return 'ðŸ§  Comandos:\n/orgmem list - Listar\n/orgmem create <tÃ­tulo>|<categoria>|<conteÃºdo>\n/orgmem search <query>\n/orgmem delete <id>';
+      return 'ðŸ§  Comandos:\n/orgmem list - Listar\n/orgmem create <título>|<categoria>|<conteúdo>\n/orgmem search <query>\n/orgmem delete <id>';
     }
 
     case '/xp':
@@ -1502,20 +1502,20 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
     case '/gamificacao': {
       const subcmd = args ? args.split(' ')[0].toLowerCase() : '';
       if (subcmd === 'add') {
-        if (!isAdmin) return 'âŒ Apenas admins podem adicionar XP. Use /xp para ver seu XP.';
+        if (!isAdmin) return '❌ Apenas admins podem adicionar XP. Use /xp para ver seu XP.';
         const targetUserId = args.split(' ')[1];
         const amount = parseInt(args.split(' ')[2]) || 10;
         const xpUid = targetUserId || uid;
         const result = await gamificationModule.addXp(xpUid, persona.id, amount, 'admin_add');
         const badges = await gamificationModule.checkAndAwardBadges(xpUid, persona.id);
-        let msg = `âœ… +${amount} XP para ${xpUid === uid ? 'vocÃª' : xpUid}! Total: ${result.xp} (NÃ­vel ${result.level})`;
-        if (result.leveledUp) msg += `\nðŸŽ‰ Level up! Agora nÃ­vel ${result.level}!`;
+        let msg = `âœ… +${amount} XP para ${xpUid === uid ? 'você' : xpUid}! Total: ${result.xp} (Nível ${result.level})`;
+        if (result.leveledUp) msg += `\nðŸŽ‰ Level up! Agora nível ${result.level}!`;
         if (badges.length > 0) msg += `\nðŸ† Nova conquista: ${badges.map(b => b.name).join(', ')}`;
         return msg;
       }
       if (subcmd === 'leaderboard' || subcmd === 'ranking') {
         const lb = await gamificationModule.getLeaderboard(persona.id, 10);
-        const lines = lb.map((entry, i) => `${i + 1}. ${entry.user_id} â€” ${entry.xp} XP (NÃ­vel ${entry.level}, ${entry.streak || 0} streak)`);
+        const lines = lb.map((entry, i) => `${i + 1}. ${entry.user_id} â€” ${entry.xp} XP (Nível ${entry.level}, ${entry.streak || 0} streak)`);
         return `ðŸ† Ranking:\n${lines.join('\n') || 'Nenhum jogador ainda'}`;
       }
       if (subcmd === 'badges' || subcmd === 'conquistas') {
@@ -1526,7 +1526,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const xpData = await gamificationModule.getXp(uid, persona.id);
       const nextLevel = gamificationModule.getXpForNextLevel(xpData.xp);
       const badges = (xpData.badges || []).map(b => b.name).join(', ') || 'Nenhuma';
-      return `ðŸŽ® Seu Progresso:\nâ€¢ NÃ­vel: ${xpData.level}\nâ€¢ XP: ${xpData.xp}${nextLevel.remaining > 0 ? ` (${nextLevel.remaining} para o prÃ³ximo)` : ''}\nâ€¢ Streak: ${xpData.streak || 0} dias (melhor: ${xpData.best_streak || 0})\nâ€¢ Conquistas: ${badges}`;
+      return `ðŸŽ® Seu Progresso:\nâ€¢ Nível: ${xpData.level}\nâ€¢ XP: ${xpData.xp}${nextLevel.remaining > 0 ? ` (${nextLevel.remaining} para o próximo)` : ''}\nâ€¢ Streak: ${xpData.streak || 0} dias (melhor: ${xpData.best_streak || 0})\nâ€¢ Conquistas: ${badges}`;
     }
 
     case '/progress': {
@@ -1564,9 +1564,9 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const blueprintsModule = require('../blueprints');
       if (!args || args === 'list' || args === 'lista') {
         const blueprints = await blueprintsModule.listBlueprints({ is_active: true });
-        if (blueprints.length === 0) return 'ðŸ—ï¸ Nenhum blueprint disponÃ­vel. PeÃ§a Ã  meta-persona para criar um!';
+        if (blueprints.length === 0) return 'ðŸ—️ Nenhum blueprint disponível. Peça à meta-persona para criar um!';
         const lines = blueprints.map(b => `â€¢ ${b.name} (${b.id}) [${b.category}/${b.niche}] ${b.is_official ? 'â­' : ''}`);
-        return `ðŸ—ï¸ Blueprints (${blueprints.length}):\n${lines.join('\n')}\n\nComandos:\n/blueprints <id> - Ver detalhes\n/blueprints clone <id> [nome] - Clonar como nova persona\n/blueprints categories - Listar categorias`;
+        return `ðŸ—️ Blueprints (${blueprints.length}):\n${lines.join('\n')}\n\nComandos:\n/blueprints <id> - Ver detalhes\n/blueprints clone <id> [nome] - Clonar como nova persona\n/blueprints categories - Listar categorias`;
       }
 
       if (args === 'categories' || args === 'categorias') {
@@ -1593,19 +1593,19 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         try {
           const overrides = overrideName ? { name: overrideName } : {};
           const persona = await blueprintsModule.cloneBlueprint(bpId, overrides);
-          return `ðŸ—ï¸ Blueprint clonado como persona "${persona.name}" (${persona.id})!\n\nUse /persona ${persona.id} para ativar.`;
+          return `ðŸ—️ Blueprint clonado como persona "${persona.name}" (${persona.id})!\n\nUse /persona ${persona.id} para ativar.`;
         } catch (err) {
-          return `âŒ Erro: ${err.message}`;
+          return `❌ Erro: ${err.message}`;
         }
       }
 
       try {
         const bp = await blueprintsModule.getBlueprint(bpParts[0]);
-        if (!bp) return `âŒ Blueprint "${bpParts[0]}" nÃ£o encontrado.`;
+        if (!bp) return `❌ Blueprint "${bpParts[0]}" não encontrado.`;
         const previewStr = bp.preview ? (bp.preview.identity_preview || '') : '';
-        return `ðŸ—ï¸ ${bp.name} (${bp.id})\nâ€¢ DescriÃ§Ã£o: ${bp.description || 'N/A'}\nâ€¢ Categoria: ${bp.category}\nâ€¢ Nicho: ${bp.niche}\nâ€¢ Oficial: ${bp.is_official ? 'â­' : 'âŒ'}\nâ€¢ Tags: ${(bp.tags || []).join(', ') || 'N/A'}${previewStr ? '\nâ€¢ Preview: ' + previewStr : ''}\n\nUse: /blueprints clone ${bp.id} para criar uma persona deste template`;
+        return `ðŸ—️ ${bp.name} (${bp.id})\nâ€¢ Descrição: ${bp.description || 'N/A'}\nâ€¢ Categoria: ${bp.category}\nâ€¢ Nicho: ${bp.niche}\nâ€¢ Oficial: ${bp.is_official ? 'â­' : '❌'}\nâ€¢ Tags: ${(bp.tags || []).join(', ') || 'N/A'}${previewStr ? '\nâ€¢ Preview: ' + previewStr : ''}\n\nUse: /blueprints clone ${bp.id} para criar uma persona deste template`;
       } catch {
-        return `âŒ Blueprint "${bpParts[0]}" nÃ£o encontrado.`;
+        return `❌ Blueprint "${bpParts[0]}" não encontrado.`;
       }
     }
 
@@ -1619,14 +1619,14 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         const intentPct = Math.round((state.intent_confidence || 0) * 100);
         const churnPct = Math.round((state.churn_risk || 0) * 100);
         const engagePct = Math.round((state.engagement_score || 0) * 100);
-        return `ðŸ§  Estado Cognitivo:\nâ€¢ EmoÃ§Ã£o: ${state.emotion || 'neutral'} (${emotionPct}%)\nâ€¢ IntenÃ§Ã£o: ${state.intent || 'unknown'} (${intentPct}%)\nâ€¢ Risco de churn: ${churnPct}%\nâ€¢ Engajamento: ${engagePct}%\nâ€¢ AÃ§Ã£o sugerida: ${state.suggested_action || 'N/A'}`;
+        return `ðŸ§  Estado Cognitivo:\nâ€¢ Emoção: ${state.emotion || 'neutral'} (${emotionPct}%)\nâ€¢ Intenção: ${state.intent || 'unknown'} (${intentPct}%)\nâ€¢ Risco de churn: ${churnPct}%\nâ€¢ Engajamento: ${engagePct}%\nâ€¢ Ação sugerida: ${state.suggested_action || 'N/A'}`;
       }
       if (args === 'stats' || args === 'estatisticas') {
         if (!isAdmin) return 'â›” Apenas administradores.';
         const stats = await cognitiveModule.getCognitiveStats(persona.id, 7);
-        return `ðŸ§  EstatÃ­sticas cognitivas (7d):\nâ€¢ Total de anÃ¡lises: ${stats.totalMessages}\nâ€¢ EmoÃ§Ãµes: ${Object.entries(stats.emotionDistribution || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}\nâ€¢ IntenÃ§Ãµes: ${Object.entries(stats.intentDistribution || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}\nâ€¢ Churn mÃ©dio: ${stats.avgChurnRisk}\nâ€¢ ConversÃ£o mÃ©dia: ${stats.avgConversionProbability}\nâ€¢ Engajamento mÃ©dio: ${stats.avgEngagement}`;
+        return `ðŸ§  Estatísticas cognitivas (7d):\nâ€¢ Total de análises: ${stats.totalMessages}\nâ€¢ Emoções: ${Object.entries(stats.emotionDistribution || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}\nâ€¢ Intenções: ${Object.entries(stats.intentDistribution || {}).map(([k, v]) => `${k}: ${v}`).join(', ')}\nâ€¢ Churn médio: ${stats.avgChurnRisk}\nâ€¢ Conversão média: ${stats.avgConversionProbability}\nâ€¢ Engajamento médio: ${stats.avgEngagement}`;
       }
-      return 'ðŸ§  Comandos:\n/cognitive me - Seu estado cognitivo\n/cognitive stats - EstatÃ­sticas (admin)';
+      return 'ðŸ§  Comandos:\n/cognitive me - Seu estado cognitivo\n/cognitive stats - Estatísticas (admin)';
     }
 
     case '/override': {
@@ -1634,9 +1634,9 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const overrideModule = require('../override');
       if (!args || args === 'status') {
         const overrides = await overrideModule.listOverrides({ is_active: true });
-        if (overrides.length === 0) return 'ðŸ›¡ï¸ Nenhuma override ativa.';
-        const lines = overrides.map(o => `â€¢ SessÃ£o ${o.session_id}: ${o.override_type} ${o.human_message ? '- "' + o.human_message.substring(0, 40) + '..."' : ''} (${o.is_active ? 'âœ…' : 'âŒ'})`);
-        return `ðŸ›¡ï¸ Overrides ativas:\n${lines.join('\n')}\n\nComandos:\n/override activate <sessionId> <tipo> [mensagem]\n/override deactivate <sessionId>\nTipos: full, approval, observation`;
+        if (overrides.length === 0) return 'ðŸ›¡️ Nenhuma override ativa.';
+        const lines = overrides.map(o => `â€¢ Sessão ${o.session_id}: ${o.override_type} ${o.human_message ? '- "' + o.human_message.substring(0, 40) + '..."' : ''} (${o.is_active ? 'âœ…' : '❌'})`);
+        return `ðŸ›¡️ Overrides ativas:\n${lines.join('\n')}\n\nComandos:\n/override activate <sessionId> <tipo> [mensagem]\n/override deactivate <sessionId>\nTipos: full, approval, observation`;
       }
       if (args.startsWith('activate ')) {
         const parts = args.slice(9).trim().split(/\s+/);
@@ -1646,17 +1646,17 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         if (!sessionId) return 'Uso: /override activate <sessionId> <tipo> [mensagem]';
         try {
           await overrideModule.setOverride(sessionId, { is_active: true, override_type: type, human_message: message });
-          return `âœ… Override ativada para sessÃ£o ${sessionId} (tipo: ${type})`;
-        } catch (err) { return `âŒ Erro: ${err.message}`; }
+          return `âœ… Override ativada para sessão ${sessionId} (tipo: ${type})`;
+        } catch (err) { return `❌ Erro: ${err.message}`; }
       }
       if (args.startsWith('deactivate ')) {
         const sessionId = args.slice(11).trim();
         try {
           await overrideModule.clearOverride(sessionId);
-          return `âœ… Override desativada para sessÃ£o ${sessionId}`;
-        } catch (err) { return `âŒ Erro: ${err.message}`; }
+          return `âœ… Override desativada para sessão ${sessionId}`;
+        } catch (err) { return `❌ Erro: ${err.message}`; }
       }
-      return 'ðŸ›¡ï¸ Comandos:\n/override status - Listar overrides\n/override activate <sessionId> <tipo> [msg]\n/override deactivate <sessionId>';
+      return 'ðŸ›¡️ Comandos:\n/override status - Listar overrides\n/override activate <sessionId> <tipo> [msg]\n/override deactivate <sessionId>';
     }
 
     case '/thoughts':
@@ -1671,9 +1671,9 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       }
       if (args === 'stats' || args === 'estatisticas') {
         const stats = await thoughtsModule.getThoughtStats(persona.id, 7);
-        return `ðŸ’­ EstatÃ­sticas (7d):\nâ€¢ Total: ${stats.totalThoughts}\nâ€¢ Tempo mÃ©dio de resposta: ${stats.avgResponseTime}ms\nâ€¢ Tokens mÃ©dios: ${stats.avgTokens}\nâ€¢ Ferramentas mais usadas: ${Object.entries(stats.toolUsage || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `${k} (${v})`).join(', ')}`;
+        return `ðŸ’­ Estatísticas (7d):\nâ€¢ Total: ${stats.totalThoughts}\nâ€¢ Tempo médio de resposta: ${stats.avgResponseTime}ms\nâ€¢ Tokens médios: ${stats.avgTokens}\nâ€¢ Ferramentas mais usadas: ${Object.entries(stats.toolUsage || {}).sort((a, b) => b[1] - a[1]).slice(0, 5).map(([k, v]) => `${k} (${v})`).join(', ')}`;
       }
-      return 'ðŸ’­ Comandos:\n/thoughts recent - Ãšltimos pensamentos\n/thoughts stats - EstatÃ­sticas';
+      return 'ðŸ’­ Comandos:\n/thoughts recent - Ãšltimos pensamentos\n/thoughts stats - Estatísticas';
     }
 
     case '/suggestions':
@@ -1683,74 +1683,74 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const days = args && parseInt(args) > 0 ? parseInt(args) : 7;
       try {
         const result = await optModule.generateSuggestions(persona.id, days);
-        if (!result.suggestions || result.suggestions.length === 0) return 'ðŸ’¡ Nenhuma sugestÃ£o no momento. Continue usando a persona para gerar dados.';
+        if (!result.suggestions || result.suggestions.length === 0) return 'ðŸ’¡ Nenhuma sugestão no momento. Continue usando a persona para gerar dados.';
         const lines = result.suggestions.map(s => `â€¢ [${s.priority}] ${s.title}: ${s.description}`);
-        return `ðŸ’¡ SugestÃµes de otimizaÃ§Ã£o (${days}d, ${result.totalMessages} msgs):\n${lines.join('\n')}`;
-      } catch (err) { return `âŒ Erro: ${err.message}`; }
+        return `ðŸ’¡ Sugestões de otimização (${days}d, ${result.totalMessages} msgs):\n${lines.join('\n')}`;
+      } catch (err) { return `❌ Erro: ${err.message}`; }
     }
 
     case '/help':
     case '/ajuda':
     case '/comandos': {
       const cmds = [
-        'ðŸ“Š /stats - Suas estatÃ­sticas',
+        'ðŸ“Š /stats - Suas estatísticas',
         'ðŸ“‹ /myprofile - Seu perfil',
         'ðŸŽ­ /persona - Listar/trocar/criar personas',
         'ðŸ§™ /meta - Ativar meta-persona (admin god)',
         'ðŸ”Š /voice - Listar/trocar vozes TTS',
         '',
-        'â”€ AÃ§Ãµes â”€',
+        'â”€ Ações â”€',
         'ðŸ“‹ /tasks - Listar/criar tarefas',
-        'ðŸ“… /calendar - PrÃ³ximos eventos',
+        'ðŸ“… /calendar - Próximos eventos',
         'ðŸ‘¥ /contacts - Contatos CRM',
-        'ðŸ¤– /automations - AutomaÃ§Ãµes',
+        'ðŸ¤– /automations - Automações',
         'ðŸŽ¯ /goals - Metas e objetivos',
-        'ðŸ”„ /stages - EstÃ¡gios de conversa',
-        'ðŸ§  /orgmem - MemÃ³ria organizacional',
-        'ðŸŸï¸ /skills - Skills disponÃ­veis',
+        'ðŸ”„ /stages - Estágios de conversa',
+        'ðŸ§  /orgmem - Memória organizacional',
+        'ðŸŸ️ /skills - Skills disponíveis',
         '',
         'â”€ Progresso â”€',
-        'ðŸ† /xp - GamificaÃ§Ã£o (XP, nÃ­vel, streak, leaderboard)',
+        'ðŸ† /xp - Gamificação (XP, nível, streak, leaderboard)',
         'ðŸ“ˆ /progress - Seu progresso pessoal',
-        'ðŸ§  /cognitive - Estado cognitivo (emoÃ§Ã£o, intenÃ§Ã£o)',
+        'ðŸ§  /cognitive - Estado cognitivo (emoção, intenção)',
         '',
         'â”€ Templates â”€',
-        'ðŸ—ï¸ /blueprints - Templates de persona',
+        'ðŸ—️ /blueprints - Templates de persona',
         '',
-        'â”€ UtilitÃ¡rios â”€',
+        'â”€ Utilitários â”€',
         'ðŸ›‘ /stop - Interromper resposta',
         'ðŸ”‡ /silence <N> - Silenciar por N mensagens (/silence off = desativar)',
         'ðŸ“‹ /survey - Pesquisas',
-        'â­ /ratings - AvaliaÃ§Ãµes',
+        'â­ /ratings - Avaliações',
         'ðŸ“¬ /followups - Follow-ups',
-        'ðŸŽ¨ /creative - Gerar conteÃºdo visual',
+        'ðŸŽ¨ /creative - Gerar conteúdo visual',
         'ðŸ“ /blog - Posts do blog',
         'ðŸ“§ /email - Enviar email',
         'ðŸ” /search - Busca no conhecimento',
-        'ðŸŽ¬ /media - MÃ­dia',
+        'ðŸŽ¬ /media - Mídia',
         '',
         'â”€ Admin â”€',
         'ðŸ‘‘ /admin - Painel admin',
-        'ðŸ”‘ /keys, /addkey - IntegraÃ§Ãµes',
-        'âš™ï¸ /settings, /set - ConfiguraÃ§Ãµes',
-        'ðŸ‘¥ /users, /promote, /ban - UsuÃ¡rios',
-        'ðŸ›¡ï¸ /override - Controle humano',
+        'ðŸ”‘ /keys, /addkey - Integrações',
+        'âš™️ /settings, /set - Configurações',
+        'ðŸ‘¥ /users, /promote, /ban - Usuários',
+        'ðŸ›¡️ /override - Controle humano',
         'ðŸ’­ /thoughts - Pensamentos do agente',
-        'ðŸ’¡ /suggestions - SugestÃµes de otimizaÃ§Ã£o',
+        'ðŸ’¡ /suggestions - Sugestões de otimização',
         'ðŸ“Š /dashboard - Dashboard geral',
         '',
-        'â”€ AvanÃ§ado â”€',
+        'â”€ Avançado â”€',
         'ðŸ§© /context - Contexto da conversa',
-        'ðŸªž /reflect - Auto-reflexÃ£o da persona',
+        'ðŸªž /reflect - Auto-reflexão da persona',
         'ðŸ“Š /quiz - Quiz interativo',
         'ðŸ¢ /workspace - Workspaces (admin)',
         'ðŸ’³ /billing - Planos e uso (admin)',
         'ðŸŒ /lang - Trocar idioma',
-        'ðŸ“‹ /plan - Planejador de execuÃ§Ã£o',
-        'ðŸ“œ /history - HistÃ³rico da sessÃ£o',
+        'ðŸ“‹ /plan - Planejador de execução',
+        'ðŸ“œ /history - Histórico da sessão',
         'ðŸ“¤ /export - Exportar dados (admin)',
-        'ðŸ“Š /stats2 - EstatÃ­sticas globais',
-        'âš™ï¸ /config - ConfiguraÃ§Ãµes rÃ¡pidas (admin)',
+        'ðŸ“Š /stats2 - Estatísticas globais',
+        'âš™️ /config - Configurações rápidas (admin)',
       ];
       return cmds.join('\n');
     }
@@ -1767,7 +1767,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         } else {
           templateList = [{ id: 'quote_post', name: 'Quote Post', type: 'content' }, { id: 'announcement_post', name: 'Announcement', type: 'content' }, { id: 'carousel_slide', name: 'Carousel Slide', type: 'content' }, { id: 'minimal_blog', name: 'Minimal Blog', type: 'content' }];
         }
-        return `ðŸŽ¨ Templates de conteÃºdo:\n${templateList.map(t => `â€¢ ${t.id}: ${t.name} (${t.type})`).join('\n')}\n\nUse: /creative <template_id> <tema>\nEx: /creative quote_post "fÃ© e esperanÃ§a"`;
+        return `ðŸŽ¨ Templates de conteúdo:\n${templateList.map(t => `â€¢ ${t.id}: ${t.name} (${t.type})`).join('\n')}\n\nUse: /creative <template_id> <tema>\nEx: /creative quote_post "fé e esperança"`;
       }
       const creativeParts = args.trim().split(/\s+/);
       const templateId = creativeParts[0];
@@ -1778,10 +1778,10 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         const result = await creativeModule.generateWithLLM(personaContext, topic, templateId);
         if (result && result.html) {
           const saved = await creativeModule.saveCreative(persona.id, uid, 'image', templateId, { topic }, result.html);
-          return `ðŸŽ¨ ConteÃºdo gerado com template "${templateId}"!\nðŸ“ Tema: ${topic}\nðŸ’¾ Salvo com ID: ${saved.id}\n\nAcesse em /api/admin/creatives/${saved.id}/html`;
+          return `ðŸŽ¨ Conteúdo gerado com template "${templateId}"!\nðŸ“ Tema: ${topic}\nðŸ’¾ Salvo com ID: ${saved.id}\n\nAcesse em /api/admin/creatives/${saved.id}/html`;
         }
-        return `ðŸŽ¨ ConteÃºdo gerado para "${topic}" com template "${templateId}".`;
-      } catch (err) { return `âŒ Erro: ${err.message}`; }
+        return `ðŸŽ¨ Conteúdo gerado para "${topic}" com template "${templateId}".`;
+      } catch (err) { return `❌ Erro: ${err.message}`; }
     }
 
     case '/blog': {
@@ -1797,7 +1797,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         try {
           const post = await blogModule.generatePost(persona.id, topic);
           return `ðŸ“ Post gerado: "${post.title}"\nâ€¢ Tema: ${post.topic || 'N/A'}\nâ€¢ Slug: ${post.slug}\n\nAcesse em /blog/${post.slug}`;
-        } catch (err) { return `âŒ Erro: ${err.message}`; }
+        } catch (err) { return `❌ Erro: ${err.message}`; }
       }
       return 'ðŸ“ Comandos:\n/blog list - Listar posts\n/blog generate <tema> - Gerar post';
     }
@@ -1805,7 +1805,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
     case '/email': {
       if (!isAdmin) return 'â›” Apenas administradores.';
       const emailParts = args.trim().split('|');
-      if (emailParts.length < 2) return 'Uso: /email <destinatÃ¡rio> | <assunto> | <mensagem>';
+      if (emailParts.length < 2) return 'Uso: /email <destinatário> | <assunto> | <mensagem>';
       const to = emailParts[0].trim();
       const subject = emailParts[1]?.trim() || 'Sem assunto';
       const body = emailParts[2]?.trim() || emailParts[1]?.trim() || '';
@@ -1813,7 +1813,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         const { sendEmail } = require('../email');
         await sendEmail({ to, subject, html: body });
         return `ðŸ“§ Email enviado para ${to}: "${subject}"`;
-      } catch (err) { return `âŒ Erro ao enviar: ${err.message}`; }
+      } catch (err) { return `❌ Erro ao enviar: ${err.message}`; }
     }
 
     case '/search':
@@ -1826,7 +1826,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         if (!results || results.length === 0) return `ðŸ” Nenhum resultado para "${args}".`;
         const lines = results.map(r => `â€¢ [${r.source}] ${r.text?.substring(0, 100)}... (score: ${r.score?.toFixed(2) || 'N/A'})`);
         return `ðŸ” Resultados para "${args}":\n${lines.join('\n')}`;
-      } catch (err) { return `âŒ Erro na busca: ${err.message}`; }
+      } catch (err) { return `❌ Erro na busca: ${err.message}`; }
     }
 
     case '/quiz': {
@@ -1834,7 +1834,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (!args || args === 'list') {
         const quizzes = await quizModule.listQuizzes({ activeOnly: true });
         if (!quizzes || quizzes.length === 0) return 'ðŸŽ® Nenhum quiz ativo no momento.';
-        return `ðŸŽ® Quizzes disponÃ­veis:\n${quizzes.map(q => `â€¢ ${q.id}: ${q.title} (${q.questions?.length || 0} perguntas)`).join('\n')}`;
+        return `ðŸŽ® Quizzes disponíveis:\n${quizzes.map(q => `â€¢ ${q.id}: ${q.title} (${q.questions?.length || 0} perguntas)`).join('\n')}`;
       }
       try {
         const quizId = parseInt(args);
@@ -1843,9 +1843,9 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           return `ðŸŽ® Quiz "${quiz.title}" criado! (ID: ${quiz.id})`;
         }
         const quiz = await quizModule.getQuiz(quizId);
-        if (!quiz) return 'âŒ Quiz nÃ£o encontrado.';
+        if (!quiz) return '❌ Quiz não encontrado.';
         return `ðŸŽ® ${quiz.title}\n${quiz.questions.map((q, i) => `${i + 1}. ${q.question}\n   ${q.options?.map((o, oi) => `${String.fromCharCode(65 + oi)}) ${o}`).join('\n   ')}`).join('\n')}`;
-      } catch (err) { return `âŒ Erro: ${err.message}`; }
+      } catch (err) { return `❌ Erro: ${err.message}`; }
     }
 
     case '/context': {
@@ -1861,14 +1861,14 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const reflectionModule = require('../reflection');
       try {
         const result = await reflectionModule.generateReflection(persona.id);
-        if (!result) return 'ðŸªž NÃ£o hÃ¡ dados suficientes para reflexÃ£o.';
+        if (!result) return 'ðŸªž Não há dados suficientes para reflexão.';
         const lines = [];
         if (result.strengths) lines.push(`ðŸ’ª Pontos fortes: ${Array.isArray(result.strengths) ? result.strengths.join(', ') : result.strengths}`);
-        if (result.weaknesses) lines.push(`âš ï¸ Pontos a melhorar: ${Array.isArray(result.weaknesses) ? result.weaknesses.join(', ') : result.weaknesses}`);
-        if (result.recommendations) lines.push(`ðŸ’¡ RecomendaÃ§Ãµes: ${Array.isArray(result.recommendations) ? result.recommendations.join(', ') : result.recommendations}`);
+        if (result.weaknesses) lines.push(`âš ️ Pontos a melhorar: ${Array.isArray(result.weaknesses) ? result.weaknesses.join(', ') : result.weaknesses}`);
+        if (result.recommendations) lines.push(`ðŸ’¡ Recomendações: ${Array.isArray(result.recommendations) ? result.recommendations.join(', ') : result.recommendations}`);
         if (result.adjustments) lines.push(`ðŸ”§ Ajustes: ${Array.isArray(result.adjustments) ? result.adjustments.join(', ') : result.adjustments}`);
-        return `ðŸªž Auto-reflexÃ£o (${persona.name}):\n${lines.join('\n') || JSON.stringify(result).substring(0, 300)}`;
-      } catch (err) { return `âŒ Erro: ${err.message}`; }
+        return `ðŸªž Auto-reflexão (${persona.name}):\n${lines.join('\n') || JSON.stringify(result).substring(0, 300)}`;
+      } catch (err) { return `❌ Erro: ${err.message}`; }
     }
 
     case '/events':
@@ -1882,10 +1882,10 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       }
       if (args === 'stats') {
         const stats = await eventsModule.getEventStats({ persona_id: persona.id, days: 7 });
-        if (!stats || stats.length === 0) return 'ðŸ“… Sem estatÃ­sticas.';
-        return `ðŸ“… EstatÃ­sticas (7d):\n${stats.map(s => `â€¢ ${s.event_type}: ${s.count}`).join('\n')}`;
+        if (!stats || stats.length === 0) return 'ðŸ“… Sem estatísticas.';
+        return `ðŸ“… Estatísticas (7d):\n${stats.map(s => `â€¢ ${s.event_type}: ${s.count}`).join('\n')}`;
       }
-      return 'ðŸ“… Comandos:\n/events recent - Ãšltimos eventos\n/events stats - EstatÃ­sticas';
+      return 'ðŸ“… Comandos:\n/events recent - Ãšltimos eventos\n/events stats - Estatísticas';
     }
 
     case '/media': {
@@ -1893,10 +1893,10 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const mediaModule = require('../media');
       if (!args || args === 'list') {
         const media = await mediaModule.listMedia({ limit: 10 });
-        if (!media || media.length === 0) return 'ðŸŽ¬ Nenhuma mÃ­dia encontrada.';
-        return `ðŸŽ¬ MÃ­dias (${media.length}):\n${media.map(m => `â€¢ ${m.original_name || m.filename} (${m.type || m.mime_type})`).join('\n')}`;
+        if (!media || media.length === 0) return 'ðŸŽ¬ Nenhuma mídia encontrada.';
+        return `ðŸŽ¬ Mídias (${media.length}):\n${media.map(m => `â€¢ ${m.original_name || m.filename} (${m.type || m.mime_type})`).join('\n')}`;
       }
-      return 'ðŸŽ¬ Comandos:\n/media list - Listar mÃ­dias';
+      return 'ðŸŽ¬ Comandos:\n/media list - Listar mídias';
     }
 
     case '/workspace':
@@ -1920,14 +1920,14 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         try {
           const ws = await workspaceManager.createWorkspace({ name, ownerId: uid });
           return `ðŸ¢ Workspace "${name}" criado! ID: ${ws.id}`;
-        } catch (err) { return `âŒ Erro: ${err.message}`; }
+        } catch (err) { return `❌ Erro: ${err.message}`; }
       }
       if (args.startsWith('usage ')) {
         const wsId = args.replace(/^usage\s+/i, '').trim();
         try {
           const usage = await workspaceManager.getWorkspaceUsage(wsId);
           return `ðŸ“Š Uso do workspace ${wsId}:\nâ€¢ Personas: ${usage.personas}\nâ€¢ Contatos: ${usage.contacts}\nâ€¢ Mensagens: ${usage.messages}`;
-        } catch (err) { return `âŒ Erro: ${err.message}`; }
+        } catch (err) { return `❌ Erro: ${err.message}`; }
       }
       if (args.startsWith('rules ')) {
         const wsId = args.replace(/^rules\s+/i, '').trim();
@@ -1935,16 +1935,16 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           const rules = await ruleEngine.listRules(wsId);
           if (!rules || rules.length === 0) return `ðŸ“‹ Sem regras no workspace ${wsId}.`;
           return `ðŸ“‹ Regras (${rules.length}):\n${rules.map(r => `â€¢ ${r.name} (${r.rule_type}) - Prioridade: ${r.priority}`).join('\n')}`;
-        } catch (err) { return `âŒ Erro: ${err.message}`; }
+        } catch (err) { return `❌ Erro: ${err.message}`; }
       }
-      return 'ðŸ¢ Comandos:\n/workspace info - Listar workspaces\n/workspace create <nome> - Criar\n/workspace usage <id> - Uso\n/workspace rules <id> - Regras de negÃ³cio';
+      return 'ðŸ¢ Comandos:\n/workspace info - Listar workspaces\n/workspace create <nome> - Criar\n/workspace usage <id> - Uso\n/workspace rules <id> - Regras de negócio';
     }
 
     case '/billing': {
       const { billingManager, PLANS } = require('../billing');
       if (!args || args === 'plans' || args === 'planos') {
         const plans = billingManager.getAllPlans();
-        return `ðŸ’³ Planos disponÃ­veis:\n${plans.map(p => `â€¢ ${p.id.toUpperCase()}: ${p.name} - R$${p.price}/mÃªs\n  Personas: ${p.limits.personas === 'unlimited' ? 'âˆž' : p.limits.personas}, Msgs/dia: ${p.limits.messages_per_day === 'unlimited' ? 'âˆž' : p.limits.messages_per_day}, Contatos: ${p.limits.contacts === 'unlimited' ? 'âˆž' : p.limits.contacts}`).join('\n')}`;
+        return `ðŸ’³ Planos disponíveis:\n${plans.map(p => `â€¢ ${p.id.toUpperCase()}: ${p.name} - R$${p.price}/mês\n  Personas: ${p.limits.personas === 'unlimited' ? 'âˆž' : p.limits.personas}, Msgs/dia: ${p.limits.messages_per_day === 'unlimited' ? 'âˆž' : p.limits.messages_per_day}, Contatos: ${p.limits.contacts === 'unlimited' ? 'âˆž' : p.limits.contacts}`).join('\n')}`;
       }
       if (args.startsWith('usage ')) {
         const wsId = args.replace(/^usage\s+/i, '').trim();
@@ -1955,7 +1955,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
             return `â€¢ ${resource}: ${data.current}/${limit} ${data.allowed ? 'âœ…' : 'â›”'}`;
           });
           return `ðŸ’³ Uso (${report.plan}):\n${lines.join('\n')}`;
-        } catch (err) { return `âŒ Erro: ${err.message}`; }
+        } catch (err) { return `❌ Erro: ${err.message}`; }
       }
       return 'ðŸ’³ Comandos:\n/billing plans - Ver planos\n/billing usage <workspace_id> - Ver uso';
     }
@@ -1967,7 +1967,7 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (!args) return 'ðŸŒ Idiomas: pt-BR, en-US, es-ES\nUse: /lang <idioma>\nEx: /lang en-US';
       const lang = langMap[args.toLowerCase()] || args;
       const translations = i18n.translations?.[lang];
-      if (!translations) return `âŒ Idioma "${args}" nÃ£o disponÃ­vel. Use: pt-BR, en-US, es-ES`;
+      if (!translations) return `❌ Idioma "${args}" não disponível. Use: pt-BR, en-US, es-ES`;
       try {
         await require('../db').pool.execute('UPDATE sessions SET user_context = JSON_SET(COALESCE(user_context, "{}"), "$.language", ?) WHERE id = ?', [lang, sessionId]);
         await require('../db').pool.execute('UPDATE profiles SET topics = JSON_SET(COALESCE(topics, "[]"), "$.language", ?) WHERE user_id = ?', [lang, uid]);
@@ -1979,30 +1979,30 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
     case '/planejar':
     case '/planner': {
       const plannerModule = require('../planner');
-      if (!args) return 'ðŸ“‹ Use: /plan <mensagem> â€” O planejador irÃ¡ analisar e criar um plano de execuÃ§Ã£o.\nEx: /plan criar campanha de marketing para fitness';
+      if (!args) return 'ðŸ“‹ Use: /plan <mensagem> â€” O planejador irá analisar e criar um plano de execução.\nEx: /plan criar campanha de marketing para fitness';
       try {
         const plan = await plannerModule.planExecution(args, persona?.id, uid, [], {});
         if (!plan) return 'ðŸ“‹ Planejador desabilitado. Ative com /set planner_enabled true';
-        return `ðŸ“‹ Plano de execuÃ§Ã£o:\nâ€¢ IntenÃ§Ã£o: ${plan.intent}\nâ€¢ Precisa de tools: ${plan.needsTools ? 'Sim' : 'NÃ£o'}\nâ€¢ EstratÃ©gia: ${plan.responseStrategy}\nâ€¢ Risco: ${plan.riskLevel}\nâ€¢ Rounds estimados: ${plan.estimatedRounds}${plan.toolPlan?.length ? '\n\nðŸ”§ Ferramentas:\n' + plan.toolPlan.map(t => `  ${t.priority}. ${t.tool}: ${t.reason}`).join('\n') : ''}${plan.notes ? '\n\nðŸ“ ' + plan.notes : ''}`;
-      } catch (err) { return `âŒ Erro: ${err.message}`; }
+        return `ðŸ“‹ Plano de execução:\nâ€¢ Intenção: ${plan.intent}\nâ€¢ Precisa de tools: ${plan.needsTools ? 'Sim' : 'Não'}\nâ€¢ Estratégia: ${plan.responseStrategy}\nâ€¢ Risco: ${plan.riskLevel}\nâ€¢ Rounds estimados: ${plan.estimatedRounds}${plan.toolPlan?.length ? '\n\nðŸ”§ Ferramentas:\n' + plan.toolPlan.map(t => `  ${t.priority}. ${t.tool}: ${t.reason}`).join('\n') : ''}${plan.notes ? '\n\nðŸ“ ' + plan.notes : ''}`;
+      } catch (err) { return `❌ Erro: ${err.message}`; }
     }
 
     case '/history':
     case '/historico': {
-      if (!sessionId) return 'ðŸ“œ Envie esta mensagem em uma sessÃ£o ativa para ver o histÃ³rico.';
+      if (!sessionId) return 'ðŸ“œ Envie esta mensagem em uma sessão ativa para ver o histórico.';
       const historyLimit = parseInt(args) || 10;
       const limit = Math.min(historyLimit, 50);
       const [msgs] = await require('../db').pool.execute(
         'SELECT role, content, created_at FROM persona_messages WHERE session_id = ? ORDER BY created_at DESC LIMIT ?',
         [sessionId, limit]
       );
-      if (!msgs || msgs.length === 0) return 'ðŸ“œ Nenhuma mensagem no histÃ³rico.';
+      if (!msgs || msgs.length === 0) return 'ðŸ“œ Nenhuma mensagem no histórico.';
       const lines = msgs.reverse().map(m => {
-        const icon = m.role === 'user' ? 'ðŸ‘¤' : m.role === 'assistant' ? 'ðŸ¤–' : m.role === 'system' ? 'âš™ï¸' : 'ðŸ”§';
+        const icon = m.role === 'user' ? 'ðŸ‘¤' : m.role === 'assistant' ? 'ðŸ¤–' : m.role === 'system' ? 'âš™️' : 'ðŸ”§';
         const time = new Date(m.created_at).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         return `${icon} [${time}] ${m.content.substring(0, 80)}`;
       });
-      return `ðŸ“œ HistÃ³rico (${msgs.length} mensagens):\n${lines.join('\n')}`;
+      return `ðŸ“œ Histórico (${msgs.length} mensagens):\n${lines.join('\n')}`;
     }
 
     case '/export': {
@@ -2020,12 +2020,12 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
           case 'orgmem': { const [rows] = await require('../db').pool.execute('SELECT * FROM persona_org_memory'); data = rows; break; }
           case 'stages': { const [rows] = await require('../db').pool.execute('SELECT * FROM persona_conversation_stages'); data = rows; break; }
           case 'blueprints': { const [rows] = await require('../db').pool.execute('SELECT * FROM persona_blueprints'); data = rows; break; }
-          default: return `âŒ Tipo "${type}" desconhecido. Use: personas, skills, goals, contacts, automations, orgmem, stages, blueprints`;
+          default: return `❌ Tipo "${type}" desconhecido. Use: personas, skills, goals, contacts, automations, orgmem, stages, blueprints`;
         }
         const json = JSON.stringify(data, null, 2);
         if (json.length > 4000) return `ðŸ“¤ ${type}: ${data.length} registros (muito grande para exibir â€” use a API /api/admin/${type})`;
-        return `ðŸ“¤ ExportaÃ§Ã£o de ${type} (${data.length} registros):\n\`\`\`json\n${json}\n\`\`\``;
-      } catch (err) { return `âŒ Erro: ${err.message}`; }
+        return `ðŸ“¤ Exportação de ${type} (${data.length} registros):\n\`\`\`json\n${json}\n\`\`\``;
+      } catch (err) { return `❌ Erro: ${err.message}`; }
     }
 
     case '/stats2':
@@ -2047,21 +2047,21 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
         'SELECT intent, COUNT(*) as cnt FROM cognitive_states GROUP BY intent ORDER BY cnt DESC LIMIT 5'
       );
 
-      let result = `ðŸ“Š EstatÃ­sticas Globais:\n\n`;
+      let result = `ðŸ“Š Estatísticas Globais:\n\n`;
       result += `ðŸ’¬ Mensagens: ${msgCount[0].cnt}\n`;
-      result += `ðŸ‘¥ UsuÃ¡rios: ${userCount[0].cnt}\n`;
-      result += `ðŸ“ SessÃµes: ${sessionCount[0].cnt}\n`;
+      result += `ðŸ‘¥ Usuários: ${userCount[0].cnt}\n`;
+      result += `ðŸ“ Sessões: ${sessionCount[0].cnt}\n`;
       result += `ðŸŽ­ Personas ativas: ${personaCount[0].cnt}\n`;
       result += `ðŸŽ¯ Metas ativas: ${goalCount[0].cnt}\n`;
       result += `ðŸ“‹ Tarefas pendentes: ${taskCount[0].cnt}\n`;
       result += `ðŸ‘¥ Contatos: ${contactCount[0].cnt}\n`;
-      result += `ðŸ¤– AutomaÃ§Ãµes ativas: ${automationCount[0].cnt}\n`;
+      result += `ðŸ¤– Automações ativas: ${automationCount[0].cnt}\n`;
 
       if (cogEmotions?.length) {
-        result += `\nðŸ˜Š EmoÃ§Ãµes (top 5):\n${cogEmotions.map(e => `  â€¢ ${e.emotion}: ${e.cnt}`).join('\n')}`;
+        result += `\nðŸ˜Š Emoções (top 5):\n${cogEmotions.map(e => `  â€¢ ${e.emotion}: ${e.cnt}`).join('\n')}`;
       }
       if (cogIntents?.length) {
-        result += `\nðŸŽ¯ IntenÃ§Ãµes (top 5):\n${cogIntents.map(i => `  â€¢ ${i.intent}: ${i.cnt}`).join('\n')}`;
+        result += `\nðŸŽ¯ Intenções (top 5):\n${cogIntents.map(i => `  â€¢ ${i.intent}: ${i.cnt}`).join('\n')}`;
       }
 
       return result;
@@ -2073,17 +2073,17 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (!args) {
         const settings = await getSettings();
         const lines = Object.entries(settings).map(([k, v]) => `â€¢ ${k}: ${String(v).substring(0, 50)}`);
-        return `âš™ï¸ ConfiguraÃ§Ãµes:\n${lines.join('\n')}`;
+        return `âš™️ Configurações:\n${lines.join('\n')}`;
       }
       if (args.includes('=')) {
         const [key, ...valParts] = args.split('=');
         const value = valParts.join('=').trim();
         const { setSetting } = require('../settings');
         await setSetting(key.trim(), value);
-        return `âš™ï¸ ConfiguraÃ§Ã£o salva: ${key.trim()} = ${value}`;
+        return `âš™️ Configuração salva: ${key.trim()} = ${value}`;
       }
       const val = await getSetting(args.trim());
-      return `âš™ï¸ ${args.trim()}: ${val || '(nÃ£o definido)'}`;
+      return `âš™️ ${args.trim()}: ${val || '(não definido)'}`;
     }
 
     default:
