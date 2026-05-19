@@ -43,7 +43,10 @@ Plataforma de agentes cognitivos persistentes com RAG multimodal, multi-persona 
 2. Ollama Cloud API key in `.env`
 3. Run `npm run ingest` before first use
 4. DB schema auto-created and migrated on startup
-5. (Recommended) Kokoro TTS: `npm run tts:install` then `npm run tts:start`
+5. (Recommended) Kokoro TTS: `npm run tts:start`
+6. (Optional) Serper API key in `.env` for B2B prospecting (SERPER_KEY)
+7. (Optional) GNews API key in `.env` for news search (GNEWS_API_KEY)
+8. (Optional) YouTube Data API key in `.env` for video search (YOUTUBE_API_KEY)
 
 ## Architecture
 
@@ -623,6 +626,7 @@ Integration: Chat engine emits events on message save, XP update, cognitive stat
 | `/blog` | admin | Blog posts (list, generate via LLM) |
 | `/email` | admin | Send email (to | subject | body) |
 | `/search, /buscar` | anyone | Search knowledge sources (persona-aware) |
+| `/prospect` | anyone | B2B prospecting (discover, cnpj, score, stats, ajuda) |
 | `/quiz` | anyone | Interactive quizzes (list, create, answer) |
 | `/context` | anyone | View recent conversation context |
 | `/reflect, /refletir` | anyone | Persona self-reflection (strengths, weaknesses, recommendations) |
@@ -831,6 +835,8 @@ Integration: Chat engine emits events on message save, XP update, cognitive stat
 - **agent_thoughts** — id, session_id, user_id, persona_id, message_input, message_output, tools_used (JSON), context_injected (JSON), reasoning, decision, response_time_ms, tokens_used, created_at
 - **persona_blueprints** — id (PK), name, description, category, niche, config (JSON), preview (JSON), is_official, is_active, tags (JSON), icon, color, created_at, updated_at
 - **event_log** — id (PK), event_type, user_id, persona_id, session_id, data (JSON), results (JSON), created_at
+- **b2b_searches** — id (VARCHAR 80 PK), user_id (VARCHAR 60), niche (VARCHAR 255), location (VARCHAR 255), results (JSON), created_at (TIMESTAMP)
+- **chat_commands** — id (INT AUTO_INCREMENT PK), command (VARCHAR 50 UNIQUE), description (TEXT), response_template (TEXT), response_type (VARCHAR 20), action_type (VARCHAR 30), action_config (JSON), required_role (VARCHAR 20), required_persona_id (VARCHAR 60), aliases (JSON), usage_examples (JSON), category (VARCHAR 50), is_active (TINYINT 1), usage_count (INT), created_by (VARCHAR 60), created_at (TIMESTAMP), updated_at (TIMESTAMP)
 
 ## Key File Structure
 - `src/chat/engine.js` — Central chat engine (rate limit, onboarding, persona-aware RAG, tools, agentic loop for meta-persona, inline tool call stripping)
@@ -855,10 +861,11 @@ Integration: Chat engine emits events on message save, XP update, cognitive stat
 - `src/proactive/index.js` — Proactive intelligence engine (cron-based: streak reminders, goal deadlines, scheduled automations)
 - `src/events/index.js` — Event bus (emit, on, off, logEvent, getEventLog, getEventStats, processAutomations) — 12 event types
 - `src/blueprints/index.js` — Blueprint CRUD + clone + seed (createBlueprint, cloneBlueprint, savePersonaAsBlueprint, getBlueprintStats)
-- `src/llm/tools.js` — LLM tool definitions (29 tools: create_persona, manage_tasks, manage_calendar, manage_contacts, manage_automations, manage_goals, manage_conversation_stages, manage_org_memory, manage_xp, manage_progress, get_cognitive_state, human_override, get_suggestions, get_dashboard, get_history, manage_blueprints, etc.)
+- `src/llm/tools.js` — LLM tool definitions (34 tools: create_persona, manage_tasks, manage_calendar, manage_contacts, manage_automations, manage_goals, manage_conversation_stages, manage_org_memory, manage_xp, manage_progress, get_cognitive_state, human_override, get_suggestions, get_dashboard, get_history, manage_blueprints, b2b_prospect, cnpj_lookup, lead_scoring, site_scraper, google_places_search, etc.)
 - `src/llm/integrationManager.js` — Multi-key fallback for ALL integrations (Ollama `/chat` native, Groq `/chat/completions` OpenAI-compatible; auto-detect by URL pattern; normalizeLLMResponse handles both formats + inline tool calls)
 - `src/llm/keyManager.js` — **DEPRECATED** (not imported) — Legacy key management, superseded by IntegrationManager
 - `src/llm/index.js` — LLM chat, parseStream, extractContent, normalizeLLMResponse (Ollama `/chat` native, Groq `/chat/completions` OpenAI-compatible; auto-detect by URL pattern)
+- `src/b2b/index.js` — B2B prospecting pipeline (discover, enrich, score, analyze, diagnose, pipeline, saveSearch, listSearches)
 - `src/bot/manager.js` — Multi-instance bot manager (Telegram + WhatsApp)
 - `src/telegram/handler.js` — Telegram handler factory (persona per instance)
 - `src/whatsapp/bot.js` — WhatsApp handler (persona-aware, voice pass-through, chunk size)
@@ -975,6 +982,128 @@ LLM Tool:
   manage_blueprints — list, get, clone, apply, create_from_persona, categories, niches, stats
 ```
 
+### B2B Prospecting (Prospector-inspired)
+```
+Pipeline: discover → enrich → score → analyze → diagnose
+
+Discovery (Serper API):
+  - Searches Google for businesses by niche + location
+  - Returns organic + Places results (title, website, phone, address, rating, reviews, maps link)
+  - Generates 5 query variations per search
+  - Deduplicates by domain + CNPJ + fuzzy title similarity
+
+Enrichment:
+  - CNPJ lookup via BrasilAPI (razão_social, capital_social, CNAE, sócios, situação, MEI)
+  - Site scraping via HTTP (emails, phones, social links, CNPJ from HTML, title, description)
+  - Phone-to-CNPJ fallback via Serper search
+  - Progress saved every 5 leads
+
+Scoring (0-100):
+  - has_website (15pts), has_instagram (10pts), has_google_maps (10pts), has_ads (10pts)
+  - has_email (5pts), has_phone (3pts), has_youtube (3pts), has_tiktok (2pts)
+  - capital_social (5-20pts), maps_rating (3-15pts), reviews (3-5pts), business_age (5-10pts)
+  - MEI penalty (-5pts)
+  - Priority: muito_alto (<40), alto (40-69), medio (70+)
+
+Market Analysis (LLM):
+  - AI-generated market insights (pontos_fracos, oportunidades, estrategia_entrada, ticket_medio, concorrencia)
+
+Lead Diagnosis (LLM):
+  - Individual AI diagnosis per lead (pontos_fracos, pontos_fortes, urgencia, servicos_sugeridos, abordagem_whatsapp)
+
+Chat Command:
+  /prospect <nicho> [cidade]     — Discover + score leads
+  /prospect cnpj <CNPJ>          — Lookup CNPJ via BrasilAPI
+  /prospect score site maps insta — Calculate lead score
+  /prospect stats                 — List saved searches
+  /prospect ajuda                 — Help
+
+Admin API:
+  POST /api/admin/b2b/prospect   — Discover leads (niche + location)
+  POST /api/admin/b2b/enrich     — Enrich leads (CNPJ + scraping)
+  POST /api/admin/b2b/analyze    — Market AI analysis
+  POST /api/admin/b2b/diagnose  — Lead AI diagnosis
+  POST /api/admin/b2b/pipeline   — Full pipeline (discover → enrich → score → analyze → diagnose)
+  GET  /api/admin/b2b/searches   — List saved searches
+  GET  /api/admin/b2b/searches/:id — Get search details
+  DELETE /api/admin/b2b/searches/:id — Delete search
+
+DB: b2b_searches (id, user_id, niche, location, results JSON, created_at)
+```
+
+### External Tools (Real APIs)
+```
+Tool Registry (src/tools/registry.js) — 35+ tools with real API integrations:
+
+Free APIs (no key required):
+  - weather: Open-Meteo API — weather forecast by city (coordinates via Nominatim)
+  - cep_lookup: ViaCEP — Brazilian address lookup by CEP (8 digits)
+  - geocoding: Nominatim — forward/reverse geocoding
+  - cat_facts: catfact.ninja — random cat facts
+  - dog_facts: dogapi.dog — random dog facts
+  - jokes: jokeapi.dev — jokes by category (safe mode)
+  - advice: api.adviceslip.com — random advice
+  - random_user: randomuser.me — random user data (name, email, phone, location)
+  - number_fact: numbersapi.com — trivia/math/date facts about numbers
+  - word_definition: dictionaryapi.dev — English word definitions
+  - horoscope: horoscope-app-api — daily horoscope by sign
+  - exchange_rates: exchangerate-api.com — live currency exchange rates
+  - wikipedia_search: Wikipedia REST API — article summaries
+  - emoji_search: emoji-api.com — emoji search by keyword
+  - qr_code: qrserver.com — QR code generation from URL/text
+  - url_metadata: microlink.io — URL metadata extraction
+  - ibge_search: IBGE API — Brazilian city demographics
+
+API key required:
+  - b2b_search: Serper API — Google Search for B2B prospecting
+  - google_places: Serper API — Google Places search
+  - news_search: GNews API — news search by query
+  - youtube_search: YouTube Data API — video search
+  - site_scraper: HTTP + regex — extract emails, phones, socials, CNPJ from websites
+
+Business (B2B Prospecting):
+  - lead_scoring: Algorithm 0-100 — digital presence scoring
+  - whatsapp_template: B2B cold outreach message generator (cold, referral, value templates)
+
+LLM Tool Access:
+  use_external_tool — execute any tool by ID (meta-persona only)
+  list_external_tools — list available tools by category/niche
+  b2b_prospect — search businesses via Google (Serper API)
+  cnpj_lookup — CNPJ data via BrasilAPI
+  lead_scoring — calculate digital presence score
+  site_scraper — extract contact data from websites
+  google_places_search — find businesses on Google Maps
+```
+
+### WhatsApp Smart Intent Detection
+```
+WhatsAppMessenger class (src/whatsapp/bot.js):
+  - Intent patterns detect: location, poll, contact, list, image, video, audio, buttons
+  - _detectIntent(text) — regex matching on user message
+  - _extractLocation(text) — city extraction with Brazilian city mapping
+  - _handleSmartIntent(jid, intent, formatted, originalMessage) — auto-send location/poll/contact
+  - Location DB: 12+ Brazilian cities with coordinates
+  - Fallback to text for @lid JIDs
+  - Auto-read receipts, typing indicators, humanized pacing, auto-reactions
+
+Format: formatWhatsAppText — converts markdown to WhatsApp format (**bold** → *bold*, etc.)
+Split: splitMessage — splits long messages with skipFormat to avoid double-formatting
+Strip: stripWhatsAppFormat — removes formatting for TTS (no asterisks, bullets)
+```
+
+### Chat Commands Seed
+```
+Default commands seeded on startup (src/chat/commands.js):
+  /ajuda — Show available commands
+  /ping — Connectivity test
+  /bonjour — French greeting
+  /hola — Spanish greeting
+  /hi — English greeting
+  /piada — Random joke (via jokeapi.dev)
+  /fato — Random fact (via catfact.ninja)
+  /clima — Weather forecast (via Open-Meteo)
+```
+
 ### Event Bus
 ```
 Trigger lifecycle events → handlers + automations + logging
@@ -997,6 +1126,16 @@ Automation integration:
 Admin API:
   GET /api/admin/events/log    — Event log (filter: event_type, user_id, persona_id)
   GET /api/admin/events/stats   — Event statistics
+
+B2B Prospecting:
+  POST /api/admin/b2b/prospect   — Discover leads (niche + location)
+  POST /api/admin/b2b/enrich     — Enrich leads (CNPJ + scraping)
+  POST /api/admin/b2b/analyze    — Market AI analysis
+  POST /api/admin/b2b/diagnose  — Lead AI diagnosis
+  POST /api/admin/b2b/pipeline   — Full pipeline (discover → enrich → score → analyze → diagnose)
+  GET  /api/admin/b2b/searches   — List saved searches
+  GET  /api/admin/b2b/searches/:id — Get search details
+  DELETE /api/admin/b2b/searches/:id — Delete search
 ```
 
 ## Frontend Architecture
