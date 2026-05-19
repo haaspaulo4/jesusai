@@ -1416,6 +1416,13 @@ const app = createApp({
       return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
     }
 
+    function formatDuration(secs) {
+      if (!secs) return '';
+      const m = Math.floor(secs / 60);
+      const s = Math.round(secs % 60);
+      return m + ':' + String(s).padStart(2, '0');
+    }
+
     async function saveApiKey() {
       if (!authToken.value) { apiKeyStatus.value = t('login') + ' primeiro.'; return; }
       try {
@@ -1525,7 +1532,7 @@ const app = createApp({
       // Quiz functions
       loadQuizzes, startQuiz, selectQuizAnswer, toggleQuizAnswer, nextQuizQuestion, prevQuizQuestion, submitQuiz, closeQuiz,
       // Media functions
-      loadMediaGallery, loadMediaFolders, openMediaViewer, closeMediaViewer, getMediaIcon, formatFileSize,
+      loadMediaGallery, loadMediaFolders, openMediaViewer, closeMediaViewer, getMediaIcon, formatFileSize, formatDuration,
       handleMediaUpload, uploadMedia, removeUploadFile,
     };
   }

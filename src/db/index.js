@@ -1,4 +1,5 @@
 const mysql = require('mysql2/promise');
+const ERP_SCHEMA = require('./erp-schema');
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
@@ -976,6 +977,35 @@ async function initDatabase() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
 
   console.log('Database schema initialized (with migrations)');
+
+  // ERP schema
+  try {
+    const erpStatements = ERP_SCHEMA.split(';').map(s => s.trim()).filter(s => s.length > 0);
+    for (const stmt of erpStatements) {
+      try { await pool.execute(stmt); } catch (e) { if (!e.message.includes('already exists')) console.error('[DB] ERP schema:', e.message.substring(0, 80)); }
+    }
+    console.log('[DB] ERP schema initialized');
+  } catch (err) { console.error('[DB] ERP schema error:', err.message); }
+
+  // Seed default product categories
+  const [catCheck] = await pool.execute('SELECT COUNT(*) as cnt FROM product_categories');
+  if (catCheck[0].cnt === 0) {
+    const categories = [
+      { id: 'cat_perfumes_masc', name: 'Perfumes Masculinos', slug: 'perfumes-masculinos', icon: '👔', product_type: 'physical' },
+      { id: 'cat_perfumes_fem', name: 'Perfumes Femininos', slug: 'perfumes-femininos', icon: '👗', product_type: 'physical' },
+      { id: 'cat_perfumes_unissex', name: 'Perfumes Unissex', slug: 'perfumes-unissex', icon: '🧴', product_type: 'physical' },
+      { id: 'cat_servicos', name: 'Serviços', slug: 'servicos', icon: '🛎️', product_type: 'service' },
+      { id: 'cat_kits', name: 'Kits e Presentes', slug: 'kits-presentes', icon: '🎁', product_type: 'physical' },
+      { id: 'cat_digitais', name: 'Produtos Digitais', slug: 'digitais', icon: '📱', product_type: 'digital' },
+    ];
+    for (const c of categories) {
+      await pool.execute(
+        'INSERT IGNORE INTO product_categories (id, name, slug, icon, product_type) VALUES (?, ?, ?, ?, ?)',
+        [c.id, c.name, c.slug, c.icon, c.product_type]
+      );
+    }
+    console.log('[DB] Default categories seeded');
+  }
 }
 
 module.exports = { pool, initDatabase };

@@ -1,6 +1,7 @@
 const { pool } = require('../db');
 const path = require('path');
 const fs = require('fs');
+const { execFile } = require('child_process');
 
 const MEDIA_TYPES = ['image', 'video', 'audio', 'document', 'presentation', 'spreadsheet', 'archive', 'other'];
 const MEDIA_STATUS = ['uploading', 'ready', 'processing', 'failed', 'archived'];
@@ -187,6 +188,48 @@ async function getMediaStats(personaId) {
   };
 }
 
+async function extractVideoMetadata(filePath) {
+  return new Promise((resolve) => {
+    const ffprobe = process.env.FFPROBE_PATH || 'ffprobe';
+    execFile(ffprobe, [
+      '-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams',
+      filePath
+    ], { timeout: 10000 }, (err, stdout) => {
+      if (err) return resolve(null);
+      try {
+        const data = JSON.parse(stdout);
+        const video = (data.streams || []).find(s => s.codec_type === 'video');
+        const audio = (data.streams || []).find(s => s.codec_type === 'audio');
+        const duration = parseFloat(data.format?.duration || video?.duration || 0);
+        const result = { duration: duration || null };
+        if (video) {
+          result.width = video.width || null;
+          result.height = video.height || null;
+          result.codec = video.codec_name || null;
+          result.fps = video.r_frame_rate ? video.r_frame_rate.split('/')[0] : null;
+        }
+        if (audio) result.hasAudio = true;
+        resolve(result);
+      } catch { resolve(null); }
+    });
+  });
+}
+
+async function generateVideoThumbnail(filePath, outputPath) {
+  return new Promise((resolve) => {
+    const ffmpeg = process.env.FFMPEG_PATH || 'ffmpeg';
+    execFile(ffmpeg, [
+      '-y', '-ss', '2', '-i', filePath,
+      '-vframes', '1', '-q:v', '4',
+      '-vf', 'scale=320:-1',
+      outputPath
+    ], { timeout: 15000 }, (err) => {
+      if (err) return resolve(false);
+      resolve(fs.existsSync(outputPath));
+    });
+  });
+}
+
 async function createMediaFromUpload(file, { persona_id, owner_id, title, description, alt_text, caption, tags, folder }) {
   const ext = getExtension(file.originalname);
   const filename = file.filename || (Date.now().toString(36) + ext);
@@ -202,6 +245,25 @@ async function createMediaFromUpload(file, { persona_id, owner_id, title, descri
   }
   if (mediaType === 'video' || mediaType === 'audio') {
     metadata.duration = null;
+  }
+
+  const filePath = path.join(UPLOAD_DIR, filename);
+
+  if (mediaType === 'video' && fs.existsSync(filePath)) {
+    const videoMeta = await extractVideoMetadata(filePath);
+    if (videoMeta) {
+      metadata.width = videoMeta.width;
+      metadata.height = videoMeta.height;
+      metadata.duration = videoMeta.duration;
+      metadata.codec = videoMeta.codec;
+      metadata.hasAudio = videoMeta.hasAudio || false;
+    }
+    const thumbFilename = 'thumb_' + path.basename(filename, ext) + '.jpg';
+    const thumbPath = path.join(UPLOAD_DIR, thumbFilename);
+    const thumbOk = await generateVideoThumbnail(filePath, thumbPath);
+    if (thumbOk) {
+      metadata.thumbnail = `/uploads/media/${thumbFilename}`;
+    }
   }
 
   return createMedia({
@@ -261,6 +323,8 @@ module.exports = {
   getMediaFolders,
   getMediaStats,
   createMediaFromUpload,
+  extractVideoMetadata,
+  generateVideoThumbnail,
   getMediaType,
   getExtension,
   UPLOAD_DIR,

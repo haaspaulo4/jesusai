@@ -121,13 +121,14 @@ router.get('/gallery', async (req, res) => {
       title: m.title,
       type: m.type,
       url: m.url,
-      thumbnail: m.type === 'image' ? m.url : null,
+      thumbnail: m.type === 'image' ? m.url : (m.metadata?.thumbnail || null),
       mimetype: m.mimetype,
       size: m.size,
       alt_text: m.alt_text,
       caption: m.caption,
       folder: m.folder,
       tags: m.tags,
+      metadata: m.metadata || {},
       created_at: m.created_at,
     }));
     res.json({ gallery, total: gallery.length });

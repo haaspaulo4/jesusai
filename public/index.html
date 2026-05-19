@@ -451,11 +451,21 @@
             </template>
             <!-- Video thumbnail -->
             <template v-else-if="item.type === 'video'">
-              <div class="aspect-square bg-surface-600 flex items-center justify-center relative">
-                <span class="text-3xl">🎬</span>
-                <div class="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1 rounded flex items-center gap-0.5">
+              <div class="aspect-square bg-surface-600 flex items-center justify-center relative overflow-hidden">
+                <img v-if="item.thumbnail" :src="item.thumbnail" :alt="item.alt_text || item.title" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200" loading="lazy" onerror="this.style.display='none'">
+                <span v-else class="text-3xl">🎬</span>
+                <div class="absolute inset-0 flex items-center justify-center">
+                  <div class="w-10 h-10 bg-black/60 rounded-full flex items-center justify-center group-hover:bg-black/80 transition">
+                    <svg class="w-5 h-5 text-white ml-0.5" fill="currentColor" viewBox="0 0 20 20"><polygon points="6,4 16,10 6,16"/></svg>
+                  </div>
+                </div>
+                <div v-if="item.metadata && item.metadata.duration" class="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded flex items-center gap-0.5">
+                  {{ formatDuration(item.metadata.duration) }}
+                </div>
+                <div v-else class="absolute bottom-1 right-1 bg-black/60 text-white text-[9px] px-1 rounded flex items-center gap-0.5">
                   <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><polygon points="5,3 19,10 5,17"/></svg>
                 </div>
+                <div v-if="item.metadata && item.metadata.width && item.metadata.height && item.metadata.height > item.metadata.width" class="absolute top-1 left-1 bg-brand-500/80 text-white text-[9px] px-1.5 py-0.5 rounded">9:16</div>
               </div>
             </template>
             <!-- Audio thumbnail -->
@@ -769,8 +779,8 @@
         </template>
         <!-- Video player -->
         <template v-else-if="mediaViewerItem.type === 'video'">
-          <div class="bg-black">
-            <video controls class="w-full max-h-[70vh]" :src="`/api/media/${mediaViewerItem.id}/stream`">
+          <div class="bg-black flex items-center justify-center" :style="{ maxWidth: (mediaViewerItem.metadata && mediaViewerItem.metadata.width && mediaViewerItem.metadata.height && mediaViewerItem.metadata.height > mediaViewerItem.metadata.width) ? '400px' : '100%' }">
+            <video controls playsinline class="block" :style="{ maxHeight: '80vh', maxWidth: (mediaViewerItem.metadata && mediaViewerItem.metadata.height > mediaViewerItem.metadata.width) ? '400px' : '100%' }" :src="`/api/media/${mediaViewerItem.id}/stream`" :poster="mediaViewerItem.thumbnail || undefined">
               {{ currentLang === 'en-US' ? 'Your browser does not support video.' : 'Seu navegador não suporta vídeo.' }}
             </video>
           </div>

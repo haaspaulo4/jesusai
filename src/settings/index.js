@@ -61,6 +61,27 @@ const DEFAULTS = {
   platform_emoji_style: 'native',
   platform_animation_style: 'subtle',
   platform_font_family: 'Inter',
+  // Landing Page Content
+  landing_hero_title_pt: '',
+  landing_hero_title_en: '',
+  landing_hero_title_es: '',
+  landing_hero_subtitle_pt: '',
+  landing_hero_subtitle_en: '',
+  landing_hero_subtitle_es: '',
+  landing_hero_cta_pt: '',
+  landing_hero_cta_en: '',
+  landing_hero_cta_es: '',
+  landing_features_json: '',
+  landing_how_it_works_json: '',
+  landing_cta_title_pt: '',
+  landing_cta_title_en: '',
+  landing_cta_title_es: '',
+  landing_cta_subtitle_pt: '',
+  landing_cta_subtitle_en: '',
+  landing_cta_subtitle_es: '',
+  landing_cta_button_pt: '',
+  landing_cta_button_en: '',
+  landing_cta_button_es: '',
 };
 
 async function loadSettings() {

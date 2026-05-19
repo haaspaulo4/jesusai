@@ -13,6 +13,7 @@ const emailRoute = require('./routes/email');
 const adminRoute = require('./routes/admin');
 const quizRoute = require('./routes/quiz');
 const mediaRoute = require('./routes/media');
+const erpRoute = require('./routes/erp');
 const { startTelegramBot } = require('./telegram/bot');
 const { startWhatsAppBot } = require('./whatsapp/bot');
 const { generateDailyPost, scheduleDailyPost } = require('./blog');
@@ -128,6 +129,7 @@ app.use('/api/email', emailRoute);
 app.use('/api/admin', adminRoute);
 app.use('/api/quiz', quizRoute);
 app.use('/api/media', mediaRoute);
+app.use('/api/erp', erpRoute);
 
 app.use((err, req, res, next) => {
   console.error('[Express Error]', err.message || err);
@@ -548,6 +550,13 @@ async function seedDefaultBlueprints(bm) {
       await chatCommands.seedDefaultCommands();
     } catch (err) {
       console.error('Warning: Chat commands seeding failed:', err.message);
+    }
+
+    try {
+      const erpSite = require('./erp/site');
+      await erpSite.seedDefaultSections();
+    } catch (err) {
+      console.error('Warning: Site sections seeding failed:', err.message);
     }
   } catch (err) {
     console.error('Warning: Personas load failed:', err.message);

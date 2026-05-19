@@ -1841,13 +1841,18 @@ async function executeTool(name, args, context = {}) {
       return result;
     }
 
-    default:
+    default: {
+      const { executeERPTool } = require('./erp-tools');
+      const erpResult = await executeERPTool(name, args);
+      if (erpResult) return erpResult;
       return { error: `Tool desconhecida: ${name}` };
+    }
   }
 }
 
 function getToolDefinitions() {
-  return TOOL_DEFINITIONS;
+  const { ERP_TOOL_DEFINITIONS } = require('./erp-tools');
+  return [...TOOL_DEFINITIONS, ...ERP_TOOL_DEFINITIONS];
 }
 
 function formatToolResultToMessage(toolCall, result) {
