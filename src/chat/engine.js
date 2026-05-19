@@ -2205,6 +2205,52 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       return `📜 Histórico (${msgs.length} mensagens):\n${lines.join('\n')}`;
     }
 
+    case '/prospect': {
+      if (!args) return '🔍 Use: /prospect <nicho> [cidade]\nEx: /prospect restaurante São Paulo\nEx: /prospect dentista Curitiba\nEx: /prospect advocacia BH stats';
+      const b2b = require('../b2b');
+      const parts = args.trim().split(/\s+/);
+      if (parts.length === 0) return '❌ Especifique um nicho. Ex: /prospect restaurante São Paulo';
+      const subCmd = parts[parts.length - 1].toLowerCase();
+      const isAdminCmd = uid && (await getUserRole(uid)) === 'admin';
+      if (subCmd === 'stats' || subCmd === 'estatisticas') {
+        const searches = await b2b.listSearches(uid, 10);
+        if (!searches.length) return '📋 Nenhuma busca B2B encontrada. Use /prospect <nicho> [cidade] para iniciar.';
+        const lines = searches.map((s, i) => `${i + 1}. ${s.niche} em ${s.location} (${s.lead_count || '?'} leads) — ${new Date(s.created_at).toLocaleDateString('pt-BR')}`).join('\n');
+        return `📋 **Buscas B2B:**\n${lines}\n\nUse /prospect <id> para ver detalhes`;
+      }
+      if (subCmd === 'ajuda' || subCmd === 'help') {
+        return '🔍 **Comandos B2B:**\n• /prospect <nicho> [cidade] — Busca empresas\n• /prospect <id> — Ver busca salva\n• /prospect score <site> <maps> <insta> — Calcular score\n• /prospect cnpj <numero> — Consultar CNPJ\n• /prospect stats — Listar buscas salvas';
+      }
+      if (subCmd === 'score') {
+        const hasSite = parts.includes('site') || parts.includes('website');
+        const hasMaps = parts.includes('maps') || parts.includes('google');
+        const hasInsta = parts.includes('insta') || parts.includes('instagram');
+        const hasEmail = parts.includes('email');
+        const hasPhone = parts.includes('phone') || parts.includes('tel');
+        const scoring = b2b.calculateLeadScore({ has_website: hasSite, has_google_maps: hasMaps, has_instagram: hasInsta, has_email: hasEmail, has_phone: hasPhone, has_ads: false, capital_social: 0, maps_rating: 0, maps_reviews: 0, is_mei: false, business_age_years: 0 });
+        return `📊 **Score: ${scoring.score}/100** (${scoring.priority})\n${scoring.recommendation}\n\nBreakdown: ${Object.entries(scoring.breakdown).filter(([,v]) => v > 0).map(([k,v]) => `${k}: +${v}`).join(', ') || 'Nenhum critério'}`;
+      }
+      if (subCmd === 'cnpj') {
+        const cnpjNum = parts.find(p => /^\d{2}\.?\d{3}\.?\d{3}\/?\d{4}-?\d{2}$/.test(p) || /^\d{14}$/.test(p.replace(/\D/g, '')));
+        if (!cnpjNum) return '❌ Use: /prospect cnpj <CNPJ>\nEx: /prospect cnpj 00.000.000/0001-91';
+        const result = await execExtTool('cnpj_lookup', { cnpj: cnpjNum });
+        if (result.error) return `❌ ${result.error}`;
+        const d = result;
+        return `🏛️ **${d.razao_social || 'N/A'}**\n${d.nome_fantasia ? ` Fantasía: ${d.nome_fantasia}\n` : ''}📋 CNPJ: ${d.cnpj}\n📊 Situação: ${d.situacao || 'N/A'}\n💰 Capital: R$ ${d.capital_social || 'N/A'}\n🏢 Porte: ${d.porte || 'N/A'}\n📋 CNAE: ${d.cnae || 'N/A'}\n📅 Abertura: ${d.abertura || 'N/A'}\n📍 ${d.municipio || ''}/${d.uf || ''}\n${d.email_cnpj ? `📧 ${d.email_cnpj}\n` : ''}${d.telefone_cnpj ? `📞 ${d.telefone_cnpj}\n` : ''}${d.mei ? '👤 MEI' : ''}\n${d.socios?.length ? `👥 Sócios: ${d.socios.map(s => s.nome).join(', ')}` : ''}`;
+      }
+      const niche = parts[0];
+      const location = parts.slice(1).join(' ') || 'Brasil';
+      if (niche.length < 3) return '❌ Nicho muito curto. Use pelo menos 3 caracteres.';
+      const result = await b2b.pipeline(niche, location, { steps: ['discover', 'score'], limit: 15 });
+      if (!result.leads?.length) return `🔍 Nenhuma empresa encontrada para "${niche}" em "${location}". Tente outro nicho ou cidade.`;
+      await b2b.saveSearch(uid, niche, location, result);
+      const top5 = result.leads.slice(0, 5);
+      const lines = top5.map((l, i) => `${i + 1}. **${l.title}** ${l.score !== undefined ? `(${l.score}pts)` : ''}\n   ${l.website || 'Sem site'} | ${l.phone || 'Sem tel'} | ${l.address || ''}`).join('\n');
+      const total = result.leads.length;
+      const avgScore = Math.round(result.leads.reduce((s, l) => s + (l.score || 0), 0) / total);
+      return `🔍 **${total} empresas** encontradas para "${niche}" em "${location}" (score médio: ${avgScore}/100)\n\n${lines}\n\n${total > 5 ? `... e mais ${total - 5} empresas` : ''}\n\n📊 Top prioridade: *${top5[0]?.recommendation || 'N/A'}*\n\nUse /prospect cnpj <CNPJ> para detalhes\nUse /prospect score para calcular score`;
+    }
+
     case '/export': {
       if (!isAdmin) return '⛔ Apenas administradores.';
       if (!args) return '📤 Use: /export <tipo>\nTipos: personas, skills, goals, contacts, automations, orgmem, stages, blueprints';

@@ -2213,4 +2213,127 @@ router.delete('/workspace/rules/:id', authMiddleware, adminMiddleware, async (re
   }
 });
 
+// ==========================================
+// B2B PROSPECTING
+// ==========================================
+
+router.post('/b2b/prospect', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { niche, location, steps, limit } = req.body;
+    if (!niche) return res.status(400).json({ error: 'niche é obrigatório' });
+    const b2b = require('../b2b');
+    const result = await b2b.pipeline(niche, location || 'Brasil', { steps: steps || ['discover', 'score'], limit: limit || 20 });
+    const saved = await b2b.saveSearch(req.userId, niche, location || 'Brasil', result);
+    res.json({ ...saved, leads: result.leads, market_analysis: result.market_analysis });
+  } catch (err) {
+    console.error('[Admin] B2B prospect error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/b2b/enrich', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { search_id } = req.body;
+    const b2b = require('../b2b');
+    const search = await b2b.getSearch(search_id, req.userId);
+    if (!search) return res.status(404).json({ error: 'Busca não encontrada' });
+    const results = search.results || search;
+    const leads = results.leads || [];
+    for (let i = 0; i < leads.length; i++) {
+      leads[i] = await b2b.enrichLead(leads[i]);
+      if (i % 3 === 2) await new Promise(r => setTimeout(r, 500));
+    }
+    await b2b.saveSearch(req.userId, search.niche, search.location, { ...results, leads });
+    res.json({ enriched: leads.length, leads });
+  } catch (err) {
+    console.error('[Admin] B2B enrich error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/b2b/analyze', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { search_id } = req.body;
+    const b2b = require('../b2b');
+    const search = await b2b.getSearch(search_id, req.userId);
+    if (!search) return res.status(404).json({ error: 'Busca não encontrada' });
+    const results = search.results || search;
+    const leads = results.leads || [];
+    const market_analysis = await b2b.analyzeMarket(leads, search.niche, search.location);
+    res.json({ market_analysis });
+  } catch (err) {
+    console.error('[Admin] B2B analyze error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/b2b/diagnose', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { search_id, lead_index } = req.body;
+    const b2b = require('../b2b');
+    const search = await b2b.getSearch(search_id, req.userId);
+    if (!search) return res.status(404).json({ error: 'Busca não encontrada' });
+    const results = search.results || search;
+    const leads = results.leads || [];
+    const idx = lead_index || 0;
+    if (idx >= leads.length) return res.status(400).json({ error: 'Lead index out of range' });
+    const diagnosis = await b2b.diagnoseLead(leads[idx], results.market_analysis);
+    res.json({ lead: leads[idx], diagnosis });
+  } catch (err) {
+    console.error('[Admin] B2B diagnose error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/b2b/searches', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const b2b = require('../b2b');
+    const searches = await b2b.listSearches(req.userId, parseInt(req.query.limit) || 20);
+    res.json({ searches });
+  } catch (err) {
+    console.error('[Admin] B2B list error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/b2b/searches/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const b2b = require('../b2b');
+    const search = await b2b.getSearch(req.params.id, req.userId);
+    if (!search) return res.status(404).json({ error: 'Busca não encontrada' });
+    res.json(search);
+  } catch (err) {
+    console.error('[Admin] B2B get error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/b2b/searches/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const b2b = require('../b2b');
+    await b2b.deleteSearch(req.params.id, req.userId);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[Admin] B2B delete error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/b2b/pipeline', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { niche, location, limit } = req.body;
+    if (!niche) return res.status(400).json({ error: 'niche é obrigatório' });
+    const b2b = require('../b2b');
+    const result = await b2b.pipeline(niche, location || 'Brasil', {
+      steps: ['discover', 'enrich', 'score', 'analyze', 'diagnose'],
+      limit: limit || 20
+    });
+    const saved = await b2b.saveSearch(req.userId, niche, location || 'Brasil', result);
+    res.json({ ...saved, leads: result.leads, market_analysis: result.market_analysis });
+  } catch (err) {
+    console.error('[Admin] B2B pipeline error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 module.exports = router;

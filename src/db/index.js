@@ -960,32 +960,20 @@ async function initDatabase() {
   try { await pool.execute("ALTER TABLE users ADD COLUMN whatsapp_id VARCHAR(100) DEFAULT NULL"); } catch {}
   try { await pool.execute("ALTER TABLE users ADD COLUMN telegram_id VARCHAR(100) DEFAULT NULL"); } catch {}
   try { await pool.execute("ALTER TABLE users ADD COLUMN phone VARCHAR(50) DEFAULT NULL"); } catch {}
-  try { await pool.execute("ALTER TABLE users ADD UNIQUE KEY idx_users_link_code (link_code)"); } catch {}
-  try { await pool.execute("ALTER TABLE users ADD UNIQUE KEY idx_users_whatsapp_id (whatsapp_id)"); } catch {}
-  try { await pool.execute("ALTER TABLE users ADD UNIQUE KEY idx_users_telegram_id (telegram_id)"); } catch {}
 
-  try { await pool.execute("ALTER TABLE sessions ADD COLUMN silence_count INT DEFAULT 0"); } catch {}
-  try { await pool.execute("ALTER TABLE sessions ADD COLUMN silence_infinite TINYINT(1) DEFAULT 0"); } catch {}
-
-  try { await pool.execute(`CREATE TABLE IF NOT EXISTS login_attempts (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    email VARCHAR(255) NOT NULL,
-    ip_address VARCHAR(45) DEFAULT '',
-    attempted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    INDEX idx_login_email_time (email, attempted_at)
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
-
-  try { await pool.execute("ALTER TABLE users ADD COLUMN token_version INT DEFAULT 1"); } catch {}
-
-  try { await pool.execute("ALTER TABLE user_xp ADD COLUMN total_messages INT DEFAULT 0"); } catch {}
-  try { await pool.execute("ALTER TABLE user_xp ADD COLUMN goals_completed INT DEFAULT 0"); } catch {}
-
-  // LGPD consent columns
-  try { await pool.execute("ALTER TABLE users ADD COLUMN consent_date TIMESTAMP NULL DEFAULT NULL"); } catch {}
-  try { await pool.execute("ALTER TABLE users ADD COLUMN consent_version VARCHAR(20) DEFAULT '1.0'"); } catch {}
-  try { await pool.execute("ALTER TABLE users ADD COLUMN data_processing_consent TINYINT(1) DEFAULT 0"); } catch {}
-  try { await pool.execute("ALTER TABLE users ADD COLUMN cookie_consent VARCHAR(20) DEFAULT NULL"); } catch {}
-  try { await pool.execute("ALTER TABLE users ADD COLUMN cookie_consent_date TIMESTAMP NULL DEFAULT NULL"); } catch {}
+  // B2B searches
+  try { await pool.execute(`
+    CREATE TABLE IF NOT EXISTS b2b_searches (
+      id VARCHAR(80) PRIMARY KEY,
+      user_id VARCHAR(60) NOT NULL,
+      niche VARCHAR(255) NOT NULL,
+      location VARCHAR(255) NOT NULL,
+      results JSON,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_b2b_user (user_id),
+      KEY idx_b2b_niche (niche),
+      KEY idx_b2b_created (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
 
   console.log('Database schema initialized (with migrations)');
 }
