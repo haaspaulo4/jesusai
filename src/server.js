@@ -688,7 +688,8 @@ async function seedDefaultBlueprints(bm) {
 async function generateDailyPostForPersonas() {
   try {
     const list = await personaManager.listPersonas();
-    const activeIds = list.filter(p => p.id !== 'jesus' && p.isActive !== false).map(p => p.id);
+    const defaultPersonaId = await getSetting('persona', 'jesus');
+    const activeIds = list.filter(p => p.id !== defaultPersonaId && p.id !== 'meta-persona' && p.isActive !== false).map(p => p.id);
     if (activeIds.length > 0) {
       await generateDailyPost(activeIds);
       console.log(`[Blog] Generated daily posts for personas: ${activeIds.join(', ')}`);

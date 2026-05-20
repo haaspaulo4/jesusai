@@ -516,7 +516,8 @@ router.post('/personas/:id/activate', authMiddleware, adminMiddleware, async (re
 
 router.post('/personas/:id/deactivate', authMiddleware, adminMiddleware, async (req, res) => {
   try {
-    if (req.params.id === 'jesus') return res.status(400).json({ error: 'Cannot deactivate default persona' });
+    const defaultPersonaId = await getSetting('persona', 'jesus');
+    if (req.params.id === 'meta-persona' || req.params.id === defaultPersonaId) return res.status(400).json({ error: 'Cannot deactivate default or meta persona' });
     await personaManager.togglePersona(req.params.id, false);
     res.json({ ok: true });
   } catch (err) {

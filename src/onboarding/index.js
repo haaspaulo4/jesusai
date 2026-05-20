@@ -37,9 +37,9 @@ const GLOBAL_ONBOARDING_STEPS = [
     question_es: '¿Qué te interesa más?',
     field: 'topics',
     field_type: 'multichoice',
-    choices: ['autoconhecimento', 'relacionamentos', 'carreira', 'saúde', 'finanças', 'aprendizado', 'motivação', 'criatividade', 'equilíbrio', 'liderança', 'bem-estar', 'outro'],
-    choices_en: ['self-improvement', 'relationships', 'career', 'health', 'finances', 'learning', 'motivation', 'creativity', 'balance', 'leadership', 'wellness', 'other'],
-    choices_es: ['autoconocimiento', 'relaciones', 'carrera', 'salud', 'finanzas', 'aprendizaje', 'motivación', 'creatividad', 'equilibrio', 'liderazgo', 'bienestar', 'otro'],
+    choices: ['negócios', 'saúde', 'educação', 'tecnologia', 'relacionamentos', 'finanças', 'aprendizado', 'motivação', 'criatividade', 'liderança', 'bem-estar', 'outro'],
+    choices_en: ['business', 'health', 'education', 'technology', 'relationships', 'finances', 'learning', 'motivation', 'creativity', 'leadership', 'wellness', 'other'],
+    choices_es: ['negocios', 'salud', 'educación', 'tecnología', 'relaciones', 'finanzas', 'aprendizaje', 'motivación', 'creatividad', 'liderazgo', 'bienestar', 'otro'],
     required: true,
     persona_id: null,
     icon: '🎯',
@@ -380,8 +380,8 @@ async function saveOnboardingAnswer(userId, stepKey, answer, personaId) {
 
   if (status.done) {
     try {
-      await gamificationModule.addXp(userId, personaId || 'jesus', 50, 'onboarding_complete');
-      await gamificationModule.addBadge(userId, personaId || 'jesus', 'onboarding_complete', {
+      await gamificationModule.addXp(userId, personaId || context?.personaId || 'default', 50, 'onboarding_complete');
+      await gamificationModule.addBadge(userId, personaId || context?.personaId || 'default', 'onboarding_complete', {
         'pt-BR': 'Perfil Completo',
         'en-US': 'Profile Complete',
         'es-ES': 'Perfil Completo',

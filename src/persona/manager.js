@@ -100,7 +100,8 @@ async function loadPersonas() {
 
 async function getPersona(personaId) {
   if (!loaded) await loadPersonas();
-  return cache.get(personaId) || cache.get('jesus') || [...cache.values()][0];
+  const defaultId = process.env.PERSONA || 'jesus';
+  return cache.get(personaId) || cache.get(defaultId) || [...cache.values()][0];
 }
 
 function getActivePersona() {
@@ -248,7 +249,10 @@ async function createPersona(data) {
 }
 
 async function deletePersona(personaId) {
-  if (personaId === 'jesus') throw new Error('Cannot delete the default persona');
+  if (personaId === 'meta-persona') throw new Error('Cannot delete the meta-persona');
+  const { getSetting } = require('../settings');
+  const defaultId = await getSetting('persona', 'jesus');
+  if (personaId === defaultId) throw new Error('Cannot delete the default persona');
 
   try {
     await pool.execute('DELETE FROM personas WHERE persona_id = ?', [personaId]);
@@ -261,7 +265,10 @@ async function deletePersona(personaId) {
 }
 
 async function togglePersona(personaId, isActive) {
-  if (personaId === 'jesus') throw new Error('Cannot disable the default persona');
+  if (personaId === 'meta-persona') throw new Error('Cannot disable the meta-persona');
+  const { getSetting: gs } = require('../settings');
+  const defaultPid = await gs('persona', 'jesus');
+  if (personaId === defaultPid) throw new Error('Cannot disable the default persona');
 
   try {
     await pool.execute('UPDATE personas SET is_active = ? WHERE persona_id = ?', [isActive ? 1 : 0, personaId]);

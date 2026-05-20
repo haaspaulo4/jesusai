@@ -271,7 +271,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   }
 
   const persona = await getPersonaForContext(personaId, sid, uid);
-  const numVerses = persona?.id === 'jesus' ? 8 : 2;
+  const numVerses = persona?.id ? (parseInt(await getSetting('search_verses_count', '8')) || 8) : 2;
   const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
     ? persona.knowledgeSources
     : null;
@@ -1039,10 +1039,11 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       }
 
       if (args === 'reset' || args === 'default') {
-        await personaManager.setUserPersona(uid, 'jesus');
-        if (sessionId) await personaManager.setSessionPersona(sessionId, 'jesus');
-        const jesus = await personaManager.getPersona('jesus');
-        return metaRag.formatPersonaSwitchMessage(jesus, 'pt-BR');
+        const defaultPersonaId = await getSetting('persona', 'jesus');
+        await personaManager.setUserPersona(uid, defaultPersonaId);
+        if (sessionId) await personaManager.setSessionPersona(sessionId, defaultPersonaId);
+        const defaultPersona = await personaManager.getPersona(defaultPersonaId);
+        return metaRag.formatPersonaSwitchMessage(defaultPersona, 'pt-BR');
       }
 
       if (args.startsWith('create ')) {
@@ -1119,8 +1120,9 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       if (args.startsWith('delete ')) {
         if (!isAdmin) return '⛔ Apenas administradores podem deletar personas.';
         const personaId = args.slice(7).trim();
-        if (personaId === 'jesus') return '⛔ Não é possível deletar a persona padrão.';
         if (personaId === 'meta-persona') return '⛔ Não é possível deletar a meta-persona.';
+        const defaultPersonaId = await getSetting('persona', 'jesus');
+        if (personaId === defaultPersonaId) return '⛔ Não é possível deletar a persona padrão.';
         try {
           await personaManager.deletePersona(personaId);
           return `🗑️ Persona "${personaId}" deletada.`;

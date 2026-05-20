@@ -21,7 +21,7 @@ const creativeEngine = require('../creative');
 
 async function resolvePersonaId(personaIdOrName) {
   if (!personaIdOrName) return null;
-  if (personaIdOrName === 'default' || personaIdOrName === 'jesus') return 'jesus';
+  if (personaIdOrName === 'default') return process.env.PERSONA || 'jesus';
   try {
     const persona = await personaManager.getPersona(personaIdOrName);
     if (persona) return persona.id;

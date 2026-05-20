@@ -30,9 +30,10 @@ const DEFAULTS = {
   survey_trigger_after_messages: '5',
   followup_enabled: 'true',
   followup_interval_messages: '10',
-  followup_types: 'spiritual_check,daily_devotional,prayer_request',
+  followup_types: 'check_in,daily_content,engagement_request',
+  followup_interval_messages: '10',
   ratings_enabled: 'true',
-  rating_categories: 'general,spiritual,response_quality,empathy',
+  rating_categories: 'general,response_quality,empathy,helpfulness',
   onboarding_enabled: 'true',
   followup_interval_messages: '10',
   followup_types: 'spiritual_check,daily_devotional,prayer_request',
@@ -155,4 +156,5 @@ module.exports = {
   invalidateCache,
   DEFAULTS,
   loadSettings,
+  getDefaultPersonaId: () => cache.persona || DEFAULTS.persona || 'jesus',
 };
