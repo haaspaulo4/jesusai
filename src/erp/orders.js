@@ -58,7 +58,7 @@ async function createOrder(data) {
      customer_document, status, payment_status, fulfillment_status, source, subtotal, discount, shipping,
      tax, total, currency, coupon_code, notes, internal_notes, shipping_address, billing_address,
      payment_method, payment_reference, metadata, persona_id, owner_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id, orderNumber, data.customer_id || null, data.customer_name || null, data.customer_email || null,
     data.customer_phone || null, data.customer_document || null,

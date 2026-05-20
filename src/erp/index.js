@@ -3,6 +3,7 @@ const orders = require('./orders');
 const finance = require('./finance');
 const site = require('./site');
 const suppliers = require('./suppliers');
+const commerce = require('./commerce');
 
 module.exports = {
   products,
@@ -10,4 +11,5 @@ module.exports = {
   finance,
   site,
   suppliers,
+  commerce,
 };

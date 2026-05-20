@@ -14,6 +14,7 @@ const adminRoute = require('./routes/admin');
 const quizRoute = require('./routes/quiz');
 const mediaRoute = require('./routes/media');
 const erpRoute = require('./routes/erp');
+const storefrontRoute = require('./routes/storefront');
 const { startTelegramBot } = require('./telegram/bot');
 const { startWhatsAppBot } = require('./whatsapp/bot');
 const { generateDailyPost, scheduleDailyPost } = require('./blog');
@@ -130,6 +131,7 @@ app.use('/api/admin', adminRoute);
 app.use('/api/quiz', quizRoute);
 app.use('/api/media', mediaRoute);
 app.use('/api/erp', erpRoute);
+app.use('/api/store', storefrontRoute);
 
 app.use((err, req, res, next) => {
   console.error('[Express Error]', err.message || err);
@@ -140,6 +142,10 @@ app.use((err, req, res, next) => {
 
 app.get('/admin', (req, res) => {
   res.sendFile(path.join(__dirname, '..', 'public', 'admin.html'));
+});
+
+app.get('/store', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'store.html'));
 });
 
 app.get('/p/:personaId', async (req, res) => {

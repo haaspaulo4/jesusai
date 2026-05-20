@@ -1215,3 +1215,178 @@ Dashboard, Users, Personas, Skills, Knowledge/RAG, Integrations, Settings, Bots,
 | Translations | GET | `/api/translations/:lang` |
 | Config | GET | `/api/config` |
 | Donate/Pix | GET | `/api/donate` |
+
+### ERP System
+
+Complete ERP module for product management, orders, finance, suppliers, and site CMS.
+
+**Database:** 15 tables (products, product_variants, product_categories, orders, order_items, deliveries, notifications, financial_transactions, payment_links, suppliers, site_sections, coupon_codes, commerce_carts + indexes)
+
+**Backend:** `src/erp/` — products, orders, finance, suppliers, site, commerce modules
+**Routes:** `src/routes/erp.js` — Admin API (auth required), `src/routes/storefront.js` — Public API (no auth)
+**LLM Tools:** `src/llm/erp-tools.js` — 23 ERP tools + 10 commerce tools (62 total tools)
+
+#### Product Management
+- Products: CRUD with variants, categories, stock tracking, SEO fields, images, tech specs
+- Categories: Tree structure with parent/child, icons, i18n names
+- Stock: Adjustments (in/out/adjustment/return/reserved/released/loss), low stock alerts
+- Product types: physical, digital, service (each with different workflows)
+
+#### Order Management
+- Orders: Full lifecycle (pending → confirmed → paid → processing → shipped → delivered)
+- Status transitions enforced via NEXT_STATUS map (no skipping steps)
+- Order items with product_id, variant_id, title, unit_price, quantity, type
+- Deliveries with tracking code, carrier, estimated delivery
+- Notifications created on order creation (channel, recipient, message)
+- Stock deducted automatically on order creation, restored on cancellation
+- `formatOrderForWhatsApp()` — WhatsApp-friendly order receipt formatting
+
+#### Finance
+- Transactions: CRUD with types (income, expense, refund, withdrawal)
+- Payment links: PIX links with expiration, external reference
+- Dashboard: Revenue, expenses, profit, orders by status, average ticket
+
+#### Suppliers
+- CRUD with search, category filter, rating, payment terms
+- Contact info, delivery time, documents
+
+#### Site CMS
+- Sections: CRUD with i18n (title, subtitle, content per language)
+- Types: hero, features, gallery, cta, testimonials, faq, about, custom
+- Reorder, activate/deactivate, media attachments
+- Seeded with e-commerce defaults (hero, features, CTA, product gallery)
+
+### Commerce System (WhatsApp Store)
+
+Complete WhatsApp commerce flow inspired by real-world delivery bots (e.g., HLB Conveniência).
+
+**Commerce Module:** `src/erp/commerce.js`
+**Cart Table:** `commerce_carts` — session-based cart with flow_step state machine
+
+#### Flow (matches real WhatsApp bot behavior)
+```
+Customer message → LLM detects product interest → catalog_search
+  →commerce_add_to_cart → shows cart summary
+  →commerce_set_address → calculates delivery fee by zone
+  →commerce_set_payment → sets method (pix/dinheiro/cartao) + change_for
+  →commerce_apply_coupon → validates and applies discount
+  →commerce_finalize_order → creates order in DB, deducts stock, returns receipt
+  →commerce_get_order → status check anytime
+```
+
+#### Cart State Machine
+```
+browsing → building_order → confirming_address → confirming_payment → confirming_order → completed
+```
+
+#### LLM Commerce Tools (10)
+| Tool | Description |
+|---|---|
+| `commerce_add_to_cart` | Add product to cart (searches by product_id, resolves name/price) |
+| `commerce_remove_from_cart` | Remove product from cart |
+| `commerce_cart_summary` | Show cart: items, quantities, subtotal, shipping, total |
+| `commerce_clear_cart` | Empty cart |
+| `commerce_set_address` | Save delivery address + calculate shipping fee by zone |
+| `commerce_set_payment` | Set payment method (pix/dinheiro/cartao/etc) + change_for amount |
+| `commerce_apply_coupon` | Apply discount coupon (percentage or fixed) |
+| `commerce_finalize_order` | Create order in DB, deduct stock, return WhatsApp receipt |
+| `commerce_get_order` | Check order status by number or ID |
+| `commerce_calculate_delivery` | Calculate delivery fee for an address |
+
+#### Delivery Zones (configurable via admin)
+```json
+[
+  {"name":"Centro","keywords":["centro","praca","matriz"],"fee":0,"estimated_minutes":"20-30"},
+  {"name":"Bairro","keywords":["bairro","jardim","vila"],"fee":5,"estimated_minutes":"30-40"},
+  {"name":"Rural","keywords":["rural","rodovia","km"],"fee":7,"estimated_minutes":"35-45"},
+  {"name":"Premium","keywords":["condominio","alphaville"],"fee":10,"estimated_minutes":"40-55"}
+]
+```
+- Free delivery above configurable threshold (default: R$90)
+- Zone matching by keywords in address text
+- Settings: `store_delivery_fee`, `store_free_delivery_above`, `store_delivery_zones`
+
+#### Payment Methods
+| User Input | DB Value | Display |
+|---|---|---|
+| dinheiro, cash | cash | Dinheiro |
+| pix | pix | PIX |
+| cartao, cartao_credito, credit_card | credit_card | Cartão de Crédito |
+| cartao_debito, debit_card | debit_card | Cartão de Débito |
+| transferencia, bank_transfer | bank_transfer | Transferência |
+| boleto | boleto | Boleto |
+
+#### Coupon System
+- Types: percentage, fixed
+- Validation: min_value, max_uses, expires_at
+- Auto-increment used_count on storefront order creation
+- Admin CRUD: `/api/erp/coupons` (POST, GET, PUT/:id, DELETE/:id)
+
+### Storefront (Whitelabel E-commerce SPA)
+
+**Public API:** `/api/store/*` — no authentication required
+**Page:** `/store` — serves `store.html`
+
+| Endpoint | Method | Description |
+|---|---|---|
+| `/api/store/brand` | GET | Brand info (name, logo, colors, social links, currency) |
+| `/api/store/sections` | GET | Active site sections (i18n) |
+| `/api/store/products` | GET | Active products (filter by category, type, search) |
+| `/api/store/products/:id` | GET | Single product detail |
+| `/api/store/products/slug/:slug` | GET | Product detail by slug |
+| `/api/store/categories` | GET | Product category tree |
+| `/api/store/orders` | POST | Create order from storefront (deducts stock) |
+| `/api/store/coupons/:code` | GET | Validate coupon code |
+
+**Features:**
+- Dynamic brand color injection via CSS variables from `/api/store/brand`
+- Product catalog with filters, search, categories
+- Product detail page with images, variants, stock info
+- Cart sidebar (localStorage persistence)
+- Checkout modal → WhatsApp deep link with formatted order message
+- Coupon discount application
+- 3-language i18n (pt-BR, en-US, es-ES)
+- Cookie consent, floating WhatsApp button, hero video support
+
+### Commerce System Prompt (Chat Engine)
+
+When `commerce_enabled` is not disabled, the chat engine injects a COMMERCE SYSTEM block into the system prompt:
+- Instructions for the LLM to use commerce tools in sequence
+- Available tools: catalog_search → commerce_add_to_cart → commerce_cart_summary → commerce_set_address → commerce_set_payment → commerce_apply_coupon → commerce_finalize_order
+- Rules: confirm order before finalizing, ask for change amount on cash payments, suggest alternatives when product not found, calculate delivery by zone
+- Store name and currency from settings
+
+### Admin Panel — ERP Sections
+
+| Section | Description |
+|---|---|
+| Produtos | Product CRUD, variants, categories, stock management |
+| Pedidos | Order list, status updates, detail view |
+| Estoque | Stock levels, low stock alerts, adjustments |
+| Financeiro | Financial summary, transactions, payment links |
+| Fornecedores | Supplier CRUD with contact info |
+| Site CMS | Section editor (i18n, reorder, activate/deactivate) |
+| Cupons | Coupon CRUD (percentage/fixed, min_value, max_uses, expires) |
+| Entrega | Delivery fee settings, free delivery threshold, zone configuration |
+
+## Critical Constraints (Updated)
+
+- `pdf-parse` must be v1.1.1 — v2.x has breaking API changes
+- MySQL `LIMIT ? OFFSET ?` with `pool.execute()` (prepared statements) fails — must interpolate as `${Number(limit)}`
+- Persona IDs preserve original format including hyphens
+- `buildSystemPrompt()` handles both string and object identity formats
+- `switchPersona()` clears message history to prevent persona contamination
+- Message saving: `processMessage` saves assistant messages — do NOT double-save in bot handlers
+- TTS voice: persona.ttsVoice passed through to Kokoro/Edge TTS
+- Meta-persona has ALL tools enabled
+- Agent module CRUD uses VARCHAR primary keys `prefix_timestamp_random`
+- `createPersona()` preserves existing fields from cache
+- `loadPersonas()` does NOT fallback to Jesus persona fields for custom personas
+- **Product INSERT** must have exactly 38 columns matching 38 placeholders
+- **Order INSERT** must have exactly 27 columns matching 27 placeholders
+- Payment method mapping: `dinheiro` → `cash`, `cartao` → `credit_card` (ENUM values)
+- `commerce_carts` table uses `session_id` as the cart key (not user_id)
+- Storefront routes are PUBLIC (no auth) — `/api/store/*`
+- Admin ERP routes require auth + admin role — `/api/erp/*`
+- `admin.js` uses `loading()` not `showLoading()` for spinner
+- Settings allowlist in admin routes includes store_* keys

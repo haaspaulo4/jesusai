@@ -271,6 +271,9 @@ router.put('/settings', authMiddleware, adminMiddleware, async (req, res) => {
       'rate_limit_guest', 'rate_limit_user', 'rate_limit_premium', 'rate_limit_admin',
       'message_chunk_size', 'audio_chunk_size', 'default_persona', 'default_language',
       'welcome_message', 'welcome_message_en', 'welcome_message_es',
+      'store_currency', 'store_currency_symbol', 'store_whatsapp', 'store_hero_video', 'store_footer_text',
+      'store_instagram_url', 'store_facebook_url', 'store_tiktok_url', 'store_cookie_consent',
+      'store_delivery_fee', 'store_free_delivery_above', 'store_delivery_zones', 'commerce_enabled',
     ];
     const { key, value } = req.body;
     if (!key) return res.status(400).json({ error: 'key is required' });

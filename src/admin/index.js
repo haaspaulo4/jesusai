@@ -1,6 +1,6 @@
 const { pool } = require('../db');
 const integrations = require('../llm/integrationManager');
-const { getSetting, getAllSettings } = require('../settings');
+const { getSetting, setSetting, getAllSettings } = require('../settings');
 const personaManager = require('../persona/manager');
 
 async function getStats() {

@@ -19,18 +19,18 @@ async function createProduct(data) {
      stock, low_stock_threshold, track_stock, weight, weight_unit, dimensions, images, featured_image,
      technical_specs, seo_title, seo_description, tags, is_featured, is_active, is_digital, digital_file,
      visibility, meta, persona_id, owner_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
       id, data.type || 'physical', data.name, data.name_en || null, data.name_es || null, slug,
-    data.description || null, data.description_en || null, data.description_es || null,
-    data.category || null, data.subcategory || null, data.brand || null,
-    data.price || 0, data.cost_price || 0, data.compare_at_price || null,
-    data.currency || 'BRL', data.sku || null, data.barcode || null,
-    data.stock || 0, data.low_stock_threshold || 5, data.track_stock !== false ? 1 : 0,
-    data.weight || null, data.weight_unit || 'g', dimensions, images, data.featured_image || null,
-    technicalSpecs, data.seo_title || null, data.seo_description || null, tags,
-    data.is_featured ? 1 : 0, data.is_active !== false ? 1 : 0, data.is_digital ? 1 : 0, data.digital_file || null,
-    data.visibility || 'public', meta, data.persona_id || null, data.owner_id || null,
+      data.description || null, data.description_en || null, data.description_es || null,
+      data.category || null, data.subcategory || null, data.brand || null,
+      data.price || 0, data.cost_price || 0, data.compare_at_price || null,
+      data.currency || 'BRL', data.sku || null, data.barcode || null,
+      data.stock || 0, data.low_stock_threshold || 5, data.track_stock !== false ? 1 : 0,
+      data.weight || null, data.weight_unit || 'g', dimensions, images, data.featured_image || null,
+      technicalSpecs, data.seo_title || null, data.seo_description || null, tags,
+      data.is_featured ? 1 : 0, data.is_active !== false ? 1 : 0, data.is_digital ? 1 : 0, data.digital_file || null,
+      data.visibility || 'public', meta, data.persona_id || null, data.owner_id || null,
     ]
   );
 

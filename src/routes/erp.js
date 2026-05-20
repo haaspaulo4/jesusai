@@ -237,4 +237,52 @@ router.get('/notifications', authMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ==================== COUPONS ====================
+
+router.get('/coupons', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const [rows] = await pool.execute('SELECT * FROM coupon_codes ORDER BY created_at DESC');
+    res.json(rows);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/coupons', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { code, type, value, min_value, max_uses, description, expires_at, is_active } = req.body;
+    if (!code || value === undefined) return res.status(400).json({ error: 'Code and value are required' });
+    const [result] = await pool.execute(
+      'INSERT INTO coupon_codes (code, type, value, min_value, max_uses, description, expires_at, is_active, owner_id) VALUES (?,?,?,?,?,?,?,?,?)',
+      [code.toUpperCase(), type || 'percentage', value, min_value || 0, max_uses || null, description || null, expires_at || null, is_active !== false ? 1 : 0, req.userId || null]
+    );
+    const [rows] = await pool.execute('SELECT * FROM coupon_codes WHERE code = ?', [code.toUpperCase()]);
+    res.json(rows[0]);
+  } catch (err) {
+    if (err.code === 'ER_DUP_ENTRY') return res.status(409).json({ error: 'Coupon code already exists' });
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.put('/coupons/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const fields = [];
+    const vals = [];
+    const allowed = ['code', 'type', 'value', 'min_value', 'max_uses', 'description', 'expires_at', 'is_active'];
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) { fields.push(`${key} = ?`); vals.push(key === 'code' ? req.body[key].toUpperCase() : req.body[key]); }
+    }
+    if (fields.length === 0) return res.status(400).json({ error: 'No fields to update' });
+    vals.push(req.params.id);
+    await pool.execute(`UPDATE coupon_codes SET ${fields.join(', ')} WHERE id = ?`, vals);
+    const [rows] = await pool.execute('SELECT * FROM coupon_codes WHERE id = ?', [req.params.id]);
+    res.json(rows[0]);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/coupons/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    await pool.execute('DELETE FROM coupon_codes WHERE id = ?', [req.params.id]);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;

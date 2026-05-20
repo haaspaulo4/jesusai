@@ -5,7 +5,7 @@ let socket = null;
 
 function esc(str) { if (str == null) return ''; return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
-const pages = ['dashboard','users','personas','knowledge','vectors','creatives','search','surveys','ratings','followups','events','thoughts','workspace','billing','bots','integrations','commands','queue','settings'];
+const pages = ['dashboard','users','personas','knowledge','vectors','creatives','search','surveys','ratings','followups','events','thoughts','workspace','billing','bots','integrations','commands','queue','settings','products','orders','stock','finance','suppliers','sitecms','coupons','delivery'];
 
 document.addEventListener('DOMContentLoaded', () => {
   if (!token) { showAdminLogin(); return; }
@@ -203,6 +203,7 @@ function switchPage(page) {
   const loaders = {
     dashboard: loadDashboard, users: loadUsers, personas: loadPersonas, knowledge: loadKnowledge, surveys: loadSurveys, ratings: loadRatings, followups: loadFollowups, bots: loadBots, integrations: loadIntegrations, commands: loadCommands, settings: loadSettings,
     vectors: loadVectors, creatives: loadCreatives, search: loadGlobalSearch, events: loadEvents, thoughts: loadThoughts, overrides: loadOverrides, workspace: loadWorkspace, billing: loadBillingPlans, queue: loadQueue,
+    products: loadProducts, orders: loadOrders, stock: loadStock, finance: loadFinance, suppliers: loadSuppliers, sitecms: loadSiteCMS, coupons: loadCoupons, delivery: loadDelivery,
   };
   loaders[page]?.();
 }
@@ -685,6 +686,289 @@ async function loadQueue() {
 }
 
 
+// ==================== ERP: PRODUCTS ====================
+
+const productStatusFilter = document.getElementById('productTypeFilter');
+const productCategoryFilter = document.getElementById('productCategoryFilter');
+const productSearchInput = document.getElementById('productSearch');
+
+async function loadProducts() {
+  loading();
+  try {
+    const params = new URLSearchParams();
+    const search = productSearchInput?.value || '';
+    const type = productStatusFilter?.value || '';
+    const category = productCategoryFilter?.value || '';
+    if (search) params.set('search', search);
+    if (type) params.set('type', type);
+    if (category) params.set('category', category);
+    params.set('is_active', 'true');
+    const res = await api(`/erp/products?${params.toString()}`);
+    const products = res.products || [];
+    loadProductCategories();
+    const stats = await api('/erp/products/stats').catch(() => ({}));
+    document.getElementById('productStats').innerHTML = [
+      { label: 'Total', value: stats.total || products.length, icon: '📦' },
+      { label: 'Em Estoque', value: stats.by_type?.reduce((s, t) => s + (t.total_stock || 0), 0) || 0, icon: '🏪' },
+      { label: 'Estoque Baixo', value: stats.low_stock || 0, icon: '⚠️' },
+      { label: 'Sem Estoque', value: stats.out_of_stock || 0, icon: '🚫' },
+    ].map(s => `<div class="stat-card"><div class="stat-value">${s.icon} ${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
+    document.getElementById('productTable').innerHTML = products.length === 0
+      ? '<p style="color:var(--muted)">Nenhum produto encontrado.</p>'
+      : `<table><thead><tr><th></th><th>Produto</th><th>Categoria</th><th>Tipo</th><th>Preco</th><th>Custo</th><th>Estoque</th><th>Acoes</th></tr></thead><tbody>${products.map(p => {
+        const img = p.featured_image || (p.images && p.images[0]) ? `<img src="${esc(p.featured_image || p.images[0])}" class="product-img" onerror="this.style.display='none';this.nextElementSibling.style.display='flex'"><div class="product-img-placeholder" style="display:none">${p.type === 'service' ? '🛎️' : p.type === 'digital' ? '📱' : '📦'}</div>` : `<div class="product-img-placeholder">${p.type === 'service' ? '🛎️' : p.type === 'digital' ? '📱' : '📦'}</div>`;
+        const stockClass = !p.track_stock ? '' : p.stock <= 0 ? 'color:var(--danger);font-weight:700' : p.stock <= p.low_stock_threshold ? 'color:var(--warning);font-weight:600' : '';
+        return `<tr><td>${img}</td><td><strong>${esc(p.name)}</strong>${p.brand ? `<br><small style="color:var(--muted)">${esc(p.brand)}</small>` : ''}</td><td>${esc(p.category || '-')}</td><td>${p.type === 'service' ? '🛎️ Servico' : p.type === 'digital' ? '📱 Digital' : '📦 Fisico'}</td><td>R$ ${(p.price || 0).toFixed(2)}</td><td>${p.cost_price ? 'R$ ' + p.cost_price.toFixed(2) : '-'}</td><td style="${stockClass}">${p.track_stock ? p.stock : '∞'}</td><td><button class="btn btn-sm" onclick="editProduct('${p.id}')">Editar</button></td></tr>`;
+      }).join('')}</tbody></table>`;
+  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+}
+
+async function loadProductCategories() {
+  try {
+    const cats = await api('/erp/products/categories');
+    const sel = document.getElementById('productCategoryFilter');
+    if (sel) { sel.innerHTML = '<option value="">Todas categorias</option>' + (cats || []).map(c => `<option value="${esc(c.id)}">${c.icon || ''} ${esc(c.name)}</option>`).join(''); }
+  } catch(e) {}
+}
+
+function editProduct(id) { window.open(`/admin.html?page=products&edit=${id}`, '_self'); }
+
+// ==================== ERP: ORDERS ====================
+
+async function loadOrders() {
+  loading();
+  try {
+    const params = new URLSearchParams();
+    const search = document.getElementById('orderSearch')?.value || '';
+    const status = document.getElementById('orderStatusFilter')?.value || '';
+    const payment = document.getElementById('orderPaymentFilter')?.value || '';
+    if (search) params.set('search', search);
+    if (status) params.set('status', status);
+    if (payment) params.set('payment_status', payment);
+    const [ordersRes, stats] = await Promise.all([api(`/erp/orders?${params.toString()}`), api('/erp/orders/stats').catch(() => ({}))]);
+    const orders = ordersRes.orders || [];
+    const s = stats || {};
+    document.getElementById('orderStats').innerHTML = [
+      { label: 'Total Pedidos', value: s.total || orders.length, icon: '📋' },
+      { label: 'Receita Total', value: 'R$ ' + (s.revenue || 0).toFixed(2), icon: '💰' },
+      { label: 'Receita Paga', value: 'R$ ' + (s.paid_revenue || 0).toFixed(2), icon: '✅' },
+      { label: 'Ticket Medio', value: 'R$ ' + (s.avg_ticket || 0).toFixed(2), icon: '📊' },
+    ].map(st => `<div class="stat-card financial-card"><div class="stat-value">${st.icon} ${st.value}</div><div class="stat-label">${st.label}</div></div>`).join('');
+    const statusLabel = { pending: 'Pendente', confirmed: 'Confirmado', paid: 'Pago', processing: 'Processando', shipped: 'Enviado', delivered: 'Entregue', cancelled: 'Cancelado', refunded: 'Reembolsado', expired: 'Expirado' };
+    document.getElementById('orderTable').innerHTML = orders.length === 0
+      ? '<p style="color:var(--muted)">Nenhum pedido encontrado.</p>'
+      : `<table><thead><tr><th>Pedido</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th><th>Pagamento</th><th>Data</th><th>Acoes</th></tr></thead><tbody>${orders.map(o => {
+        const items = (o.items || []).map(i => `${i.quantity}x ${esc(i.title)}`).join(', ');
+        return `<tr class="order-row" onclick="viewOrder('${o.id}')"><td><strong>${esc(o.order_number)}</strong></td><td>${esc(o.customer_name || o.customer_phone || '-')}</td><td class="order-items">${items}</td><td><strong>R$ ${(o.total || 0).toFixed(2)}</strong></td><td><span class="status-badge status-${o.status}">${statusLabel[o.status] || o.status}</span></td><td><span class="status-badge status-${o.payment_status}">${o.payment_status}</span></td><td>${new Date(o.created_at).toLocaleDateString('pt-BR')}</td><td onclick="event.stopPropagation()"><button class="btn btn-sm" onclick="viewOrder('${o.id}')">Ver</button></td></tr>`;
+      }).join('')}</tbody></table>`;
+  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+}
+
+async function viewOrder(id) {
+  loading();
+  try {
+    const o = await api(`/erp/orders/${id}`);
+    if (!o) { toast('Pedido nao encontrado', 'error'); return; }
+    const items = (o.items || []).map(i => `<tr><td>${esc(i.title)}</td><td>${i.quantity}</td><td>R$ ${(i.unit_price || 0).toFixed(2)}</td><td>R$ ${(i.total || 0).toFixed(2)}</td></tr>`).join('');
+    const deliveries = (o.deliveries || []).map(d => `<div>Rastreio: <strong>${esc(d.tracking_code || '-')}</strong> (${d.carrier || '-'}) — ${d.status}</div>`).join('');
+    const statusLabel = { pending: 'Pendente', confirmed: 'Confirmado', paid: 'Pago', processing: 'Processando', shipped: 'Enviado', delivered: 'Entregue', cancelled: 'Cancelado', refunded: 'Reembolsado', expired: 'Expirado' };
+    const actions = {
+      pending: ['confirmed', 'cancelled'], confirmed: ['paid', 'cancelled'], paid: ['processing', 'refunded'],
+      processing: ['shipped', 'cancelled'], shipped: ['delivered'], delivered: [], cancelled: [], refunded: [], expired: [],
+    };
+    const nextActions = actions[o.status] || [];
+    let modal = `<div class="modal-overlay" onclick="this.remove()"><div class="modal" onclick="event.stopPropagation()">
+      <h2>Pedido #${esc(o.order_number)}</h2>
+      <div class="form-row"><div class="form-group"><label>Cliente</label><div>${esc(o.customer_name || '-')}</div></div><div class="form-group"><label>Telefone</label><div>${esc(o.customer_phone || '-')}</div></div></div>
+      <div class="form-row"><div class="form-group"><label>Status</label><div><span class="status-badge status-${o.status}">${statusLabel[o.status] || o.status}</span></div></div><div class="form-group"><label>Pagamento</label><div><span class="status-badge status-${o.payment_status}">${o.payment_status}</span></div></div></div>
+      <div class="form-row"><div class="form-group"><label>Subtotal</label><div>R$ ${(o.subtotal || 0).toFixed(2)}</div></div><div class="form-group"><label>Frete</label><div>R$ ${(o.shipping || 0).toFixed(2)}</div></div><div class="form-group"><label>Total</label><div style="font-weight:700;font-size:1.2rem;color:var(--primary)">R$ ${(o.total || 0).toFixed(2)}</div></div></div>
+      <h3 style="margin-top:1rem">Itens</h3><table><thead><tr><th>Item</th><th>Qtd</th><th>Preco</th><th>Total</th></tr></thead><tbody>${items}</tbody></table>
+      ${deliveries ? '<h3 style="margin-top:1rem">Entregas</h3>' + deliveries : ''}
+      ${o.notes ? '<div style="margin-top:1rem"><label>Notas:</label><div>' + esc(o.notes) + '</div></div>' : ''}
+      ${nextActions.length > 0 ? '<div class="modal-actions" style="margin-top:1rem">' + nextActions.map(s => `<button class="btn btn-primary" onclick="updateOrderStatus('${o.id}','${s}')">${statusLabel[s] || s}</button>`).join('') + `<button class="btn btn-danger" onclick="updateOrderStatus('${o.id}','cancelled')">Cancelar</button></div>` : ''}
+      <div class="modal-actions"><button class="btn" onclick="this.closest('.modal-overlay').remove()">Fechar</button></div>
+    </div></div>`;
+    document.body.insertAdjacentHTML('beforeend', modal);
+  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+}
+
+async function updateOrderStatus(orderId, status) {
+  try {
+    await api(`/erp/orders/${orderId}/status`, { method: 'PUT', body: JSON.stringify({ status }) });
+    toast(`Pedido atualizado para: ${status}`, 'success');
+    document.querySelector('.modal-overlay')?.remove();
+    loadOrders();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ==================== ERP: STOCK ====================
+
+async function loadStock() {
+  loading();
+  try {
+    const search = document.getElementById('stockSearch')?.value || '';
+    const [products, stats] = await Promise.all([
+      api(`/erp/products?search=${search}&is_active=true&limit=200`).then(r => r.products || []),
+      api('/erp/products/stats').catch(() => ({})),
+    ]);
+    const lowStock = await api('/erp/products/low-stock?threshold=5').catch(() => []);
+    document.getElementById('stockStats').innerHTML = [
+      { label: 'Produtos Ativos', value: stats.total || 0, icon: '📦' },
+      { label: 'Unidades em Estoque', value: (stats.by_type || []).reduce((s, t) => s + (t.total_stock || 0), 0), icon: '🏪' },
+      { label: 'Valor em Estoque', value: 'R$ ' + (stats.by_type || []).reduce((s, t) => s + (t.inventory_value || 0), 0).toFixed(2), icon: '💰' },
+      { label: 'Estoque Baixo', value: lowStock.length, icon: '⚠️' },
+    ].map(s => `<div class="stat-card"><div class="stat-value">${s.icon} ${s.value}</div><div class="stat-label">${s.label}</div></div>`).join('');
+    document.getElementById('stockTable').innerHTML = products.length === 0
+      ? '<p style="color:var(--muted)">Nenhum produto encontrado.</p>'
+      : `<table><thead><tr><th>Produto</th><th>SKU</th><th>Preco</th><th>Custo</th><th>Estoque</th><th>Min.</th><th>Status</th></tr></thead><tbody>${products.map(p => {
+        const stockClass = !p.track_stock ? '' : p.stock <= 0 ? 'color:var(--danger);font-weight:700' : p.stock <= p.low_stock_threshold ? 'color:var(--warning);font-weight:600' : '';
+        const statusBadge = !p.track_stock ? '<span class="status-badge" style="background:#6b7280">N/A</span>' : p.stock <= 0 ? '<span class="status-badge status-cancelled">Sem estoque</span>' : p.stock <= p.low_stock_threshold ? '<span class="status-badge status-pending">Baixo</span>' : '<span class="status-badge status-delivered">OK</span>';
+        return `<tr><td><strong>${esc(p.name)}</strong></td><td>${esc(p.sku || '-')}</td><td>R$ ${(p.price || 0).toFixed(2)}</td><td>${p.cost_price ? 'R$ ' + p.cost_price.toFixed(2) : '-'}</td><td style="${stockClass}"><strong>${p.track_stock ? p.stock : '∞'}</strong></td><td>${p.low_stock_threshold || '-'}</td><td>${statusBadge}</td></tr>`;
+      }).join('')}</tbody></table>`;
+    document.getElementById('lowStockAlerts').innerHTML = lowStock.length > 0
+      ? '<h3 style="color:var(--danger)">Alertas de Estoque Baixo</h3>' + lowStock.map(p => `<div class="stock-alert"><span class="stock-name">${esc(p.name)}</span><span class="stock-count">${p.stock} / ${p.low_stock_threshold} min</span></div>`).join('')
+      : '';
+  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+}
+
+// ==================== ERP: FINANCE ====================
+
+async function loadFinance() {
+  loading();
+  try {
+    const [dash, transactions] = await Promise.all([
+      api('/erp/finance/dashboard').catch(() => ({})),
+      api('/erp/transactions?limit=50').then(r => r.transactions || []).catch(() => []),
+    ]);
+    const d = dash || {};
+    document.getElementById('financeDashboard').innerHTML = [
+      { label: 'Receita Total', value: 'R$ ' + (d.total_revenue || 0).toFixed(2), icon: '📈', cls: 'trend-up' },
+      { label: 'Despesas', value: 'R$ ' + (d.total_expenses || 0).toFixed(2), icon: '📉', cls: 'trend-down' },
+      { label: 'Lucro Liquido', value: 'R$ ' + (d.net_profit || 0).toFixed(2), icon: d.net_profit >= 0 ? '✅' : '❌', cls: d.net_profit >= 0 ? 'trend-up' : 'trend-down' },
+      { label: 'A Receber', value: 'R$ ' + (d.pending_income || 0).toFixed(2), icon: '⏳', cls: '' },
+    ].map(s => `<div class="stat-card financial-card"><div class="stat-value">${s.icon} ${s.value}</div><div class="stat-label ${s.cls}">${s.label}</div></div>`).join('');
+    document.getElementById('transactionTable').innerHTML = transactions.length === 0
+      ? '<p style="color:var(--muted)">Nenhuma transacao encontrada.</p>'
+      : `<table><thead><tr><th>Data</th><th>Tipo</th><th>Categoria</th><th>Descricao</th><th>Valor</th><th>Metodo</th><th>Status</th></tr></thead><tbody>${transactions.map(t => {
+        const amount = (t.amount || 0).toFixed(2);
+        const color = t.type === 'income' ? 'color:var(--success)' : t.type === 'expense' ? 'color:var(--danger)' : '';
+        return `<tr><td>${new Date(t.created_at).toLocaleDateString('pt-BR')}</td><td>${t.type === 'income' ? '📈 Receita' : t.type === 'expense' ? '📉 Despesa' : '↩️ Reembolso'}</td><td>${esc(t.category || '-')}</td><td>${esc(t.description || '-')}</td><td style="${color};font-weight:600">${t.type === 'income' ? '+' : '-'}R$ ${amount}</td><td>${t.payment_method || '-'}</td><td><span class="status-badge status-${t.status}">${t.status}</span></td></tr>`;
+      }).join('')}</tbody></table>`;
+  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+}
+
+// ==================== ERP: SUPPLIERS ====================
+
+async function loadSuppliers() {
+  loading();
+  try {
+    const search = document.getElementById('supplierSearch')?.value || '';
+    const [suppliersRes, stats] = await Promise.all([
+      api(`/erp/suppliers?search=${search}`).then(r => r.suppliers || []),
+      api('/erp/suppliers/stats').catch(() => ({})),
+    ]);
+    document.getElementById('supplierStats').innerHTML = `<div class="stat-card"><div class="stat-value">🏭 ${stats.total || suppliersRes.length}</div><div class="stat-label">Fornecedores</div></div><div class="stat-card"><div class="stat-value">✅ ${stats.active || 0}</div><div class="stat-label">Ativos</div></div>`;
+    document.getElementById('supplierTable').innerHTML = suppliersRes.length === 0
+      ? '<p style="color:var(--muted)">Nenhum fornecedor encontrado. Clique em + Novo Fornecedor para cadastrar.</p>'
+      : `<table><thead><tr><th>Nome</th><th>Contato</th><th>Categoria</th><th>Telefone</th><th>WhatsApp</th><th>Prazo Entrega</th><th>Condicoes</th><th>Acoes</th></tr></thead><tbody>${suppliersRes.map(s => {
+        return `<tr><td><strong>${esc(s.name)}</strong>${s.trade_name ? `<br><small style="color:var(--muted)">${esc(s.trade_name)}</small>` : ''}</td><td>${esc(s.contact_name || '-')}</td><td>${esc(s.category || '-')}</td><td>${esc(s.phone || '-')}</td><td>${s.whatsapp ? `<a href="https://wa.me/${s.whatsapp.replace(/\D/g, '')}" target="_blank">${esc(s.whatsapp)}</a>` : '-'}</td><td>${s.delivery_time_days ? s.delivery_time_days + ' dias' : '-'}</td><td>${esc(s.payment_terms || '-')}</td><td><button class="btn btn-sm" onclick="editSupplier('${s.id}')">Editar</button></td></tr>`;
+      }).join('')}</tbody></table>`;
+  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+}
+
+async function editSupplier(id) {
+  const s = id ? await api(`/erp/suppliers/${id}`).catch(() => null) : null;
+  const title = s ? 'Editar Fornecedor' : 'Novo Fornecedor';
+  let modal = `<div class="modal-overlay" onclick="this.remove()"><div class="modal" onclick="event.stopPropagation()"><h2>${title}</h2>
+    <div class="form-row"><div class="form-group"><label>Nome *</label><input type="text" id="supName" class="input" value="${s ? esc(s.name) : ''}" required></div><div class="form-group"><label>Nome Fantasia</label><input type="text" id="supTradeName" class="input" value="${s ? esc(s.trade_name || '') : ''}"></div></div>
+    <div class="form-row"><div class="form-group"><label>CNPJ/CPF</label><input type="text" id="supDocument" class="input" value="${s ? esc(s.document || '') : ''}"></div><div class="form-group"><label>Categoria</label><input type="text" id="supCategory" class="input" value="${s ? esc(s.category || '') : ''}" placeholder="Ex: perfumaria, embalagens"></div></div>
+    <div class="form-row"><div class="form-group"><label>Email</label><input type="email" id="supEmail" class="input" value="${s ? esc(s.email || '') : ''}"></div><div class="form-group"><label>Telefone</label><input type="text" id="supPhone" class="input" value="${s ? esc(s.phone || '') : ''}"></div></div>
+    <div class="form-row"><div class="form-group"><label>WhatsApp</label><input type="text" id="supWhatsapp" class="input" value="${s ? esc(s.whatsapp || '') : ''}"></div><div class="form-group"><label>Contato Principal</label><input type="text" id="supContactName" class="input" value="${s ? esc(s.contact_name || '') : ''}"></div></div>
+    <div class="form-row"><div class="form-group"><label>Cidade</label><input type="text" id="supCity" class="input" value="${s ? esc(s.city || '') : ''}"></div><div class="form-group"><label>Estado</label><input type="text" id="supState" class="input" value="${s ? esc(s.state || '') : ''}"></div></div>
+    <div class="form-row"><div class="form-group"><label>Condicoes de Pagamento</label><input type="text" id="supPaymentTerms" class="input" value="${s ? esc(s.payment_terms || '') : ''}" placeholder="Ex: 30/60/90 dias"></div><div class="form-group"><label>Prazo de Entrega (dias)</label><input type="number" id="supDeliveryDays" class="input" value="${s ? s.delivery_time_days || '' : ''}"></div></div>
+    <div class="form-row"><div class="form-group" style="width:100%"><label>Notas</label><textarea id="supNotes" class="input" style="height:80px">${s ? esc(s.notes || '') : ''}</textarea></div></div>
+    <div class="modal-actions"><button class="btn" onclick="this.closest('.modal-overlay').remove()">Cancelar</button><button class="btn btn-primary" onclick="saveSupplier('${id || ''}')">${s ? 'Salvar' : 'Criar'}</button></div>
+  </div></div>`;
+  document.body.insertAdjacentHTML('beforeend', modal);
+}
+
+async function saveSupplier(id) {
+  const data = { name: document.getElementById('supName').value, trade_name: document.getElementById('supTradeName').value, document: document.getElementById('supDocument').value, category: document.getElementById('supCategory').value, email: document.getElementById('supEmail').value, phone: document.getElementById('supPhone').value, whatsapp: document.getElementById('supWhatsapp').value, contact_name: document.getElementById('supContactName').value, city: document.getElementById('supCity').value, state: document.getElementById('supState').value, payment_terms: document.getElementById('supPaymentTerms').value, delivery_time_days: parseInt(document.getElementById('supDeliveryDays').value) || null, notes: document.getElementById('supNotes').value };
+  try {
+    if (id) { await api(`/erp/suppliers/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+    else { await api('/erp/suppliers', { method: 'POST', body: JSON.stringify(data) }); }
+    toast(id ? 'Fornecedor atualizado!' : 'Fornecedor criado!', 'success');
+    document.querySelector('.modal-overlay')?.remove();
+    loadSuppliers();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ==================== ERP: SITE CMS ====================
+
+async function loadSiteCMS() {
+  loading();
+  try {
+    const sections = await api('/erp/site/sections/all?language=pt-BR').then(r => r.sections || []);
+    document.getElementById('sectionList').innerHTML = sections.length === 0
+      ? '<p style="color:var(--muted)">Nenhuma secao configurada. Clique em + Nova Secao para comecar.</p>'
+      : sections.map(s => `<div class="section-card" onclick="editSection('${s.id}')">
+        <div style="display:flex;justify-content:space-between;align-items:center">
+          <div><strong>${esc(s.section_key)}</strong><span class="section-type-badge">${s.type}</span></div>
+          <div><span class="status-badge ${s.is_active ? 'status-active' : 'status-cancelled'}">${s.is_active ? 'Ativo' : 'Inativo'}</span> <small style="color:var(--muted)">Posicao: ${s.position}</small></div>
+        </div>
+        <div style="margin-top:0.5rem;color:var(--muted);font-size:0.85rem">${esc(typeof s.title === 'object' ? (s.title['pt-BR'] || s.title['en-US'] || '') : (s.title || ''))}</div>
+      </div>`).join('');
+  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+}
+
+async function editSection(id) {
+  const s = id ? await api(`/erp/site/sections/${id}`).catch(() => null) : null;
+  const title = s ? 'Editar Secao' : 'Nova Secao';
+  const types = ['hero', 'features', 'cta', 'testimonials', 'faq', 'banner', 'how_it_works', 'pricing', 'gallery', 'custom'];
+  let modal = `<div class="modal-overlay" onclick="this.remove()"><div class="modal" onclick="event.stopPropagation()"><h2>${title}</h2>
+    <div class="form-row"><div class="form-group"><label>Chave (key) *</label><input type="text" id="secKey" class="input" value="${s ? esc(s.section_key) : ''}" placeholder="Ex: landing_hero"></div><div class="form-group"><label>Tipo</label><select id="secType" class="input">${types.map(t => `<option value="${t}" ${s && s.type === t ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>
+    <div class="form-row"><div class="form-group"><label>Titulo (pt-BR)</label><input type="text" id="secTitlePt" class="input" value="${s && s.title ? esc(s.title['pt-BR'] || '') : ''}"></div><div class="form-group"><label>Titulo (en-US)</label><input type="text" id="secTitleEn" class="input" value="${s && s.title ? esc(s.title['en-US'] || '') : ''}"></div></div>
+    <div class="form-row"><div class="form-group"><label>Subtitulo (pt-BR)</label><input type="text" id="secSubtitlePt" class="input" value="${s && s.subtitle ? esc(s.subtitle['pt-BR'] || '') : ''}"></div></div>
+    <div class="form-row"><div class="form-group" style="width:100%"><label>Itens (JSON)</label><textarea id="secItems" class="input" style="height:150px;font-size:0.8rem">${s && s.items ? JSON.stringify(s.items, null, 2) : '[]'}</textarea></div></div>
+    <div class="form-row"><div class="form-group" style="width:100%"><label>Configuracoes (JSON)</label><textarea id="secSettings" class="input" style="height:80px;font-size:0.8rem">${s && s.settings ? JSON.stringify(s.settings, null, 2) : '{}'}</textarea></div></div>
+    <div class="form-row"><div class="form-group"><label>Posicao</label><input type="number" id="secPosition" class="input" value="${s ? s.position : 0}"></div><div class="form-group"><label>Ativo</label><select id="secActive" class="input"><option value="1" ${!s || s.is_active ? 'selected' : ''}>Sim</option><option value="0" ${s && !s.is_active ? 'selected' : ''}>Nao</option></select></div></div>
+    <div class="modal-actions">${s ? `<button class="btn btn-danger" onclick="deleteSection('${id}')">Excluir</button>` : ''}<button class="btn" onclick="this.closest('.modal-overlay').remove()">Cancelar</button><button class="btn btn-primary" onclick="saveSection('${id || ''}')">${s ? 'Salvar' : 'Criar'}</button></div>
+  </div></div>`;
+  document.body.insertAdjacentHTML('beforeend', modal);
+}
+
+async function saveSection(id) {
+  let items, settings;
+  try { items = JSON.parse(document.getElementById('secItems').value); } catch(e) { items = []; }
+  try { settings = JSON.parse(document.getElementById('secSettings').value); } catch(e) { settings = {}; }
+  const data = {
+    section_key: document.getElementById('secKey').value,
+    type: document.getElementById('secType').value,
+    title: { 'pt-BR': document.getElementById('secTitlePt').value, 'en-US': document.getElementById('secTitleEn').value },
+    subtitle: { 'pt-BR': document.getElementById('secSubtitlePt').value },
+    items, settings,
+    position: parseInt(document.getElementById('secPosition').value) || 0,
+    is_active: document.getElementById('secActive').value === '1',
+  };
+  try {
+    if (id) { await api(`/erp/site/sections/${id}`, { method: 'PUT', body: JSON.stringify(data) }); }
+    else { await api('/erp/site/sections', { method: 'POST', body: JSON.stringify(data) }); }
+    toast(id ? 'Secao atualizada!' : 'Secao criada!', 'success');
+    document.querySelector('.modal-overlay')?.remove();
+    loadSiteCMS();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteSection(id) {
+  if (!confirm('Excluir esta secao?')) return;
+  try {
+    await api(`/erp/site/sections/${id}`, { method: 'DELETE' });
+    toast('Secao excluida!', 'success');
+    document.querySelector('.modal-overlay')?.remove();
+    loadSiteCMS();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
 function initRealtime() {
   try {
     socket = io({ transports: ['websocket', 'polling'], reconnection: true, reconnectionAttempts: 5, reconnectionDelay: 3000, auth: { token: token, userId: 'admin' } });
@@ -695,4 +979,153 @@ function initRealtime() {
     socket.on('cognitive_state', data => { /* could show live emotion */ });
     socket.on('new_message', data => { /* could show live messages */ });
   } catch(e) { console.log('[RT] Socket.IO not available'); }
+}
+
+// ========== COUPONS ==========
+
+let editingCouponId = null;
+
+async function loadCoupons() {
+  loading();
+  try {
+    const coupons = await api('/erp/coupons');
+    const el = document.getElementById('couponsTable');
+    if (!coupons.length) { el.innerHTML = '<p style="color:var(--muted);padding:1rem">Nenhum cupom cadastrado.</p>'; loading(false); return; }
+    el.innerHTML = `<table><thead><tr><th>Codigo</th><th>Tipo</th><th>Valor</th><th>Min.</th><th>Usos</th><th>Expira</th><th>Status</th><th>Acoes</th></tr></thead><tbody>${
+      coupons.map(c => `<tr>
+        <td><strong>${esc(c.code)}</strong></td>
+        <td>${c.type === 'percentage' ? '%' : 'R$'}</td>
+        <td>${c.type === 'percentage' ? `${c.value}%` : `R$ ${parseFloat(c.value).toFixed(2)}`}</td>
+        <td>${c.min_value ? `R$ ${parseFloat(c.min_value).toFixed(2)}` : '-'}</td>
+        <td>${c.used_count}${c.max_uses ? `/${c.max_uses}` : '/∞'}</td>
+        <td>${c.expires_at ? new Date(c.expires_at).toLocaleDateString() : 'Nunca'}</td>
+        <td><span class="badge-${c.is_active ? 'active' : 'inactive'}">${c.is_active ? 'Ativo' : 'Inativo'}</span></td>
+        <td><button class="btn btn-sm" onclick="editCoupon(${c.id})">Editar</button> <button class="btn btn-sm btn-danger" onclick="deleteCoupon(${c.id})">Excluir</button></td>
+      </tr>`).join('')
+    }</tbody></table>`;
+  } catch(e) { toast(e.message, 'error'); }
+  loading(false);
+}
+
+function showCouponModal(coupon) {
+  editingCouponId = coupon?.id || null;
+  document.getElementById('couponModalTitle').textContent = coupon ? 'Editar Cupom' : 'Novo Cupom';
+  document.getElementById('couponCode').value = coupon?.code || '';
+  document.getElementById('couponType').value = coupon?.type || 'percentage';
+  document.getElementById('couponValue').value = coupon?.value || '';
+  document.getElementById('couponMinValue').value = coupon?.min_value || 0;
+  document.getElementById('couponMaxUses').value = coupon?.max_uses || '';
+  document.getElementById('couponDescription').value = coupon?.description || '';
+  document.getElementById('couponExpires').value = coupon?.expires_at ? coupon.expires_at.split('T')[0] : '';
+  document.getElementById('couponActive').checked = coupon?.is_active !== false;
+  document.getElementById('couponModal').style.display = 'flex';
+}
+
+function closeCouponModal() {
+  document.getElementById('couponModal').style.display = 'none';
+  editingCouponId = null;
+}
+
+async function editCoupon(id) {
+  try {
+    const coupons = await api('/erp/coupons');
+    const coupon = coupons.find(c => c.id === id);
+    if (coupon) showCouponModal(coupon);
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function saveCoupon() {
+  const data = {
+    code: document.getElementById('couponCode').value.toUpperCase().trim(),
+    type: document.getElementById('couponType').value,
+    value: parseFloat(document.getElementById('couponValue').value),
+    min_value: parseFloat(document.getElementById('couponMinValue').value) || 0,
+    max_uses: document.getElementById('couponMaxUses').value ? parseInt(document.getElementById('couponMaxUses').value) : null,
+    description: document.getElementById('couponDescription').value.trim() || null,
+    expires_at: document.getElementById('couponExpires').value || null,
+    is_active: document.getElementById('couponActive').checked ? 1 : 0,
+  };
+  if (!data.code || !data.value) { toast('Codigo e valor sao obrigatorios', 'error'); return; }
+  try {
+    if (editingCouponId) {
+      await api(`/erp/coupons/${editingCouponId}`, { method: 'PUT', body: JSON.stringify(data) });
+      toast('Cupom atualizado!', 'success');
+    } else {
+      await api('/erp/coupons', { method: 'POST', body: JSON.stringify(data) });
+      toast('Cupom criado!', 'success');
+    }
+    closeCouponModal();
+    loadCoupons();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function deleteCoupon(id) {
+  if (!confirm('Excluir este cupom?')) return;
+  try {
+    await api(`/erp/coupons/${id}`, { method: 'DELETE' });
+    toast('Cupom excluido!', 'success');
+    loadCoupons();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+// ========== DELIVERY SETTINGS ==========
+
+let deliveryZones = [];
+
+async function loadDelivery() {
+  loading();
+  try {
+    const allSettings = await api('/settings');
+    document.getElementById('deliveryFee').value = allSettings.store_delivery_fee || 7;
+    document.getElementById('freeDeliveryAbove').value = allSettings.store_free_delivery_above || 90;
+    const zonesRaw = allSettings.store_delivery_zones || '[]';
+    let zones = [];
+    try { zones = typeof zonesRaw === 'string' ? JSON.parse(zonesRaw) : []; } catch { zones = []; }
+    deliveryZones = zones;
+    renderDeliveryZones();
+  } catch(e) { toast(e.message, 'error'); }
+  loading(false);
+}
+
+function renderDeliveryZones() {
+  const el = document.getElementById('deliveryZones');
+  if (!deliveryZones.length) {
+    el.innerHTML = '<p style="color:var(--muted)">Nenhuma zona configurada. Adicione zonas para calculo automatico de frete.</p>';
+    return;
+  }
+  el.innerHTML = deliveryZones.map((z, i) => `<div style="background:var(--sidebar);border-radius:8px;padding:1rem;margin-bottom:0.75rem;display:grid;grid-template-columns:1fr 2fr 1fr 1fr auto;gap:0.75rem;align-items:center">
+    <div><label style="color:var(--muted);font-size:0.75rem">Nome</label><input class="input zone-name" value="${esc(z.name)}" style="width:100%"></div>
+    <div><label style="color:var(--muted);font-size:0.75rem">Palavras-chave (virgula)</label><input class="input zone-keywords" value="${(z.keywords||[]).join(', ')}" style="width:100%"></div>
+    <div><label style="color:var(--muted);font-size:0.75rem">Taxa (R$)</label><input type="number" class="input zone-fee" value="${z.fee}" step="0.01" style="width:100%"></div>
+    <div><label style="color:var(--muted);font-size:0.75rem">Prazo (min)</label><input class="input zone-minutes" value="${z.estimated_minutes||'30-45'}" style="width:100%"></div>
+    <button class="btn btn-danger" onclick="removeDeliveryZone(${i})" style="padding:0.5rem">X</button>
+  </div>`).join('');
+}
+
+function addDeliveryZone() {
+  deliveryZones.push({ name: '', keywords: [], fee: 5, estimated_minutes: '30-45' });
+  renderDeliveryZones();
+}
+
+function removeDeliveryZone(i) {
+  deliveryZones.splice(i, 1);
+  renderDeliveryZones();
+}
+
+async function saveDeliverySettings() {
+  const zonesFromUI = document.querySelectorAll('#deliveryZones > div');
+  const zones = [];
+  zonesFromUI.forEach(el => {
+    const name = el.querySelector('.zone-name')?.value || '';
+    const keywords = (el.querySelector('.zone-keywords')?.value || '').split(',').map(k => k.trim()).filter(Boolean);
+    const fee = parseFloat(el.querySelector('.zone-fee')?.value) || 0;
+    const minutes = el.querySelector('.zone-minutes')?.value || '30-45';
+    if (name) zones.push({ name, keywords, fee, estimated_minutes: minutes });
+  });
+  try {
+    await api('/settings', { method: 'PUT', body: JSON.stringify({ key: 'store_delivery_fee', value: document.getElementById('deliveryFee').value }) });
+    await api('/settings', { method: 'PUT', body: JSON.stringify({ key: 'store_free_delivery_above', value: document.getElementById('freeDeliveryAbove').value }) });
+    await api('/settings', { method: 'PUT', body: JSON.stringify({ key: 'store_delivery_zones', value: JSON.stringify(zones) }) });
+    toast('Configuracoes de entrega salvas!', 'success');
+  } catch(e) { toast(e.message, 'error'); }
 }

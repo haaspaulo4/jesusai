@@ -190,7 +190,7 @@ npm run ingest   # First time: index knowledge corpus
 npm start        # or npm run dev
 ```
 
-Access `http://localhost:3000` | Admin: `http://localhost:3000/admin`
+Access `http://localhost:3000` | Admin: `http://localhost:3000/admin` | Store: `http://localhost:3000/store`
 
 ### Kokoro TTS (natural voice)
 ```bash
@@ -199,10 +199,10 @@ npm run tts:start     # Start Kokoro server on port 8001
 ```
 
 ### Prerequisites
-1. **MySQL 8.4** on localhost (root, no password, database `metapersona_ai`)
+1. **MySQL 8.4** on localhost (root, no password, database `jesus_ai`)
 2. **OLLAMA_API_KEY** in `.env`
 3. `npm run ingest` before first use
-4. Schema auto-created on startup (41 tables)
+4. Schema auto-created on startup (68+ tables)
 5. **Kokoro TTS** (optional): `npm run tts:install` → `npm run tts:start`
 
 ---
@@ -228,7 +228,7 @@ npm run tts:start     # Start Kokoro server on port 8001
 | Proactive | `src/proactive/index.js` | Cron-based proactive intelligence (streaks, goals, automations) |
 | Events | `src/events/index.js` | Event bus (on_goal_completed, on_badge_earned, on_churn_risk_high, etc.) |
 | Blueprints | `src/blueprints/index.js` | Cloneable persona templates, CRUD, clone, seed |
-| LLM Tools | `src/llm/tools.js` | 36 tool definitions + execution logic (29 base + 7 language skills) |
+| LLM Tools | `src/llm/tools.js` + `src/llm/erp-tools.js` | 62 tool definitions (29 base + 7 language + 23 ERP + 10 commerce) |
 | Integration Mgr | `src/llm/integrationManager.js` | Multi-key fallback, Ollama/Groq auto-detect, normalizeLLMResponse (Ollama + OpenAI + inline) |
 | Knowledge | `src/knowledge/` | TF-IDF RAG, multimodal ingestion, per-persona sources, 11 language sources |
 | Skills (seed) | `src/seed/skillsAndBlueprints.js` | 57 global skills + 7 language skills + 6 blueprint templates |
@@ -239,7 +239,9 @@ npm run tts:start     # Start Kokoro server on port 8001
 | STT | `src/stt/` | Groq Whisper + OpenAI Whisper fallback |
 | i18n | `src/i18n/index.js` | pt-BR, en-US, es-ES |
 | Settings | `src/settings/index.js` | DB-backed runtime settings + whitelabel |
-| DB | `src/db/index.js` | MySQL pool + 41 tables + auto-migration |
+| DB | `src/db/index.js` | MySQL pool + 68+ tables + auto-migration |
+| **ERP** | `src/erp/` | Products, orders, finance, suppliers, site CMS, **commerce** |
+| **Commerce** | `src/erp/commerce.js` | Cart state machine, delivery zones, coupons, order finalization, WhatsApp receipt formatting |
 
 ---
 
@@ -264,7 +266,7 @@ Events can trigger automations (messages, tasks, webhooks, persona switches, ski
 
 ---
 
-## LLM Tools (29)
+## LLM Tools (62)
 
 | Tool | Description |
 |------|-------------|
@@ -297,6 +299,39 @@ Events can trigger automations (messages, tasks, webhooks, persona switches, ski
 | `get_dashboard` | Dashboard stats |
 | `get_history` | Conversation history |
 | `manage_blueprints` | Manage persona blueprints (list, clone, apply, create) |
+
+### ERP Tools (23)
+
+| Tool | Description |
+|------|-------------|
+| `catalog_search` | Search products by name, category, or keyword |
+| `catalog_detail` | Get full product details |
+| `catalog_categories` | List product categories |
+| `create_order` | Create order with items, shipping, payment |
+| `order_status` | Check order status and details |
+| `update_order_status` | Update order status (confirm, ship, deliver) |
+| `stock_check` | Check product stock levels |
+| `financial_summary` | Revenue, expenses, profit, average ticket |
+| `generate_payment_link` | Generate PIX payment link for order |
+| `supplier_list` | List suppliers |
+| `supplier_create` | Create new supplier |
+| `stock_entry` | Register stock movement (in/out/adjustment) |
+| `inventory_report` | Full inventory report by category |
+
+### Commerce Tools (10)
+
+| Tool | Description |
+|------|-------------|
+| `commerce_add_to_cart` | Add product to cart (searches, resolves price/stock) |
+| `commerce_remove_from_cart` | Remove product from cart |
+| `commerce_cart_summary` | Show cart items, subtotal, shipping, total |
+| `commerce_clear_cart` | Empty cart |
+| `commerce_set_address` | Save delivery address + calculate shipping by zone |
+| `commerce_set_payment` | Set payment method (pix/dinheiro/cartao) + change amount |
+| `commerce_apply_coupon` | Apply discount coupon (percentage or fixed) |
+| `commerce_finalize_order` | Create order in DB, deduct stock, return receipt |
+| `commerce_get_order` | Check order status by number or ID |
+| `commerce_calculate_delivery` | Calculate delivery fee for address by zone |
 
 ---
 
@@ -350,7 +385,7 @@ The `tutor-idiomas` persona includes 7 specialized skills:
 
 ---
 
-## Database Schema (41 tables)
+## Database Schema (68+ tables)
 
 **Core**: `users`, `sessions`, `messages`, `profiles`, `settings`, `api_keys`
 
@@ -373,6 +408,56 @@ The `tutor-idiomas` persona includes 7 specialized skills:
 **Events**: `event_log`
 
 **Rate Limiting**: `rate_limits`
+
+**ERP**: `products`, `product_variants`, `product_categories`, `orders`, `order_items`, `deliveries`, `notifications`, `financial_transactions`, `payment_links`, `suppliers`, `site_sections`, `coupon_codes`, `commerce_carts`
+
+---
+
+## WhatsApp Commerce
+
+Complete commerce system for selling products via WhatsApp (inspired by real delivery bots).
+
+### How it Works
+
+```
+Customer: "Quero um sorvete de pistache e uma Coca 2L"
+    ↓ LLM detects product interest
+    ↓ catalog_search → finds Sorvete Lamello (R$25) + Coca-Cola 2L (R$15)
+    ↓ commerce_add_to_cart → adds both items
+    
+Customer: "Rua Desembargador Munhoz de Melo, 466"
+    ↓ commerce_set_address → calculates delivery fee by zone
+    ↓ Zona "Centro" = R$0, "Bairro" = R$5, "Rural" = R$7
+    
+Customer: "Vai ser no dinheiro, troco pra 100"
+    ↓ commerce_set_payment → cash, change_for: 100
+    ↓ Total R$65 + R$7 delivery = R$72, troco: R$28
+    
+Customer: "Sim, confirmar"
+    ↓ commerce_finalize_order → creates order ORD-260519-0001
+    ↓ Deducts stock, sends formatted receipt
+```
+
+### Delivery Zones (configurable via admin)
+
+| Zone | Keywords | Fee | ETA |
+|------|----------|-----|-----|
+| Centro | centro, praça, matriz | R$0 | 20-30 min |
+| Bairro | bairro, jardim, vila | R$5 | 30-40 min |
+| Rural | rural, rodovia, km | R$7 | 35-45 min |
+| Premium | condomínio, alphaville | R$10 | 40-55 min |
+
+Free delivery above R$90 (configurable).
+
+### Storefront (Whitelabel)
+
+Public SPA at `/store` — no auth required. Dynamic brand colors, product catalog, cart sidebar, coupon support, WhatsApp checkout.
+
+---
+
+## Admin Sections
+
+Dashboard, Users, Personas, Skills, Knowledge/RAG, Integrations, Settings, Bots, Surveys, Ratings, Follow-ups, Tasks, Calendar, Contacts, Automations, Goals, Stages, Org Memory, Blueprints, XP/Gamification, Progress, Cognitive, Override, Thoughts, Creatives, Events, Commands, Queue, Search, **Products**, **Orders**, **Stock**, **Finance**, **Suppliers**, **Site CMS**, **Coupons**, **Delivery**
 
 ---
 

@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title id="storeTitle">Loja</title>
+  <meta name="description" content="">
+  <link rel="icon" id="storeFavicon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🛍️</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="" id="storeFonts" rel="stylesheet">
+  <link rel="stylesheet" href="css/store.css">
+  <style id="storeThemeVars"></style>
+</head>
+<body class="st-store">
+
+<div id="storeApp">
+
+  <!-- HEADER -->
+  <header class="st-header" id="storeHeader">
+    <div class="st-container st-header-inner">
+      <a href="#" class="st-logo" onclick="storeView='catalog';return false;">
+        <img v-if="brand.logoUrl" :src="brand.logoUrl" class="st-logo-img" :alt="brand.brandName">
+        <span v-else class="st-logo-icon">✦</span>
+        <div class="st-logo-text">
+          <span class="st-logo-name">{{ brand.brandName }}</span>
+          <span class="st-logo-sub" v-if="brand.brandTagline">{{ brand.brandTagline }}</span>
+        </div>
+      </a>
+      <nav class="st-nav" id="storeNav">
+        <a href="#featured" v-if="hasFeatured">{{ t('featured') }}</a>
+        <a href="#catalog">{{ t('catalog') }}</a>
+        <a href="#about" v-if="aboutSection">{{ t('about') }}</a>
+      </nav>
+      <div style="display:flex;align-items:center;gap:12px;">
+        <select v-model="currentLang" @change="loadSections" class="st-input" style="width:auto;padding:6px 10px;font-size:12px;">
+          <option value="pt-BR">PT</option>
+          <option value="en-US">EN</option>
+          <option value="es-ES">ES</option>
+        </select>
+        <button class="st-cart-toggle" id="cartToggleBtn" @click="toggleCart">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+          <span class="st-cart-count" :class="{show: cartCount > 0}">{{ cartCount }}</span>
+        </button>
+        <button class="st-mobile-menu-btn" @click="mobileMenuOpen = !mobileMenuOpen">
+          <span></span><span></span><span></span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==================== CATALOG VIEW ==================== -->
+  <div v-if="storeView === 'catalog'">
+
+    <!-- Dynamic Hero from sections -->
+    <section class="st-hero" v-if="heroSection">
+      <div v-if="brand.heroVideo" class="st-hero-img-bg" :style="{backgroundImage: 'url(' + brand.heroVideo + ')'}"></div>
+      <div v-else class="st-hero-img-bg" style="background: linear-gradient(135deg, var(--st-dark) 0%, var(--st-dark-3) 50%, var(--st-dark) 100%);"></div>
+      <div class="st-hero-overlay"></div>
+      <div class="st-container st-hero-content">
+        <span class="st-hero-badge" v-if="heroSection.settings?.show_badge !== false">{{ heroSection.settings?.badge_text?.[currentLang] || heroSection.settings?.badge_text || '✦ Novidade ✦' }}</span>
+        <h1 v-html="heroSection.title"></h1>
+        <p v-if="heroSection.subtitle">{{ heroSection.subtitle }}</p>
+        <div class="st-hero-actions">
+          <a href="#catalog" class="st-btn st-btn-primary">{{ heroSection.settings?.cta_text?.[currentLang] || heroSection.settings?.cta_text || t('viewCatalog') }}</a>
+          <a href="#about" v-if="aboutSection" class="st-btn st-btn-outline">{{ heroSection.settings?.cta_secondary?.[currentLang] || t('aboutUs') }}</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Featured Products -->
+    <section class="st-section st-section-alt" id="featured" v-if="hasFeatured">
+      <div class="st-container">
+        <div class="st-section-header">
+          <span class="st-section-tag">{{ t('featuredTag') }}</span>
+          <h2>{{ t('featuredTitle') }}</h2>
+        </div>
+        <div class="st-products-grid st-featured">
+          <div v-for="p in featuredProducts" :key="p.id" class="st-product-card st-reveal" @click="viewProduct(p.id)">
+            <span class="st-badge-discount" v-if="p.compareAtPrice && p.price">-{{ Math.round((1 - p.price / p.compareAtPrice) * 100) }}%</span>
+            <a href="#" class="st-product-link" @click.prevent="viewProduct(p.id)">
+              <div class="st-product-img">
+                <img v-if="p.featuredImage || (p.images && p.images[0])" :src="p.featuredImage || p.images[0]" :alt="p.name" loading="lazy">
+                <div v-else class="st-product-img-placeholder">{{ p.type === 'service' ? '🛎️' : p.type === 'digital' ? '📱' : '📦' }}</div>
+              </div>
+            </a>
+            <div class="st-product-info">
+              <a href="#" class="st-product-link" @click.prevent="viewProduct(p.id)">
+                <span class="st-product-brand" v-if="p.brand">{{ p.brand }}</span>
+                <h3 class="st-product-name">{{ p.name }}</h3>
+              </a>
+              <span class="st-product-category" v-if="getLocalizedField(p, 'category')">{{ getLocalizedField(p, 'category') }}</span>
+              <p class="st-product-desc">{{ getLocalizedField(p, 'description') }}</p>
+              <div class="st-product-price">
+                <span class="st-price-old" v-if="p.compareAtPrice">{{ formatCurrency(p.compareAtPrice) }}</span>
+                <span class="st-price-current" v-if="p.price > 0">{{ formatCurrency(p.price) }}</span>
+                <span class="st-price-consulte" v-else>{{ t('consultPrice') }}</span>
+              </div>
+            </div>
+            <div class="st-product-actions" v-if="p.price > 0">
+              <button class="st-btn-add-cart" :data-id="p.id" :data-name="p.name" :data-price="p.price" :data-image="p.featuredImage || (p.images && p.images[0]) || ''" @click.stop="addToCart(p)">{{ t('addToCart') }}</button>
+            </div>
+            <div v-else class="st-product-actions">
+              <a :href="brand.whatsappUrl + '&text=' + encodeURIComponent(t('askPrice') + ' ' + p.name)" target="_blank" class="st-btn-whatsapp-sm">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+                {{ t('ask') }}
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Catalog with Filters -->
+    <section class="st-section" id="catalog">
+      <div class="st-container">
+        <div class="st-section-header">
+          <span class="st-section-tag">{{ t('catalogTag') }}</span>
+          <h2>{{ t('catalogTitle') }}</h2>
+        </div>
+        <div class="st-filters" v-if="categories.length > 1">
+          <button class="st-filter-btn" :class="{active: activeCategory === ''}" @click="activeCategory=''">{{ t('all') }}</button>
+          <button v-for="cat in categories" :key="cat" class="st-filter-btn" :class="{active: activeCategory === cat}" @click="activeCategory=cat">{{ cat }}</button>
+        </div>
+        <div class="st-products-grid">
+          <div v-for="p in filteredProducts" :key="p.id" class="st-product-card st-reveal" :data-category="p.category" @click="viewProduct(p.id)">
+            <span class="st-badge-discount" v-if="p.compareAtPrice && p.price">-{{ Math.round((1 - p.price / p.compareAtPrice) * 100) }}%</span>
+            <span class="st-badge-stock" v-if="p.trackStock && p.stock <= 0">{{ t('outOfStock') }}</span>
+            <a href="#" class="st-product-link" @click.prevent="viewProduct(p.id)">
+              <div class="st-product-img">
+                <img v-if="p.featuredImage || (p.images && p.images[0])" :src="p.featuredImage || p.images[0]" :alt="p.name" loading="lazy">
+                <div v-else class="st-product-img-placeholder">{{ p.type === 'service' ? '🛎️' : p.type === 'digital' ? '📱' : '📦' }}</div>
+              </div>
+            </a>
+            <div class="st-product-info">
+              <a href="#" class="st-product-link" @click.prevent="viewProduct(p.id)">
+                <span class="st-product-brand" v-if="p.brand">{{ p.brand }}</span>
+                <h3 class="st-product-name">{{ p.name }}</h3>
+              </a>
+              <span class="st-product-category" v-if="getLocalizedField(p, 'category')">{{ getLocalizedField(p, 'category') }}</span>
+              <p class="st-product-desc">{{ getLocalizedField(p, 'description') }}</p>
+              <div class="st-product-price">
+                <span class="st-price-old" v-if="p.compareAtPrice">{{ formatCurrency(p.compareAtPrice) }}</span>
+                <span class="st-price-current" v-if="p.price > 0">{{ formatCurrency(p.price) }}</span>
+                <span class="st-price-consulte" v-else>{{ t('consultPrice') }}</span>
+              </div>
+            </div>
+            <div class="st-product-actions" v-if="p.price > 0 && (!p.trackStock || p.stock > 0)">
+              <button class="st-btn-add-cart" @click.stop="addToCart(p)">{{ t('addToCart') }}</button>
+            </div>
+            <div v-else-if="p.trackStock && p.stock <= 0" class="st-product-actions">
+              <button class="st-btn-add-cart" disabled style="opacity:0.5;cursor:not-allowed">{{ t('outOfStock') }}</button>
+            </div>
+            <div v-else class="st-product-actions">
+              <a :href="brand.whatsappUrl + '&text=' + encodeURIComponent(t('askPrice') + ' ' + p.name)" target="_blank" class="st-btn-whatsapp-sm">💬 {{ t('ask') }}</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Features / About sections -->
+    <section class="st-section st-section-alt" id="about" v-if="featuresSection">
+      <div class="st-container">
+        <div class="st-section-header" v-if="featuresSection.title">
+          <span class="st-section-tag">{{ t('featuresTag') }}</span>
+          <h2>{{ featuresSection.title }}</h2>
+        </div>
+        <div class="st-features-grid">
+          <div v-for="(item, i) in (featuresSection.items || [])" :key="i" class="st-feature-card st-reveal">
+            <div class="st-feature-icon">{{ item.icon || '✦' }}</div>
+            <h3>{{ item.title }}</h3>
+            <p>{{ item.desc }}</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA section -->
+    <section class="st-section" v-if="ctaSection">
+      <div class="st-container st-cta">
+        <h2>{{ ctaSection.title }}</h2>
+        <p v-if="ctaSection.subtitle">{{ ctaSection.subtitle }}</p>
+        <div class="st-hero-actions" style="margin-top:24px">
+          <button @click="showAuthModal('register')" class="st-btn st-btn-primary">{{ ctaSection.settings?.cta_text?.[currentLang] || ctaSection.settings?.cta_text || t('startNow') }}</button>
+          <a :href="brand.whatsappUrl" target="_blank" class="st-btn st-btn-whatsapp" style="width:auto;padding:15px 36px" v-if="brand.whatsappUrl">💬 WhatsApp</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="st-footer">
+      <div class="st-container">
+        <div class="st-footer-inner">
+          <div class="st-footer-brand">
+            <img v-if="brand.logoUrl" :src="brand.logoUrl" class="st-footer-logo" :alt="brand.brandName">
+            <span v-else class="st-logo-icon">✦</span>
+            <span class="st-logo-name">{{ brand.brandName }}</span>
+          </div>
+          <div class="st-footer-social" v-if="brand.instagramUrl || brand.facebookUrl || brand.tiktokUrl">
+            <a v-if="brand.instagramUrl" :href="brand.instagramUrl" target="_blank" aria-label="Instagram" class="st-footer-social-link">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="5"/><circle cx="17.5" cy="6.5" r="1.5" fill="currentColor" stroke="none"/></svg>
+            </a>
+            <a v-if="brand.facebookUrl" :href="brand.facebookUrl" target="_blank" aria-label="Facebook" class="st-footer-social-link">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg>
+            </a>
+          </div>
+          <p class="st-footer-copy">&copy; {{ new Date().getFullYear() }} {{ brand.brandName }}. {{ t('allRights') }}.</p>
+          <div class="st-footer-legal">
+            <a href="/privacidade">{{ t('privacy') }}</a>
+            <a href="/cookies">{{ t('cookies') }}</a>
+            <a href="/termos">{{ t('terms') }}</a>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+  <!-- ==================== PRODUCT DETAIL VIEW ==================== -->
+  <div v-if="storeView === 'product'" class="st-product-detail">
+    <div class="st-container">
+      <nav class="st-breadcrumb">
+        <a href="#" @click.prevent="storeView='catalog'">{{ t('home') }}</a>
+        <span>/</span>
+        <a href="#catalog" @click.prevent="storeView='catalog'">{{ t('catalog') }}</a>
+        <span>/</span>
+        <span>{{ currentProduct?.name }}</span>
+      </nav>
+
+      <div class="st-product-layout" v-if="currentProduct">
+        <div class="st-gallery-main">
+          <span class="st-badge-discount" v-if="currentProduct.compareAtPrice && currentProduct.price">-{{ Math.round((1 - currentProduct.price / currentProduct.compareAtPrice) * 100) }}%</span>
+          <img v-if="currentProduct.featuredImage || (currentProduct.images && currentProduct.images[0])" :src="currentProduct.featuredImage || currentProduct.images[0]" :alt="currentProduct.name">
+        </div>
+
+        <div class="st-detail-info">
+          <span class="st-detail-category" v-if="currentProduct.category">{{ currentProduct.category }}</span>
+          <h1 class="st-detail-title">{{ currentProduct.name }}</h1>
+          <span class="st-detail-brand" v-if="currentProduct.brand">{{ currentProduct.brand }}</span>
+
+          <div class="st-detail-price" v-if="currentProduct.price > 0">
+            <div class="st-price-box" style="display:flex;align-items:baseline;gap:12px">
+              <span class="st-price-old st-price-current" v-if="currentProduct.compareAtPrice" style="font-size:16px;text-decoration:line-through">{{ formatCurrency(currentProduct.compareAtPrice) }}</span>
+              <span class="st-price-current" style="font-size:34px">{{ formatCurrency(currentProduct.price) }}</span>
+            </div>
+            <span class="st-price-parcel" v-if="currentProduct.price >= 3">ou 3x de {{ formatCurrency(currentProduct.price / 3) }} sem juros</span>
+          </div>
+          <div v-else>
+            <span class="st-price-consulte" style="font-size:20px">{{ t('consultPrice') }}</span>
+          </div>
+
+          <p class="st-detail-desc">{{ getLocalizedField(currentProduct, 'description') }}</p>
+
+          <div class="st-detail-meta">
+            <div class="st-meta-item" v-if="currentProduct.weight">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z"/><line x1="3" y1="6" x2="21" y2="6"/><path d="M16 10a4 4 0 01-8 0"/></svg>
+              <span>{{ currentProduct.weight }}{{ currentProduct.weightUnit }}</span>
+            </div>
+            <div class="st-meta-item" v-if="currentProduct.trackStock && currentProduct.stock > 0 && currentProduct.type === 'physical'">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              <span>{{ t('inStock') }}: {{ currentProduct.stock }}</span>
+            </div>
+          </div>
+
+          <div class="st-detail-actions" v-if="currentProduct.price > 0">
+            <button class="st-btn st-btn-primary st-btn-lg" @click="addToCart(currentProduct)">{{ t('addToCart') }}</button>
+            <a :href="brand.whatsappUrl + '&text=' + encodeURIComponent(t('interestIn') + ' ' + currentProduct.name)" target="_blank" class="st-btn st-btn-whatsapp st-btn-lg" style="width:auto">💬 WhatsApp</a>
+          </div>
+          <div v-else class="st-detail-actions">
+            <a :href="brand.whatsappUrl + '&text=' + encodeURIComponent(t('askPrice') + ' ' + currentProduct.name)" target="_blank" class="st-btn st-btn-whatsapp st-btn-lg">💬 {{ t('askPrice') }}</a>
+          </div>
+
+          <!-- Technical specs (pirâmide olfativa, etc) -->
+          <div class="st-specs" v-if="currentProduct.technicalSpecs && Object.keys(currentProduct.technicalSpecs).length > 0">
+            <h3>{{ t('specifications') }}</h3>
+            <template v-for="(val, key) in currentProduct.technicalSpecs" :key="key">
+              <div class="st-specs-group" v-if="Array.isArray(val) && val.length > 0">
+                <span class="st-specs-label">{{ key }}</span>
+                <div class="st-specs-tags">
+                  <span v-for="v in val" :key="v" class="st-spec-tag" :class="key.toLowerCase().includes('topo') || key.toLowerCase().includes('top') ? 'top' : key.toLowerCase().includes('corpo') || key.toLowerCase().includes('heart') || key.toLowerCase().includes('body') ? 'body' : 'base'">{{ v }}</span>
+                </div>
+              </div>
+              <div class="st-specs-group" v-else-if="typeof val === 'string' && val">
+                <span class="st-specs-label">{{ key }}</span>
+                <span>{{ val }}</span>
+              </div>
+            </template>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== CART SIDEBAR ==================== -->
+  <div class="st-cart-sidebar" :class="{open: cartOpen}">
+    <div class="st-cart-header">
+      <h3>{{ t('yourCart') }}</h3>
+      <button class="st-cart-close" @click="cartOpen = false">&times;</button>
+    </div>
+    <div class="st-cart-items">
+      <div class="st-cart-empty" v-if="cart.length === 0">
+        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 002 1.61h9.72a2 2 0 002-1.61L23 6H6"/></svg>
+        <p>{{ t('cartEmpty') }}</p>
+      </div>
+      <div v-for="(item, idx) in cart" :key="idx" class="st-cart-item">
+        <div class="st-cart-item-img">
+          <img v-if="item.image" :src="item.image" :alt="item.name">
+          <div v-else style="width:68px;height:68px;background:var(--st-dark-4);border-radius:var(--st-radius-xs);display:flex;align-items:center;justify-content:center;font-size:20px">📦</div>
+        </div>
+        <div class="st-cart-item-info">
+          <div class="st-cart-item-name">{{ item.name }}</div>
+          <div class="st-cart-item-price">{{ formatCurrency(item.price) }}</div>
+          <div class="st-cart-qty">
+            <button @click="updateCartQty(idx, item.qty - 1)">&minus;</button>
+            <span>{{ item.qty }}</span>
+            <button @click="updateCartQty(idx, item.qty + 1)">+</button>
+          </div>
+        </div>
+        <button class="st-cart-item-remove" @click="removeFromCart(idx)">&times;</button>
+      </div>
+    </div>
+    <div class="st-cart-footer" v-if="cart.length > 0">
+      <div class="st-cart-total">
+        <span>{{ t('total') }}:</span>
+        <span>{{ formatCurrency(cartTotal) }}</span>
+      </div>
+      <button class="st-btn st-btn-whatsapp" @click="showCheckout">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-right:8px"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+        {{ t('checkoutWhatsapp') }}
+      </button>
+    </div>
+  </div>
+
+  <!-- Overlay -->
+  <div class="st-overlay" :class="{show: cartOpen || checkoutOpen}" @click="cartOpen=false; checkoutOpen=false"></div>
+
+  <!-- Checkout Modal -->
+  <div class="st-checkout-modal" :class="{active: checkoutOpen}">
+    <div class="st-checkout-inner">
+      <div class="st-checkout-header">
+        <h3>{{ t('checkoutTitle') }}</h3>
+        <button class="st-checkout-close" @click="checkoutOpen=false">&times;</button>
+      </div>
+      <div class="st-checkout-error" id="checkoutError"></div>
+      <form @submit.prevent="submitOrder">
+        <div class="st-form-row">
+          <div class="st-form-group"><label>{{ t('fullName') }} *</label><input type="text" v-model="orderForm.name" required class="st-input" :placeholder="t('yourName')"></div>
+          <div class="st-form-group"><label>WhatsApp *</label><input type="tel" v-model="orderForm.phone" required class="st-input" :placeholder="t('phonePlaceholder')"></div>
+        </div>
+        <div class="st-form-row">
+          <div class="st-form-group"><label>Email</label><input type="email" v-model="orderForm.email" class="st-input" placeholder="email@example.com"></div>
+          <div class="st-form-group"><label>{{ t('address') }}</label><input type="text" v-model="orderForm.address" class="st-input" :placeholder="t('addressPlaceholder')"></div>
+        </div>
+        <div class="st-form-row">
+          <div class="st-form-group"><label>{{ t('coupon') }}</label><input type="text" v-model="orderForm.coupon" class="st-input" :placeholder="t('couponPlaceholder')"></div>
+          <div class="st-form-group"><label>{{ t('notes') }}</label><input type="text" v-model="orderForm.notes" class="st-input" :placeholder="t('notesPlaceholder')"></div>
+        </div>
+        <div class="st-checkout-total">
+          <span>{{ t('total') }}:</span>
+          <span>{{ formatCurrency(cartTotal) }}</span>
+        </div>
+        <button type="submit" class="st-btn st-btn-whatsapp" style="width:100%;font-size:16px;padding:16px">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="margin-right:8px"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+          {{ t('sendOrder') }}
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- WhatsApp Float -->
+  <div class="st-whatsapp-float" v-if="brand.whatsappUrl">
+    <a :href="brand.whatsappUrl" target="_blank" aria-label="WhatsApp">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="white"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347z"/></svg>
+    </a>
+  </div>
+
+  <!-- Cookie Banner -->
+  <div class="st-cookie-banner" :class="{show: showCookieBanner}">
+    <div class="st-cookie-banner-inner">
+      <p>{{ t('cookieText') }} <a href="/cookies">{{ t('cookies') }}</a> {{ t('and') }} <a href="/privacidade">{{ t('privacy') }}</a>.</p>
+      <div class="st-cookie-actions">
+        <button class="st-cookie-accept" @click="acceptCookies('all')">{{ t('accept') }}</button>
+        <button class="st-cookie-reject" @click="acceptCookies('necessary')">{{ t('reject') }}</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
+<script src="js/store.js?v=1"></script>
+</body>
+</html>

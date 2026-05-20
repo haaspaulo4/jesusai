@@ -82,6 +82,18 @@ const DEFAULTS = {
   landing_cta_button_pt: '',
   landing_cta_button_en: '',
   landing_cta_button_es: '',
+  store_currency: 'BRL',
+  store_currency_symbol: 'R$',
+  store_whatsapp: '',
+  store_hero_video: '',
+  store_footer_text: '',
+  store_instagram_url: '',
+  store_facebook_url: '',
+  store_tiktok_url: '',
+  store_cookie_consent: 'true',
+  store_delivery_fee: '7',
+  store_free_delivery_above: '90',
+  store_delivery_zones: '[{"name":"Centro","keywords":["centro","downtown","praca","praca da matriz"],"fee":0,"estimated_minutes":"20-30"},{"name":"Raio 3km","keywords":["bairro","jardim","vila","parque","residencial"],"fee":5,"estimated_minutes":"30-40"},{"name":"Raio 5km","keywords":["distrito","rural","rodovia","km"],"fee":7,"estimated_minutes":"35-45"},{"name":"Premium","keywords":["condominio","alphaville","loteamento","lote"],"fee":10,"estimated_minutes":"40-55"}]',
 };
 
 async function loadSettings() {

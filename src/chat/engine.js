@@ -357,14 +357,24 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
    let extraContext = [goalContext, orgContext, stageContext, xpContext, progressContext, cognitiveContext].filter(Boolean).join('\n\n');
 
-  let businessStr = '';
-  try {
-    const businessModule = require('../business');
-    const businessConfig = await businessModule.getBusinessConfig(persona.id);
-    if (businessConfig && businessConfig.name) {
+   let businessStr = '';
+   try {
+     const businessModule = require('../business');
+     const businessConfig = await businessModule.getBusinessConfig(persona.id);
+     if (businessConfig && businessConfig.name) {
        businessStr = businessModule.formatBusinessContext(businessConfig);
      }
    } catch (err) { console.error('[ChatEngine] business context error:', err.message); }
+
+   try {
+     const { getSetting } = require('../settings');
+     const commerceEnabled = await getSetting('commerce_enabled');
+     if (commerceEnabled !== 'false' && commerceEnabled !== '0') {
+       const storeName = await getSetting('brand_name') || '';
+       const currency = await getSetting('store_currency_symbol') || 'R$';
+       businessStr += `\n\nCOMMERCE SYSTEM: You have access to commerce tools for taking orders. When a customer wants to order products or place an order, use these tools in sequence:\n1. catalog_search — Find products by name, category, or search term\n2. commerce_add_to_cart — Add products to the customer's cart (use session_id from this conversation)\n3. commerce_cart_summary — Show the current cart contents and total\n4. commerce_set_address — Save delivery address and calculate shipping fee\n5. commerce_set_payment — Set payment method (pix, dinheiro, cartao) and change amount\n6. commerce_apply_coupon — Apply discount coupon if provided\n7. commerce_finalize_order — Confirm and create the order in the system (deducts stock automatically)\n\nRULES:\n- Always confirm the order details BEFORE finalizing (items, address, payment, total)\n- For cash payments, always ask for the amount they'll pay to calculate change\n- If a product is not found via catalog_search, suggest similar products from the catalog\n- Calculate delivery fee based on the address zone using commerce_calculate_delivery\n- For "dinheiro" payment, if customer mentions a bill amount, set change_for in commerce_set_payment\n- After finalizing, provide the order number and estimated delivery time\n- Current store: ${storeName || 'our store'} | Currency: ${currency}`;
+     }
+   } catch (err) { /* commerce context optional */ }
 
     let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, persona.knowledgeSources, businessStr);
   if (extraContext) {

@@ -96,29 +96,26 @@ async function seedDefaultSections() {
   const defaults = [
     {
       section_key: 'landing_hero', type: 'hero',
-      title: { 'pt-BR': 'Qual persona você precisa?', 'en-US': 'Which persona do you need?', 'es-ES': '¿Qué persona necesitas?' },
-      subtitle: { 'pt-BR': 'Crie assistentes virtuais com identidade própria, conhecimento real e voz natural.', 'en-US': 'Create virtual assistants with their own identity, real knowledge and natural voice.', 'es-ES': 'Crea asistentes virtuales con identidad propia, conocimiento real y voz natural.' },
-      settings: { cta_text: { 'pt-BR': 'Começar a conversar', 'en-US': 'Start chatting', 'es-ES': 'Empezar a chatear' }, cta_secondary: { 'pt-BR': 'Ver todas as personas', 'en-US': 'See all personas', 'es-ES': 'Ver todas las personas' }, show_badge: true, badge_text: 'RAG Multimodal' },
+      title: { 'pt-BR': 'Perfumes que contam histórias', 'en-US': 'Fragrances that tell stories', 'es-ES': 'Perfumes que cuentan historias' },
+      subtitle: { 'pt-BR': 'Fragrâncias exclusivas das maiores marcas árabes, entregues com carinho na sua porta.', 'en-US': 'Exclusive fragrances from the greatest Arabian brands, delivered with care to your door.', 'es-ES': 'Fragancias exclusivas de las mejores marcas árabes, entregadas con cariño en su puerta.' },
+      settings: { cta_text: { 'pt-BR': 'Ver Catálogo', 'en-US': 'View Catalog', 'es-ES': 'Ver Catálogo' }, cta_secondary: { 'pt-BR': 'Destaques', 'en-US': 'Featured', 'es-ES': 'Destacados' }, show_badge: true, badge_text: { 'pt-BR': '✦ Importados & Originais ✦', 'en-US': '✦ Imported & Original ✦', 'es-ES': '✦ Importados & Originales ✦' } },
       position: 0,
     },
     {
       section_key: 'landing_features', type: 'features',
-      title: { 'pt-BR': 'Recursos', 'en-US': 'Features', 'es-ES': 'Recursos' },
+      title: { 'pt-BR': 'Por que escolher a gente?', 'en-US': 'Why choose us?', 'es-ES': '¿Por qué elegirnos?' },
       items: [
-        { icon: '💬', title: { 'pt-BR': 'Conversa inteligente', 'en-US': 'Smart conversation', 'es-ES': 'Conversación inteligente' }, desc: { 'pt-BR': 'Respostas fundamentadas no conhecimento indexado, com memória e contexto.', 'en-US': 'Answers grounded in indexed knowledge, with memory and context.', 'es-ES': 'Respuestas fundamentadas en conocimiento indexado, con memoria y contexto.' } },
-        { icon: '🧠', title: { 'pt-BR': 'Memória e contexto', 'en-US': 'Memory and context', 'es-ES': 'Memoria y contexto' }, desc: { 'pt-BR': 'Lembra do seu nome, seus interesses e suas conversas anteriores.', 'en-US': 'Remembers your name, interests and previous conversations.', 'es-ES': 'Recuerda tu nombre, intereses y conversaciones anteriores.' } },
-        { icon: '🔊', title: { 'pt-BR': 'Voz natural', 'en-US': 'Natural voice', 'es-ES': 'Voz natural' }, desc: { 'pt-BR': 'Ouça as respostas em áudio com TTS em português, inglês ou espanhol.', 'en-US': 'Listen to answers in audio with TTS in Portuguese, English or Spanish.', 'es-ES': 'Escucha las respuestas en audio con TTS en portugués, inglés o español.' } },
-        { icon: '🌍', title: { 'pt-BR': '3 idiomas', 'en-US': '3 languages', 'es-ES': '3 idiomas' }, desc: { 'pt-BR': 'Responde automaticamente no idioma que você usar.', 'en-US': 'Responds automatically in the language you use.', 'es-ES': 'Responde automáticamente en el idioma que uses.' } },
-        { icon: '📦', title: { 'pt-BR': 'Produtos e pedidos', 'en-US': 'Products and orders', 'es-ES': 'Productos y pedidos' }, desc: { 'pt-BR': 'Catálogo, carrinho, PIX, entregas e cobrança automática.', 'en-US': 'Catalog, cart, PIX payments, deliveries and automatic billing.', 'es-ES': 'Catálogo, carrito, PIX, entregas y cobro automático.' } },
-        { icon: '📊', title: { 'pt-BR': 'Dashboard completo', 'en-US': 'Full dashboard', 'es-ES': 'Dashboard completo' }, desc: { 'pt-BR': 'Financeiro, estoque, vendas, clientes — tudo gerenciável.', 'en-US': 'Financial, inventory, sales, customers — all manageable.', 'es-ES': 'Financiero, inventario, ventas, clientes — todo gestionable.' } },
+        { icon: '✓', title: { 'pt-BR': '100% Originais', 'en-US': '100% Original', 'es-ES': '100% Original' }, desc: { 'pt-BR': 'Todos os nossos perfumes são importados e originais, com garantia de autenticidade.', 'en-US': 'All our fragrances are imported and original, with authenticity guarantee.', 'es-ES': 'Todos nuestros perfumes son importados y originales, con garantía de autenticidad.' } },
+        { icon: '✈', title: { 'pt-BR': 'Envio pra Todo Brasil', 'en-US': 'Nationwide Shipping', 'es-ES': 'Envío a Todo Brasil' }, desc: { 'pt-BR': 'Entregamos em todo o território nacional com embalagem especial e rastreio.', 'en-US': 'We deliver nationwide with special packaging and tracking.', 'es-ES': 'Entregamos en todo el territorio nacional con embalaje especial y rastreo.' } },
+        { icon: '💬', title: { 'pt-BR': 'Atendimento VIP', 'en-US': 'VIP Support', 'es-ES': 'Atención VIP' }, desc: { 'pt-BR': 'Fale direto conosco pelo WhatsApp. Tire dúvidas e faça seu pedido!', 'en-US': 'Talk directly with us on WhatsApp. Ask questions and place your order!', 'es-ES': 'Hable directamente con nosotros por WhatsApp. ¡Resuelva dudas y haga su pedido!' } },
       ],
       position: 1,
     },
     {
       section_key: 'landing_cta', type: 'cta',
-      title: { 'pt-BR': 'Pronto para conversar?', 'en-US': 'Ready to chat?', 'es-ES': '¿Listo para chatear?' },
+      title: { 'pt-BR': 'Pronto para encontrar seu perfume ideal?', 'en-US': 'Ready to find your perfect fragrance?', 'es-ES': '¿Listo para encontrar tu perfume ideal?' },
       subtitle: { 'pt-BR': 'Comece agora — grátis, sem fila, 24 horas por dia.', 'en-US': 'Start now — free, no queue, 24 hours a day.', 'es-ES': 'Empieza ahora — gratis, sin fila, 24 horas al día.' },
-      settings: { cta_text: { 'pt-BR': 'Conversar agora', 'en-US': 'Chat now', 'es-ES': 'Chatear ahora' } },
+      settings: { cta_text: { 'pt-BR': 'Falar no WhatsApp', 'en-US': 'Chat on WhatsApp', 'es-ES': 'Hablar por WhatsApp' } },
       position: 2,
     },
     {

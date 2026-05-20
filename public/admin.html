@@ -52,6 +52,17 @@
       <a href="#" data-page="integrations" class="nav-link">Integracoes</a>
       <a href="#" data-page="commands" class="nav-link">Comandos</a>
       <a href="#" data-page="queue" class="nav-link">Filas</a>
+      <div class="nav-divider"></div>
+      <div class="nav-section-label">ERP</div>
+      <a href="#" data-page="products" class="nav-link">Produtos</a>
+      <a href="#" data-page="orders" class="nav-link">Pedidos</a>
+      <a href="#" data-page="stock" class="nav-link">Estoque</a>
+      <a href="#" data-page="finance" class="nav-link">Financeiro</a>
+      <a href="#" data-page="suppliers" class="nav-link">Fornecedores</a>
+      <a href="#" data-page="sitecms" class="nav-link">Site CMS</a>
+      <a href="#" data-page="coupons" class="nav-link">Cupons</a>
+      <a href="#" data-page="delivery" class="nav-link">Entrega</a>
+      <div class="nav-divider"></div>
       <a href="#" data-page="settings" class="nav-link">Configuracoes</a>
     </nav>
     <div class="sidebar-footer">
@@ -585,7 +596,179 @@
         <p style="color:var(--muted)">Filas BullMQ (requer Redis). Se Redis nao estiver disponivel, o sistema usa processamento por intervalo como fallback.</p>
       </div>
     </section>
+
+    <!-- ========== ERP: PRODUCTS ========== -->
+    <section id="page-products" class="page">
+      <div class="page-header">
+        <h1>Produtos & Servicos</h1>
+        <div class="toolbar">
+          <input type="text" id="productSearch" placeholder="Buscar produto..." class="input" style="max-width:260px">
+          <select id="productTypeFilter" class="input" style="max-width:140px"><option value="">Todos</option><option value="physical">Fisicos</option><option value="digital">Digitais</option><option value="service">Servicos</option></select>
+          <select id="productCategoryFilter" class="input" style="max-width:160px"><option value="">Todas categorias</option></select>
+          <button id="addProductBtn" class="btn btn-primary">+ Novo Produto</button>
+        </div>
+      </div>
+      <div id="productStats" class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))"></div>
+      <div id="productTable" class="card" style="margin-top:1rem"></div>
+      <div id="productPagination" style="margin-top:0.5rem;text-align:center"></div>
+    </section>
+
+    <!-- ========== ERP: ORDERS ========== -->
+    <section id="page-orders" class="page">
+      <div class="page-header">
+        <h1>Pedidos</h1>
+        <div class="toolbar">
+          <input type="text" id="orderSearch" placeholder="Buscar pedido, cliente..." class="input" style="max-width:260px">
+          <select id="orderStatusFilter" class="input" style="max-width:140px">
+            <option value="">Todos status</option><option value="pending">Pendente</option><option value="confirmed">Confirmado</option>
+            <option value="paid">Pago</option><option value="processing">Processando</option><option value="shipped">Enviado</option>
+            <option value="delivered">Entregue</option><option value="cancelled">Cancelado</option>
+          </select>
+          <select id="orderPaymentFilter" class="input" style="max-width:140px">
+            <option value="">Pagamento</option><option value="pending">Pendente</option><option value="paid">Pago</option>
+            <option value="expired">Expirado</option><option value="refunded">Reembolsado</option>
+          </select>
+        </div>
+      </div>
+      <div id="orderStats" class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))"></div>
+      <div id="orderTable" class="card" style="margin-top:1rem"></div>
+      <div id="orderPagination" style="margin-top:0.5rem;text-align:center"></div>
+    </section>
+
+    <!-- ========== ERP: STOCK ========== -->
+    <section id="page-stock" class="page">
+      <div class="page-header">
+        <h1>Estoque</h1>
+        <div class="toolbar">
+          <input type="text" id="stockSearch" placeholder="Buscar produto..." class="input" style="max-width:260px">
+          <button id="stockAdjustBtn" class="btn btn-primary">Ajustar Estoque</button>
+        </div>
+      </div>
+      <div id="stockStats" class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))"></div>
+      <div id="stockTable" class="card" style="margin-top:1rem"></div>
+      <div id="lowStockAlerts" style="margin-top:1rem"></div>
+    </section>
+
+    <!-- ========== ERP: FINANCE ========== -->
+    <section id="page-finance" class="page">
+      <div class="page-header">
+        <h1>Financeiro</h1>
+        <div class="toolbar">
+          <input type="date" id="financeDateFrom" class="input" style="max-width:160px">
+          <input type="date" id="financeDateTo" class="input" style="max-width:160px">
+          <select id="financeTypeFilter" class="input" style="max-width:140px"><option value="">Tipo</option><option value="income">Receita</option><option value="expense">Despesa</option><option value="refund">Reembolso</option></select>
+          <button id="addTransactionBtn" class="btn btn-primary">+ Transacao</button>
+        </div>
+      </div>
+      <div id="financeDashboard" class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))"></div>
+      <div id="transactionTable" class="card" style="margin-top:1rem"></div>
+    </section>
+
+    <!-- ========== ERP: SUPPLIERS ========== -->
+    <section id="page-suppliers" class="page">
+      <div class="page-header">
+        <h1>Fornecedores</h1>
+        <div class="toolbar">
+          <input type="text" id="supplierSearch" placeholder="Buscar fornecedor..." class="input" style="max-width:260px">
+          <select id="supplierCategoryFilter" class="input" style="max-width:160px"><option value="">Todas categorias</option></select>
+          <button id="addSupplierBtn" class="btn btn-primary">+ Novo Fornecedor</button>
+        </div>
+      </div>
+      <div id="supplierStats" class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr))"></div>
+      <div id="supplierTable" class="card" style="margin-top:1rem"></div>
+    </section>
+
+    <!-- ========== ERP: SITE CMS ========== -->
+    <section id="page-sitecms" class="page">
+      <div class="page-header">
+        <h1>Site CMS</h1>
+        <button id="addSectionBtn" class="btn btn-primary">+ Nova Secao</button>
+      </div>
+      <div id="sectionList" class="card"></div>
+    </section>
+
+    <section id="page-coupons" class="page">
+      <div class="page-header">
+        <h1>Cupons de Desconto</h1>
+        <button onclick="showCouponModal()" class="btn btn-primary">+ Novo Cupom</button>
+      </div>
+      <div id="couponsTable" class="card"></div>
+    </section>
+
+    <section id="page-delivery" class="page">
+      <div class="page-header">
+        <h1>Configuracoes de Entrega</h1>
+        <button onclick="saveDeliverySettings()" class="btn btn-primary">Salvar</button>
+      </div>
+      <div class="card" style="padding:1.5rem">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1.5rem">
+          <div>
+            <label style="color:var(--muted);font-size:0.85rem">Taxa de entrega padrao (R$)</label>
+            <input type="number" id="deliveryFee" step="0.01" class="input" style="width:100%;margin-top:0.5rem">
+          </div>
+          <div>
+            <label style="color:var(--muted);font-size:0.85rem">Frete gratis acima de (R$)</label>
+            <input type="number" id="freeDeliveryAbove" step="0.01" class="input" style="width:100%;margin-top:0.5rem">
+          </div>
+        </div>
+        <h3 style="margin-bottom:0.5rem">Zonas de Entrega</h3>
+        <p style="color:var(--muted);font-size:0.85rem;margin-bottom:1rem">Configure zonas com palavras-chave, taxa e tempo estimado. O matched pela zona ocorre quando o endereco contem uma das palavras-chave.</p>
+        <div id="deliveryZones"></div>
+        <button onclick="addDeliveryZone()" class="btn" style="margin-top:1rem">+ Zona</button>
+      </div>
+    </section>
   </main>
+</div>
+
+<div id="couponModal" class="modal-overlay" style="display:none">
+  <div class="modal" style="max-width:480px">
+    <h2 id="couponModalTitle">Novo Cupom</h2>
+    <div style="display:grid;gap:1rem;margin-top:1rem">
+      <div>
+        <label style="color:var(--muted);font-size:0.85rem">Codigo</label>
+        <input type="text" id="couponCode" class="input" placeholder="DESCONTO10" style="text-transform:uppercase">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div>
+          <label style="color:var(--muted);font-size:0.85rem">Tipo</label>
+          <select id="couponType" class="input">
+            <option value="percentage">Porcentagem (%)</option>
+            <option value="fixed">Valor Fixo (R$)</option>
+          </select>
+        </div>
+        <div>
+          <label style="color:var(--muted);font-size:0.85rem">Valor</label>
+          <input type="number" id="couponValue" step="0.01" class="input">
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+        <div>
+          <label style="color:var(--muted);font-size:0.85rem">Pedido minimo (R$)</label>
+          <input type="number" id="couponMinValue" step="0.01" class="input" value="0">
+        </div>
+        <div>
+          <label style="color:var(--muted);font-size:0.85rem">Usos maximos</label>
+          <input type="number" id="couponMaxUses" class="input" placeholder="Ilimitado">
+        </div>
+      </div>
+      <div>
+        <label style="color:var(--muted);font-size:0.85rem">Descricao</label>
+        <input type="text" id="couponDescription" class="input" placeholder="Descricao do cupom">
+      </div>
+      <div>
+        <label style="color:var(--muted);font-size:0.85rem">Expira em</label>
+        <input type="date" id="couponExpires" class="input">
+      </div>
+      <div style="display:flex;align-items:center;gap:0.5rem">
+        <input type="checkbox" id="couponActive" checked>
+        <label for="couponActive">Ativo</label>
+      </div>
+    </div>
+    <div style="display:flex;gap:1rem;margin-top:1.5rem;justify-content:flex-end">
+      <button onclick="closeCouponModal()" class="btn">Cancelar</button>
+      <button onclick="saveCoupon()" class="btn btn-primary">Salvar</button>
+    </div>
+  </div>
 </div>
 
 <div id="toast" class="toast" style="display:none"></div>

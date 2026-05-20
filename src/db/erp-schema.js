@@ -392,6 +392,43 @@ CREATE TABLE IF NOT EXISTS purchase_order_items (
   KEY idx_poi_product (product_id),
   CONSTRAINT fk_poi_order FOREIGN KEY (purchase_order_id) REFERENCES purchase_orders(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ========== COUPON CODES ==========
+CREATE TABLE IF NOT EXISTS coupon_codes (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  code VARCHAR(50) NOT NULL UNIQUE,
+  type ENUM('percentage','fixed') NOT NULL DEFAULT 'percentage',
+  value DECIMAL(12,2) NOT NULL,
+  min_value DECIMAL(12,2) DEFAULT 0,
+  max_uses INT DEFAULT NULL,
+  used_count INT DEFAULT 0,
+  description VARCHAR(500) DEFAULT NULL,
+  is_active TINYINT(1) DEFAULT 1,
+  expires_at TIMESTAMP NULL DEFAULT NULL,
+  owner_id VARCHAR(60) DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_coupon_code (code),
+  KEY idx_coupon_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ========== COMMERCE CARTS ==========
+CREATE TABLE IF NOT EXISTS commerce_carts (
+  id VARCHAR(80) PRIMARY KEY,
+  session_id VARCHAR(120) NOT NULL,
+  user_id VARCHAR(60) DEFAULT NULL,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  items JSON DEFAULT NULL,
+  shipping_address JSON DEFAULT NULL,
+  status ENUM('active','expired','completed','abandoned') DEFAULT 'active',
+  flow_step ENUM('browsing','building_order','confirming_address','confirming_payment','confirming_order','completed') DEFAULT 'browsing',
+  order_id VARCHAR(80) DEFAULT NULL,
+  metadata JSON DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_cart_session (session_id),
+  KEY idx_cart_user (user_id),
+  KEY idx_cart_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
 module.exports = ERP_SCHEMA;
