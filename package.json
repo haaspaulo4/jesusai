@@ -19,7 +19,11 @@
     "whisper:start:medium": "set WHISPER_MODEL=medium&& python whisper_server.py",
     "whisper:start:gpu": "set WHISPER_DEVICE=cuda&& set WHISPER_COMPUTE=float16&& python whisper_server.py",
     "whisper:setup": "scripts\\setup-whisper.bat",
-    "whisper:check": "node -e \"fetch('http://localhost:9000/health').then(r=>r.json()).then(d=>console.log(JSON.stringify(d,null,2))).catch(()=>console.log('Whisper server not running on :9000'))\""
+    "whisper:check": "node -e \"fetch('http://localhost:9000/health').then(r=>r.json()).then(d=>console.log(JSON.stringify(d,null,2))).catch(()=>console.log('Whisper server not running on :9000'))\"",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "test:ci": "jest --ci --coverage --forceExit"
   },
   "dependencies": {
     "axios": "^1.7.9",
@@ -50,5 +54,9 @@
     "socket.io": "^4.8.3",
     "tesseract.js": "^7.0.0",
     "xml2js": "^0.5.0"
+  },
+  "devDependencies": {
+    "jest": "^30.4.2",
+    "supertest": "^7.2.2"
   }
 }
