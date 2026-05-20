@@ -51,9 +51,10 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 async function api(path, opts = {}, retry = true) {
+  const base = path.startsWith('/erp') ? '/api' : path.startsWith('/admin') ? API : API;
   const headers = { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` };
   if (opts.headers) Object.assign(headers, opts.headers);
-  const res = await fetch(`${API}${path}`, { ...opts, headers });
+  const res = await fetch(`${base}${path}`, { ...opts, headers });
   if (res.status === 401 && retry) {
     const refreshToken = localStorage.getItem('mp_refresh_token');
     if (refreshToken) {
@@ -444,7 +445,7 @@ async function removeIntegration(id) { if (!confirm('Remover esta integracao?'))
 
 async function loadSettings() {
   try {
-    const settings = await api('/settings');
+    const settings = await api('/admin/settings');
     const known = ['onboarding_enabled','onboarding_greeting','survey_enabled','followup_enabled','followup_interval_messages','ratings_enabled','rate_limit_guest','rate_limit_user','rate_limit_premium','rate_limit_admin','tools_enabled','history_limit','search_verses_count','max_tokens','temperature','llm_timeout'];
     const grid = document.getElementById('settingsGrid');
     grid.innerHTML = known.map(k => `<div class="setting-item"><label>${esc(k)}</label><input type="text" class="input" id="setting-${esc(k)}" value="${esc(settings[k] || '')}" data-key="${esc(k)}"></div>`).join('');
@@ -456,7 +457,7 @@ async function loadSettings() {
     if (settings.brand_primary_color) document.getElementById('setting-brand_primary_color').value = settings.brand_primary_color;
     document.querySelectorAll('.setting-item .input').forEach(inp => {
       inp.addEventListener('change', async () => {
-        try { await api('/settings', { method: 'PUT', body: JSON.stringify({ key: inp.dataset.key, value: inp.value }) }); toast('Salvo!', 'success'); } catch (e) { toast(e.message, 'error'); }
+        try { await api('/admin/settings', { method: 'PUT', body: JSON.stringify({ key: inp.dataset.key, value: inp.value }) }); toast('Salvo!', 'success'); } catch (e) { toast(e.message, 'error'); }
       });
     });
   } catch (e) { toast(e.message, 'error'); }
@@ -464,12 +465,12 @@ async function loadSettings() {
 
 async function saveWhitelabel() {
   const fields = { brand_name: document.getElementById('setting-brand_name').value, brand_tagline: document.getElementById('setting-brand_tagline').value, brand_logo_url: document.getElementById('setting-brand_logo_url').value, brand_primary_color: document.getElementById('setting-brand_primary_color').value };
-  try { for (const [k, v] of Object.entries(fields)) { if (v) await api('/settings', { method: 'PUT', body: JSON.stringify({ key: k, value: v }) }); } toast('Whitelabel salvo!', 'success'); } catch (e) { toast(e.message, 'error'); }
+  try { for (const [k, v] of Object.entries(fields)) { if (v) await api('/admin/settings', { method: 'PUT', body: JSON.stringify({ key: k, value: v }) }); } toast('Whitelabel salvo!', 'success'); } catch (e) { toast(e.message, 'error'); }
 }
 
 async function savePlatformStyle() {
   const fields = { platform_avatar_style: document.getElementById('setting-platform_avatar_style').value, platform_emoji_style: document.getElementById('setting-platform_emoji_style').value, platform_font_family: document.getElementById('setting-platform_font_family').value, platform_animation_style: document.getElementById('setting-platform_animation_style').value };
-  try { for (const [k, v] of Object.entries(fields)) { if (v) await api('/settings', { method: 'PUT', body: JSON.stringify({ key: k, value: v }) }); } toast('Estilo salvo!', 'success'); } catch (e) { toast(e.message, 'error'); }
+  try { for (const [k, v] of Object.entries(fields)) { if (v) await api('/admin/settings', { method: 'PUT', body: JSON.stringify({ key: k, value: v }) }); } toast('Estilo salvo!', 'success'); } catch (e) { toast(e.message, 'error'); }
 }
 
 async function loadVectors() {
@@ -720,7 +721,7 @@ async function loadProducts() {
         const stockClass = !p.track_stock ? '' : p.stock <= 0 ? 'color:var(--danger);font-weight:700' : p.stock <= p.low_stock_threshold ? 'color:var(--warning);font-weight:600' : '';
         return `<tr><td>${img}</td><td><strong>${esc(p.name)}</strong>${p.brand ? `<br><small style="color:var(--muted)">${esc(p.brand)}</small>` : ''}</td><td>${esc(p.category || '-')}</td><td>${p.type === 'service' ? '🛎️ Servico' : p.type === 'digital' ? '📱 Digital' : '📦 Fisico'}</td><td>R$ ${(p.price || 0).toFixed(2)}</td><td>${p.cost_price ? 'R$ ' + p.cost_price.toFixed(2) : '-'}</td><td style="${stockClass}">${p.track_stock ? p.stock : '∞'}</td><td><button class="btn btn-sm" onclick="editProduct('${p.id}')">Editar</button></td></tr>`;
       }).join('')}</tbody></table>`;
-  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+  } catch(e) { toast(e.message, 'error'); } finally { loading(false); }
 }
 
 async function loadProductCategories() {
@@ -761,7 +762,7 @@ async function loadOrders() {
         const items = (o.items || []).map(i => `${i.quantity}x ${esc(i.title)}`).join(', ');
         return `<tr class="order-row" onclick="viewOrder('${o.id}')"><td><strong>${esc(o.order_number)}</strong></td><td>${esc(o.customer_name || o.customer_phone || '-')}</td><td class="order-items">${items}</td><td><strong>R$ ${(o.total || 0).toFixed(2)}</strong></td><td><span class="status-badge status-${o.status}">${statusLabel[o.status] || o.status}</span></td><td><span class="status-badge status-${o.payment_status}">${o.payment_status}</span></td><td>${new Date(o.created_at).toLocaleDateString('pt-BR')}</td><td onclick="event.stopPropagation()"><button class="btn btn-sm" onclick="viewOrder('${o.id}')">Ver</button></td></tr>`;
       }).join('')}</tbody></table>`;
-  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+  } catch(e) { toast(e.message, 'error'); } finally { loading(false); }
 }
 
 async function viewOrder(id) {
@@ -789,7 +790,7 @@ async function viewOrder(id) {
       <div class="modal-actions"><button class="btn" onclick="this.closest('.modal-overlay').remove()">Fechar</button></div>
     </div></div>`;
     document.body.insertAdjacentHTML('beforeend', modal);
-  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+  } catch(e) { toast(e.message, 'error'); } finally { loading(false); }
 }
 
 async function updateOrderStatus(orderId, status) {
@@ -828,7 +829,7 @@ async function loadStock() {
     document.getElementById('lowStockAlerts').innerHTML = lowStock.length > 0
       ? '<h3 style="color:var(--danger)">Alertas de Estoque Baixo</h3>' + lowStock.map(p => `<div class="stock-alert"><span class="stock-name">${esc(p.name)}</span><span class="stock-count">${p.stock} / ${p.low_stock_threshold} min</span></div>`).join('')
       : '';
-  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+  } catch(e) { toast(e.message, 'error'); } finally { loading(false); }
 }
 
 // ==================== ERP: FINANCE ====================
@@ -854,7 +855,7 @@ async function loadFinance() {
         const color = t.type === 'income' ? 'color:var(--success)' : t.type === 'expense' ? 'color:var(--danger)' : '';
         return `<tr><td>${new Date(t.created_at).toLocaleDateString('pt-BR')}</td><td>${t.type === 'income' ? '📈 Receita' : t.type === 'expense' ? '📉 Despesa' : '↩️ Reembolso'}</td><td>${esc(t.category || '-')}</td><td>${esc(t.description || '-')}</td><td style="${color};font-weight:600">${t.type === 'income' ? '+' : '-'}R$ ${amount}</td><td>${t.payment_method || '-'}</td><td><span class="status-badge status-${t.status}">${t.status}</span></td></tr>`;
       }).join('')}</tbody></table>`;
-  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+  } catch(e) { toast(e.message, 'error'); } finally { loading(false); }
 }
 
 // ==================== ERP: SUPPLIERS ====================
@@ -873,7 +874,7 @@ async function loadSuppliers() {
       : `<table><thead><tr><th>Nome</th><th>Contato</th><th>Categoria</th><th>Telefone</th><th>WhatsApp</th><th>Prazo Entrega</th><th>Condicoes</th><th>Acoes</th></tr></thead><tbody>${suppliersRes.map(s => {
         return `<tr><td><strong>${esc(s.name)}</strong>${s.trade_name ? `<br><small style="color:var(--muted)">${esc(s.trade_name)}</small>` : ''}</td><td>${esc(s.contact_name || '-')}</td><td>${esc(s.category || '-')}</td><td>${esc(s.phone || '-')}</td><td>${s.whatsapp ? `<a href="https://wa.me/${s.whatsapp.replace(/\D/g, '')}" target="_blank">${esc(s.whatsapp)}</a>` : '-'}</td><td>${s.delivery_time_days ? s.delivery_time_days + ' dias' : '-'}</td><td>${esc(s.payment_terms || '-')}</td><td><button class="btn btn-sm" onclick="editSupplier('${s.id}')">Editar</button></td></tr>`;
       }).join('')}</tbody></table>`;
-  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+  } catch(e) { toast(e.message, 'error'); } finally { loading(false); }
 }
 
 async function editSupplier(id) {
@@ -918,7 +919,7 @@ async function loadSiteCMS() {
         </div>
         <div style="margin-top:0.5rem;color:var(--muted);font-size:0.85rem">${esc(typeof s.title === 'object' ? (s.title['pt-BR'] || s.title['en-US'] || '') : (s.title || ''))}</div>
       </div>`).join('');
-  } catch(e) { toast(e.message, 'error'); } finally { hideLoading(); }
+  } catch(e) { toast(e.message, 'error'); } finally { loading(false); }
 }
 
 async function editSection(id) {
@@ -1075,7 +1076,7 @@ let deliveryZones = [];
 async function loadDelivery() {
   loading();
   try {
-    const allSettings = await api('/settings');
+    const allSettings = await api('/admin/settings');
     document.getElementById('deliveryFee').value = allSettings.store_delivery_fee || 7;
     document.getElementById('freeDeliveryAbove').value = allSettings.store_free_delivery_above || 90;
     const zonesRaw = allSettings.store_delivery_zones || '[]';
