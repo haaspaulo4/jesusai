@@ -1,0 +1,51 @@
+---
+name: {name}
+description: {description}
+argument-hint: '{argument_hint}'
+tags: [{tags}]
+version: 1.0.0
+persona_id: {persona_id}
+created_at: {created_at}
+---
+
+# {name}
+
+{long_description}
+
+## Quando Usar
+
+{when_to_use}
+
+## Como Executar
+
+{execution_steps}
+
+## Parâmetros
+
+{parameters}
+
+## Saída Esperada
+
+{expected_output}
+
+## Exemplos
+
+### Input:
+```
+{input_example}
+```
+
+### Output:
+```
+{output_example}
+```
+
+## Scripts
+
+- `scripts/run.js` - script principal
+- `scripts/validate.js` - validação de parâmetros
+
+## Referências
+
+- `references/overview.md` - visão geral do skill
+- `references/examples.md` - exemplos adicionais
