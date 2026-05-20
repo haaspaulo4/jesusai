@@ -1,6 +1,6 @@
 const { pool } = require('../db');
+const { caches, cacheAside } = require('../cache');
 
-let cache = {};
 let loaded = false;
 
 const DEFAULTS = {
@@ -30,12 +30,9 @@ const DEFAULTS = {
   survey_trigger_after_messages: '5',
   followup_enabled: 'true',
   followup_interval_messages: '10',
-  followup_types: 'check_in,daily_content,engagement_request',
-  followup_interval_messages: '10',
   ratings_enabled: 'true',
   rating_categories: 'general,response_quality,empathy,helpfulness',
   onboarding_enabled: 'true',
-  followup_interval_messages: '10',
   followup_types: 'spiritual_check,daily_devotional,prayer_request',
   brand_name: '',
   brand_tagline: '',
@@ -57,12 +54,10 @@ const DEFAULTS = {
   planner_enabled: 'true',
   summary_every: '10',
   profile_summary_every: '15',
-  // Platform Identity
   platform_avatar_style: 'realistic',
   platform_emoji_style: 'native',
   platform_animation_style: 'subtle',
   platform_font_family: 'Inter',
-  // Landing Page Content
   landing_hero_title_pt: '',
   landing_hero_title_en: '',
   landing_hero_title_es: '',
@@ -107,8 +102,9 @@ async function loadSettings() {
   if (loaded) return;
   try {
     const [rows] = await pool.execute('SELECT setting_key, setting_value FROM settings');
+    const cache = caches.settings;
     for (const row of rows) {
-      cache[row.setting_key] = row.setting_value;
+      cache.set(row.setting_key, row.setting_value);
     }
     loaded = true;
   } catch (err) {
@@ -118,7 +114,9 @@ async function loadSettings() {
 
 async function getSetting(key, defaultValue) {
   await loadSettings();
-  if (cache[key] !== undefined) return cache[key];
+  const cache = caches.settings;
+  const cached = cache.get(key);
+  if (cached !== undefined) return cached;
   if (defaultValue !== undefined) return defaultValue;
   return DEFAULTS[key] || null;
 }
@@ -129,23 +127,26 @@ async function setSetting(key, value) {
     'INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)',
     [key, String(value)]
   );
-  cache[key] = String(value);
+  caches.settings.set(key, String(value));
   return { key, value: String(value) };
 }
 
 async function getAllSettings() {
   await loadSettings();
-  const result = { ...DEFAULTS, ...cache };
+  const result = { ...DEFAULTS };
+  for (const [key, value] of caches.settings.entries()) {
+    result[key] = value;
+  }
   return result;
 }
 
 async function deleteSetting(key) {
   await pool.execute('DELETE FROM settings WHERE setting_key = ?', [key]);
-  delete cache[key];
+  caches.settings.delete(key);
 }
 
 function invalidateCache() {
-  cache = {};
+  caches.settings.clear();
   loaded = false;
 }
 
@@ -157,5 +158,5 @@ module.exports = {
   invalidateCache,
   DEFAULTS,
   loadSettings,
-  getDefaultPersonaId: () => cache.persona || DEFAULTS.persona || 'jesus',
+  getDefaultPersonaId: () => caches.settings.get('persona') || DEFAULTS.persona || 'jesus',
 };

@@ -1,7 +1,7 @@
 const { pool } = require('../db');
 const { PERSONAS: HARDCODED_PERSONAS, buildSystemPrompt } = require('../persona/config');
+const { caches } = require('../cache');
 
-let cache = new Map();
 let loaded = false;
 
 const DEFAULT_PERSONAS = {
@@ -10,6 +10,8 @@ const DEFAULT_PERSONAS = {
 
 async function loadPersonas() {
   if (loaded) return;
+
+  const cache = caches.personas;
 
   try {
     const [rows] = await pool.execute('SELECT * FROM personas WHERE is_active = 1 ORDER BY priority ASC');

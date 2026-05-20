@@ -1,4 +1,5 @@
 const { pool } = require('../db');
+const { caches } = require('../cache');
 
 function createSession(sessionId) {
   const session = {
@@ -23,6 +24,11 @@ async function getSession(sessionId) {
     return createSession(id).then(() => getSession(id));
   }
 
+  // Check cache first
+  const sessionCache = caches.sessions;
+  const cached = sessionCache.get(sessionId);
+  if (cached) return cached;
+
   const [rows] = await pool.execute('SELECT * FROM sessions WHERE id = ?', [sessionId]);
   if (rows.length === 0) {
     await createSession(sessionId);
@@ -41,6 +47,9 @@ async function getSession(sessionId) {
     content: m.content,
     timestamp: m.timestamp instanceof Date ? m.timestamp.toISOString() : m.timestamp,
   }));
+
+  // Cache session for hot conversations (short TTL)
+  sessionCache.set(sessionId, session);
   return session;
 }
 
