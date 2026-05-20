@@ -10,16 +10,16 @@ const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY;
 const CHAT_MODEL = process.env.CHAT_MODEL || 'glm-5.1';
 
 const BLOG_TOPICS = [
-  { topic: 'fé e confiança em Deus nos momentos difíceis', verse: 'Hebreus 11:1' },
-  { topic: 'o poder do perdão e da reconciliação', verse: 'Mateus 6:14-15' },
-  { topic: 'encontrar paz em meio à ansiedade', verse: 'Filipenses 4:6-7' },
-  { topic: 'a importância da oração constante', verse: '1 Tessalonicenses 5:17' },
-  { topic: 'amor ao próximo como mandamento supremo', verse: 'Mateus 22:39' },
-  { topic: 'esperança e renovação espiritual', verse: 'Isaías 40:31' },
-  { topic: 'humildade e serviço ao próximo', verse: 'Marcos 10:45' },
-  { topic: 'fortalecimento na adversidade', verse: 'Romanos 8:28' },
-  { topic: 'gratidão como estilo de vida', verse: '1 Tessalonicenses 5:18' },
-  { topic: 'sabedoria para tomar decisões', verse: 'Tiago 1:5' },
+  { topic: 'como manter o foco e a motivação no dia a dia', category: 'produtividade' },
+  { topic: 'a importância de cuidar da saúde mental', category: 'bem-estar' },
+  { topic: 'dicas para melhorar seus relacionamentos', category: 'relacionamentos' },
+  { topic: 'como desenvolver inteligência emocional', category: 'desenvolvimento' },
+  { topic: 'aprendendo a lidar com Mudanças e incertezas', category: 'resiliência' },
+  { topic: 'hábitos simples que transformam sua rotina', category: 'produtividade' },
+  { topic: 'como construir confiança e autenticidade', category: 'liderança' },
+  { topic: 'encontrando propósito e Significado na vida', category: 'desenvolvimento' },
+  { topic: 'a prática da gratidão e seus benefícios', category: 'bem-estar' },
+  { topic: 'tomando decisões com mais clareza e confiança', category: 'estratégia' },
 ];
 
 const PERSONA_BLOG_CONFIGS = {
@@ -232,9 +232,9 @@ async function generatePost(date, personaId, language) {
 
   const l = lang.startsWith('en') ? '_en' : (lang.startsWith('es') ? '_es' : '');
   const blogPrompt = personaConfig?.prompt?.[lang] || personaConfig?.prompt?.['pt-BR']
-    || `Você é Jesus Cristo, escrevendo um devocional diário para Seu povo. Escreva em ${lang === 'en-US' ? 'English' : lang === 'es-ES' ? 'español' : 'português do Brasil'}.`;
+    || `Você é um especialista, escrevendo um artigo prático e acionável. Escreva em ${lang === 'en-US' ? 'English' : lang === 'es-ES' ? 'español' : 'português do Brasil'}.`;
 
-  const topicStr = topicInfo.topic || topicInfo.verse;
+  const topicStr = topicInfo.topic || topicInfo.verse || '';
   const verseStr = topicInfo.verse || topicInfo.category || '';
 
   let prompt;
@@ -255,7 +255,9 @@ Escreva um artigo prático e acionável com:
 
 Tom: profissional mas acessível, direto e acionável. Use linguagem do dia a dia.`;
   } else {
-    prompt = `${blogPrompt}
+    const isBiblicalSource = personaSources && personaSources.some(s => s && (s.includes('bible') || s.includes('biblia')));
+    if (isBiblicalSource) {
+      prompt = `${blogPrompt}
 
 Tema de hoje: "${topicStr}"
 Versículo base: ${verseStr}
@@ -270,6 +272,23 @@ Escreva um artigo devocional com:
 5. Uma oração curta para encerrar
 
 O tom deve ser amoroso mas com autoridade. Cite os versículos. Responda EM PRIMEIRA PESSOA.`;
+    } else {
+      prompt = `${blogPrompt}
+
+Tema de hoje: "${topicStr}"
+${verseStr ? `Categoria: ${verseStr}` : ''}
+
+${contentText ? `Conteúdo encontrado:\n${contentText}` : ''}
+
+Escreva um artigo informativo e inspirador com:
+1. Um TÍTULO curto e impactante (não use aspas no título)
+2. Uma introdução que conecte o tema com a vida do leitor
+3. 3-5 dicas ou insights práticos com exemplos
+4. Um parágrafo de reflexão final
+5. Uma call-to-action clara
+
+Tom: profissional mas acessível, direto e inspirador. Use linguagem do dia a dia.`;
+    }
   }
 
   try {

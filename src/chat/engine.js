@@ -473,6 +473,11 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     if ((hasContextVerses || noKnowledgeSearch) && tools) {
       tools = tools.filter(t => t.function?.name !== 'bible_lookup');
     }
+    const biblicalTools = ['bible_lookup', 'get_daily_devotional', 'send_prayer_request'];
+    const hasBiblicalSource = personaSources && personaSources.some(s => s && (s.includes('bible') || s.includes('biblia')));
+    if (!hasBiblicalSource && tools) {
+      tools = tools.filter(t => !biblicalTools.includes(t.function?.name));
+    }
 
     const result = await integrations.callLLM(messages, {
       userId: uid,
