@@ -199,6 +199,28 @@ const PERSONA_STEP_CONFIGS = {
       },
     ],
   },
+  'loja-hlb': {
+    steps: [
+      {
+        step_key: 'name',
+        step_order: 0,
+        question: 'Ola! Prazer te atender! Como posso te chamar?',
+        question_en: 'Hi! Nice to serve you! What should I call you?',
+        question_es: '¡Hola! ¡Placer atenderte! ¿Cómo puedo llamarte?',
+        field: 'name', field_type: 'text', required: true, icon: '👋',
+        placeholder: { 'pt-BR': 'Seu nome...', 'en-US': 'Your name...', 'es-ES': 'Tu nombre...' },
+      },
+      {
+        step_key: 'phone',
+        step_order: 1,
+        question: 'Pode me passar seu telefone? (so pra contato do pedido)',
+        question_en: 'Can I get your phone number? (just for order contact)',
+        question_es: '¿Puedo tener tu teléfono? (solo para contacto del pedido)',
+        field: 'phone', field_type: 'phone', required: false, icon: '📱',
+        skip_label: { 'pt-BR': 'Agora nao', 'en-US': 'Not now', 'es-ES': 'Ahora no' },
+      },
+    ],
+  },
 };
 
 const FIELD_MAPPING = {

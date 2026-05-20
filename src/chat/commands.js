@@ -152,6 +152,7 @@ async function processCommand(message, userId, role, personaId) {
 module.exports = {
   loadCommands,
   getCommands,
+  seedDefaultCommands,
   getCommand,
   createCommand,
   updateCommand,

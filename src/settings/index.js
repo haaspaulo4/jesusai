@@ -94,6 +94,11 @@ const DEFAULTS = {
   store_delivery_fee: '7',
   store_free_delivery_above: '90',
   store_delivery_zones: '[{"name":"Centro","keywords":["centro","downtown","praca","praca da matriz"],"fee":0,"estimated_minutes":"20-30"},{"name":"Raio 3km","keywords":["bairro","jardim","vila","parque","residencial"],"fee":5,"estimated_minutes":"30-40"},{"name":"Raio 5km","keywords":["distrito","rural","rodovia","km"],"fee":7,"estimated_minutes":"35-45"},{"name":"Premium","keywords":["condominio","alphaville","loteamento","lote"],"fee":10,"estimated_minutes":"40-55"}]',
+  store_payment_methods: 'pix,dinheiro,cartao_credito,cartao_debito',
+  store_pix_key: '',
+  store_pix_name: '',
+  store_bank_info: '',
+  commerce_enabled: 'true',
 };
 
 async function loadSettings() {

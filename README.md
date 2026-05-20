@@ -422,6 +422,40 @@ Complete commerce system for selling products via WhatsApp (inspired by real del
 ```
 Customer: "Quero um sorvete de pistache e uma Coca 2L"
     ↓ LLM detects product interest
+    ↓ catalog_search → finds Sorvete Lamello (R$25) + Coca-Cola 2L (R$15) [filtered by persona_id]
+    ↓ commerce_add_to_cart → adds both items [session_id auto-injected]
+    
+Customer: "Rua Desembargador Munhoz de Melo, 466"
+    ↓ commerce_set_address → calculates delivery fee by zone
+    ↓ Zona "Centro" = R$0, "Bairro" = R$5, "Rural" = R$7
+    
+Customer: "Vai ser no dinheiro, troco pra 100"
+    ↓ commerce_set_payment → cash, change_for: 100
+    ↓ Total R$65 + R$7 delivery = R$72, troco: R$28
+    
+Customer: "Sim, confirmar"
+    ↓ commerce_finalize_order → creates order ORD-260519-0001
+    ↓ Deducts stock, sends formatted receipt
+```
+
+### Key Features
+
+- **Persona-aware product search**: `catalog_search` filters by `persona_id` — each store sees only its own products
+- **Session auto-injection**: `session_id` is auto-injected from chat context (tool parameter is optional)
+- **Configurable payment methods**: `store_payment_methods` setting (pix, dinheiro, cartao_credito, etc.)
+- **PIX key in settings**: `store_pix_key` and `store_pix_name` — injected into commerce prompt, LLM never makes up payment info
+- **Store-specific onboarding**: `loja-hlb` asks name + phone only (not interest/feeling/email)
+- **WhatsApp persona resolution**: `WHATSAPP_PERSONA_ID=loja-hlb` env var sets default persona
+
+### Store Persona Setup Pattern
+
+1. Create persona with commerce identity (no AI mentions, natural selling)
+2. Set `WHATSAPP_PERSONA_ID=loja-hlb` in `.env`
+3. Seed products with `persona_id='loja-hlb'`
+4. Configure: `brand_name`, `store_pix_key`, `store_payment_methods`, delivery zones
+5. Customers talk naturally → LLM uses commerce tools automatically
+Customer: "Quero um sorvete de pistache e uma Coca 2L"
+    ↓ LLM detects product interest
     ↓ catalog_search → finds Sorvete Lamello (R$25) + Coca-Cola 2L (R$15)
     ↓ commerce_add_to_cart → adds both items
     

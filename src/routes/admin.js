@@ -274,6 +274,7 @@ router.put('/settings', authMiddleware, adminMiddleware, async (req, res) => {
       'store_currency', 'store_currency_symbol', 'store_whatsapp', 'store_hero_video', 'store_footer_text',
       'store_instagram_url', 'store_facebook_url', 'store_tiktok_url', 'store_cookie_consent',
       'store_delivery_fee', 'store_free_delivery_above', 'store_delivery_zones', 'commerce_enabled',
+      'store_payment_methods', 'store_pix_key', 'store_pix_name', 'store_bank_info',
     ];
     const { key, value } = req.body;
     if (!key) return res.status(400).json({ error: 'key is required' });

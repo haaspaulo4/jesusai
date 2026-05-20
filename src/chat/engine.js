@@ -366,13 +366,21 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
      }
    } catch (err) { console.error('[ChatEngine] business context error:', err.message); }
 
-   try {
-     const { getSetting } = require('../settings');
-     const commerceEnabled = await getSetting('commerce_enabled');
-     if (commerceEnabled !== 'false' && commerceEnabled !== '0') {
-       const storeName = await getSetting('brand_name') || '';
-       const currency = await getSetting('store_currency_symbol') || 'R$';
-       businessStr += `\n\nCOMMERCE SYSTEM: You have access to commerce tools for taking orders. When a customer wants to order products or place an order, use these tools in sequence:\n1. catalog_search — Find products by name, category, or search term\n2. commerce_add_to_cart — Add products to the customer's cart (use session_id from this conversation)\n3. commerce_cart_summary — Show the current cart contents and total\n4. commerce_set_address — Save delivery address and calculate shipping fee\n5. commerce_set_payment — Set payment method (pix, dinheiro, cartao) and change amount\n6. commerce_apply_coupon — Apply discount coupon if provided\n7. commerce_finalize_order — Confirm and create the order in the system (deducts stock automatically)\n\nRULES:\n- Always confirm the order details BEFORE finalizing (items, address, payment, total)\n- For cash payments, always ask for the amount they'll pay to calculate change\n- If a product is not found via catalog_search, suggest similar products from the catalog\n- Calculate delivery fee based on the address zone using commerce_calculate_delivery\n- For "dinheiro" payment, if customer mentions a bill amount, set change_for in commerce_set_payment\n- After finalizing, provide the order number and estimated delivery time\n- Current store: ${storeName || 'our store'} | Currency: ${currency}`;
+    try {
+      const { getSetting } = require('../settings');
+      const commerceEnabled = await getSetting('commerce_enabled');
+      if (commerceEnabled !== 'false' && commerceEnabled !== '0') {
+        const storeName = await getSetting('brand_name') || '';
+        const currency = await getSetting('store_currency_symbol') || 'R$';
+        const paymentMethods = await getSetting('store_payment_methods') || 'pix,dinheiro,cartao_credito,cartao_debito';
+        const pixKey = await getSetting('store_pix_key') || '';
+        const pixName = await getSetting('store_pix_name') || '';
+        const freeDeliveryAbove = await getSetting('store_free_delivery_above') || '90';
+        const methodLabels = { pix: 'PIX', dinheiro: 'Dinheiro', cartao_credito: 'Cartão de Crédito', cartao_debito: 'Cartão de Débito', transferencia: 'Transferência Bancária' };
+        const methods = paymentMethods.split(',').map(m => methodLabels[m.trim()] || m.trim()).join(', ');
+        let pixInfo = '';
+        if (pixKey) pixInfo = `\n- PIX key: ${pixKey}${pixName ? ` (${pixName})` : ''} — tell the customer this for payment`;
+        businessStr += `\n\nCOMMERCE SYSTEM: You are a SALES-FOCUSED assistant. Your PRIMARY goal is to help customers order products via natural conversation. You proactively sell and close deals.\n\nSESSION: ${sid}\nUse this session_id in all commerce tool calls (session_id: "${sid}").\n\nTOOL SEQUENCE (use in this order):\n1. catalog_search — Find products by name, category, or keyword (ALWAYS use this before adding to cart)\n2. commerce_add_to_cart — Add product to cart (uses session_id automatically)\n3. commerce_cart_summary — Show cart with items, quantities, subtotal, shipping, total\n4. commerce_set_address — Save delivery address + calculate shipping by zone (keyword matching)\n5. commerce_set_payment — Set payment method (${methods}). For cash, ask bill amount for change (change_for field)\n6. commerce_apply_coupon — Apply discount coupon if customer mentions one\n7. commerce_finalize_order — CONFIRM and create order (deducts stock automatically). ALWAYS show cart summary first!\n\nCRITICAL SALES RULES:\n- NEVER say you are an AI, bot, or assistant. You are the store staff.\n- NEVER mention slash commands (/cardapio, /menu, etc). Everything works via conversation.\n- When customer mentions ANY food/drink/product → immediately use catalog_search, then suggest adding to cart\n- ALWAYS upsell and cross-sell: burger? → suggest fries/drink. Pizza? → suggest a coke. Ice cream? → suggest toppings\n- Be PROACTIVE: if customer says \"hi\", greet them warmly and mention popular items or daily specials\n- If customer says they're hungry, show them categories and suggest popular items\n- NEVER leave the customer hanging — always guide them to the next step in the order flow\n- When showing cart summary, ALWAYS mention delivery fee and total clearly\n- Cash payments: ALWAYS ask what bill they'll pay with to calculate change\n- Free delivery above ${currency}${freeDeliveryAbove} — MENTION this to encourage bigger orders!\n- After order finalization, give order number and estimated delivery time\n- If product not found, suggest similar alternatives from catalog\n- Accept payment methods: ${methods}${pixInfo}\n- NEVER make up PIX keys, payment info, or order numbers — use only what the tools return\n- Current store: ${storeName || 'our store'} | Currency: ${currency}`;
      }
    } catch (err) { /* commerce context optional */ }
 
@@ -554,7 +562,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
       if (isExternalTool) {
         toolResult = await execExtTool(fnName, fnArgs, { userId: uid, lang });
       } else {
-        toolResult = await executeTool(fnName, fnArgs, { userId: uid, lang, isAdmin: isAdmin || isMetaPersona });
+        toolResult = await executeTool(fnName, fnArgs, { userId: uid, lang, isAdmin: isAdmin || isMetaPersona, personaId: persona.id, sessionId: sid });
       }
 
       messages.push({
@@ -919,6 +927,22 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       }
       await setSilence(sid, count);
       return `🔇 Modo silêncio ativado por ${count} mensagem(ões). A persona não vai responder. Use /silence off para desativar.`;
+    }
+
+    case '/audio':
+    case '/voz': {
+      const { pool: ap } = require('../db');
+      await ap.execute('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)', [`audio_${uid}`, 'true']);
+      return '🔊 Áudio ATIVADO! A partir de agora vou mandar respostas em áudio também. Para desativar, use /texto ou diga "para de mandar áudio".';
+    }
+
+    case '/texto':
+    case '/notexto':
+    case '/semaudio':
+    case '/semsom': {
+      const { pool: ap2 } = require('../db');
+      await ap2.execute('INSERT INTO settings (setting_key, setting_value) VALUES (?, ?) ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value)', [`audio_${uid}`, 'false']);
+      return '🔇 Áudio DESATIVADO! A partir de agora vou responder só por texto. Para reativar, use /audio ou diga "manda áudio".';
     }
 
     case '/stats': {

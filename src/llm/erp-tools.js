@@ -232,14 +232,14 @@ const ERP_TOOL_DEFINITIONS = [
       parameters: {
         type: 'object',
         properties: {
-          session_id: { type: 'string', description: 'ID da sessão do WhatsApp/Telegram' },
+          session_id: { type: 'string', description: 'ID da sessão (preencha com o session_id da conversa atual)' },
           product_id: { type: 'string', description: 'ID do produto' },
           variant_id: { type: 'string', description: 'ID da variação (se houver)' },
           quantity: { type: 'integer', description: 'Quantidade (padrão: 1)' },
           customer_name: { type: 'string', description: 'Nome do cliente (se informado)' },
           customer_phone: { type: 'string', description: 'Telefone do cliente' },
         },
-        required: ['session_id', 'product_id'],
+        required: ['product_id'],
       },
     },
   },
@@ -255,7 +255,7 @@ const ERP_TOOL_DEFINITIONS = [
           product_id: { type: 'string', description: 'ID do produto a remover' },
           variant_id: { type: 'string', description: 'ID da variação (se houver)' },
         },
-        required: ['session_id', 'product_id'],
+        required: ['product_id'],
       },
     },
   },
@@ -267,9 +267,9 @@ const ERP_TOOL_DEFINITIONS = [
       parameters: {
         type: 'object',
         properties: {
-          session_id: { type: 'string', description: 'ID da sessão' },
+          session_id: { type: 'string', description: 'ID da sessão (preencha com o session_id da conversa)' },
         },
-        required: ['session_id'],
+        required: [],
       },
     },
   },
@@ -281,9 +281,9 @@ const ERP_TOOL_DEFINITIONS = [
       parameters: {
         type: 'object',
         properties: {
-          session_id: { type: 'string', description: 'ID da sessão' },
+          session_id: { type: 'string', description: 'ID da sessão (preencha com o session_id da conversa)' },
         },
-        required: ['session_id'],
+        required: [],
       },
     },
   },
@@ -303,9 +303,9 @@ const ERP_TOOL_DEFINITIONS = [
           city: { type: 'string', description: 'Cidade' },
           state: { type: 'string', description: 'Estado' },
           zip: { type: 'string', description: 'CEP' },
-          full_address: { type: 'string', description: 'Endereço completo em formato livre (se não tiver campos separados)' },
+           full_address: { type: 'string', description: 'Endereço completo em formato livre (se não tiver campos separados)' },
         },
-        required: ['session_id'],
+        required: ['full_address'],
       },
     },
   },
@@ -317,11 +317,11 @@ const ERP_TOOL_DEFINITIONS = [
       parameters: {
         type: 'object',
         properties: {
-          session_id: { type: 'string', description: 'ID da sessão' },
+          session_id: { type: 'string', description: 'ID da sessão (preencha com o session_id da conversa)' },
           payment_method: { type: 'string', enum: ['pix', 'dinheiro', 'cartao', 'cartao_credito', 'cartao_debito', 'transferencia', 'boleto'], description: 'Forma de pagamento' },
           change_for: { type: 'number', description: 'Valor pago em dinheiro (para calcular troco). Use apenas para pagamento em dinheiro.' },
         },
-        required: ['session_id', 'payment_method'],
+        required: ['payment_method'],
       },
     },
   },
@@ -333,10 +333,10 @@ const ERP_TOOL_DEFINITIONS = [
       parameters: {
         type: 'object',
         properties: {
-          session_id: { type: 'string', description: 'ID da sessão' },
+          session_id: { type: 'string', description: 'ID da sessão (preencha com o session_id da conversa)' },
           code: { type: 'string', description: 'Código do cupom' },
         },
-        required: ['session_id', 'code'],
+        required: ['code'],
       },
     },
   },
@@ -348,10 +348,10 @@ const ERP_TOOL_DEFINITIONS = [
       parameters: {
         type: 'object',
         properties: {
-          session_id: { type: 'string', description: 'ID da sessão' },
+          session_id: { type: 'string', description: 'ID da sessão (preencha com o session_id da conversa)' },
           source: { type: 'string', enum: ['whatsapp', 'telegram', 'web', 'api', 'manual'], description: 'Canal de origem (padrão: whatsapp)' },
         },
-        required: ['session_id'],
+        required: [],
       },
     },
   },
@@ -385,14 +385,17 @@ const ERP_TOOL_DEFINITIONS = [
   },
 ];
 
-async function executeERPTool(name, args) {
+async function executeERPTool(name, args, context = {}) {
+  const sid = args.session_id || context?.sessionId || null;
   switch (name) {
     case 'catalog_search': {
+      const searchPersonaId = context?.personaId || null;
       const products = await erp.products.listProducts({
         search: args.search,
         category: args.category,
         type: args.type,
         is_active: true,
+        persona_id: searchPersonaId,
       });
       const filtered = args.in_stock_only ? products.filter(p => !p.track_stock || p.stock > 0) : products;
       if (filtered.length === 0) return { found: false, message: 'Nenhum produto encontrado para essa busca.' };
@@ -620,22 +623,24 @@ async function executeERPTool(name, args) {
 
     case 'commerce_add_to_cart': {
       const commerce = require('../erp/commerce');
+      const sessionIdCart = args.session_id || context?.sessionId;
+      if (!sessionIdCart) return { error: 'Sessão não encontrada. Por favor, informe o session_id.' };
       const product = await erp.products.getProduct(args.product_id);
       if (!product) return { error: 'Produto não encontrado' };
       if (product.track_stock && product.stock < (args.quantity || 1)) {
         return { error: `${product.name} está fora de estoque.`, available: 0 };
       }
       const price = product.price;
-      let cart = await commerce.getOrCreateCart(args.session_id, args.customer_phone, null);
+      let cart = await commerce.getOrCreateCart(sessionIdCart, args.customer_phone, null);
       if (args.customer_name && !cart.metadata?.customer_name) {
         cart.metadata = cart.metadata || {};
         cart.metadata.customer_name = args.customer_name;
-        await commerce.updateCart(args.session_id, { metadata: cart.metadata });
+        await commerce.updateCart(sid, { metadata: cart.metadata });
       }
       if (args.customer_phone && !cart.metadata?.customer_phone) {
         cart.metadata = cart.metadata || {};
         cart.metadata.customer_phone = args.customer_phone;
-        await commerce.updateCart(args.session_id, { metadata: cart.metadata });
+        await commerce.updateCart(sid, { metadata: cart.metadata });
       }
       const addItem = {
         product_id: args.product_id,
@@ -646,7 +651,7 @@ async function executeERPTool(name, args) {
         image: product.featured_image || (product.images && product.images[0]) || null,
         type: product.type || 'physical',
       };
-      cart = await commerce.addCartItem(args.session_id, addItem);
+      cart = await commerce.addCartItem(sid, addItem);
       if (!cart) return { error: 'Erro ao adicionar ao carrinho.' };
       return {
         success: true,
@@ -661,7 +666,8 @@ async function executeERPTool(name, args) {
 
     case 'commerce_remove_from_cart': {
       const commerce = require('../erp/commerce');
-      const cart = await commerce.removeCartItem(args.session_id, args.product_id, args.variant_id);
+      if (!sid) return { error: 'Sessão não encontrada.' };
+      const cart = await commerce.removeCartItem(sid, args.product_id, args.variant_id);
       if (!cart) return { error: 'Carrinho não encontrado.' };
       return {
         success: true,
@@ -672,7 +678,8 @@ async function executeERPTool(name, args) {
 
     case 'commerce_cart_summary': {
       const commerce = require('../erp/commerce');
-      const cart = await commerce.getCart(args.session_id);
+      if (!sid) return { error: 'Sessão não encontrada.' };
+      const cart = await commerce.getCart(sid);
       if (!cart || cart.items.length === 0) {
         return { empty: true, message: '🛒 Seu carrinho está vazio. Quer ver nosso catálogo?' };
       }
@@ -689,13 +696,15 @@ async function executeERPTool(name, args) {
 
     case 'commerce_clear_cart': {
       const commerce = require('../erp/commerce');
-      const cart = await commerce.clearCart(args.session_id);
+      if (!sid) return { error: 'Sessão não encontrada.' };
+      const cart = await commerce.clearCart(sid);
       return { success: true, message: '🗑️ Carrinho limpo! Posso ajudar com algo mais?' };
     }
 
     case 'commerce_set_address': {
       const commerce = require('../erp/commerce');
-      let cart = await commerce.getOrCreateCart(args.session_id);
+      if (!sid) return { error: 'Sessão não encontrada.' };
+      let cart = await commerce.getOrCreateCart(sid);
       const address = {
         street: args.street || '',
         number: args.number || '',
@@ -719,7 +728,7 @@ async function executeERPTool(name, args) {
         metadata.shipping_fee = 0;
         delivery.fee = 0;
       }
-      cart = await commerce.updateCart(args.session_id, { shipping_address: address, metadata, flow_step: 'confirming_address' });
+      cart = await commerce.updateCart(sid, { shipping_address: address, metadata, flow_step: 'confirming_address' });
       const newSummary = commerce.getCartSummary(cart);
       const addrText = address.full || `${address.street}${address.number ? ', ' + address.number : ''}${address.neighborhood ? ' - ' + address.neighborhood : ''}${address.city ? ', ' + address.city : ''}`;
       let msg = `📍 Endereço registrado: *${addrText}*\n`;
@@ -737,7 +746,8 @@ async function executeERPTool(name, args) {
 
     case 'commerce_set_payment': {
       const commerce = require('../erp/commerce');
-      let cart = await commerce.getCart(args.session_id);
+      if (!sid) return { error: 'Sessão não encontrada.' };
+      let cart = await commerce.getCart(sid);
       if (!cart) return { error: 'Carrinho não encontrado.' };
       let metadata = cart.metadata || {};
       metadata.payment_method = args.payment_method;
@@ -746,7 +756,7 @@ async function executeERPTool(name, args) {
       } else {
         delete metadata.change_for;
       }
-      cart = await commerce.updateCart(args.session_id, { metadata, flow_step: 'confirming_payment' });
+      cart = await commerce.updateCart(sid, { metadata, flow_step: 'confirming_payment' });
       const summary = commerce.getCartSummary(cart);
       const paymentLabel = commerce.PAYMENT_METHODS[args.payment_method] || args.payment_method;
       let msg = `💳 Forma de pagamento: *${paymentLabel}*\n`;
@@ -762,12 +772,13 @@ async function executeERPTool(name, args) {
 
     case 'commerce_apply_coupon': {
       const commerce = require('../erp/commerce');
-      const cart = await commerce.getCart(args.session_id);
+      if (!sid) return { error: 'Sessão não encontrada.' };
+      const cart = await commerce.getCart(sid);
       if (!cart || cart.items.length === 0) return { error: 'Carrinho vazio.' };
       const summary = commerce.getCartSummary(cart);
-      const result = await commerce.applyCoupon(args.session_id, args.code, summary.subtotal);
+      const result = await commerce.applyCoupon(sid, args.code, summary.subtotal);
       if (!result.valid) return result;
-      const updatedCart = await commerce.getCart(args.session_id);
+      const updatedCart = await commerce.getCart(sid);
       const updatedSummary = commerce.getCartSummary(updatedCart);
       let msg = `🎉 Cupom *${result.code}* aplicado!`;
       if (result.type === 'percentage') {
@@ -781,10 +792,11 @@ async function executeERPTool(name, args) {
 
     case 'commerce_finalize_order': {
       const commerce = require('../erp/commerce');
-      const cart = await commerce.getCart(args.session_id);
+      if (!sid) return { error: 'Sessão não encontrada.' };
+      const cart = await commerce.getCart(sid);
       if (!cart || cart.items.length === 0) return { error: 'Carrinho vazio. Adicione itens antes de finalizar.' };
       if (!cart.shipping_address) return { error: 'Endereço de entrega não informado. Peça o endereço do cliente primeiro.' };
-      const result = await commerce.finalizeOrder(args.session_id, args.source || 'whatsapp');
+      const result = await commerce.finalizeOrder(sid, args.source || 'whatsapp');
       if (result.error) return result;
       const changeFor = cart.metadata?.change_for;
       const summary = commerce.getCartSummary(cart);

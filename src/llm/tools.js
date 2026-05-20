@@ -1843,7 +1843,7 @@ async function executeTool(name, args, context = {}) {
 
     default: {
       const { executeERPTool } = require('./erp-tools');
-      const erpResult = await executeERPTool(name, args);
+      const erpResult = await executeERPTool(name, args, context);
       if (erpResult) return erpResult;
       return { error: `Tool desconhecida: ${name}` };
     }

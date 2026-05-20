@@ -1350,11 +1350,47 @@ browsing → building_order → confirming_address → confirming_payment → co
 
 ### Commerce System Prompt (Chat Engine)
 
-When `commerce_enabled` is not disabled, the chat engine injects a COMMERCE SYSTEM block into the system prompt:
-- Instructions for the LLM to use commerce tools in sequence
-- Available tools: catalog_search → commerce_add_to_cart → commerce_cart_summary → commerce_set_address → commerce_set_payment → commerce_apply_coupon → commerce_finalize_order
-- Rules: confirm order before finalizing, ask for change amount on cash payments, suggest alternatives when product not found, calculate delivery by zone
+When `commerce_enabled` is not disabled, the chat engine injects a SALES-FOCUSED COMMERCE SYSTEM block into the system prompt:
+- **Natural conversation only** — no slash commands, the LLM proactively sells and closes deals
+- Tool sequence: catalog_search → commerce_add_to_cart → commerce_cart_summary → commerce_set_address → commerce_set_payment → commerce_apply_coupon → commerce_finalize_order
+- **Upsell and cross-sell**: burger → suggest fries/drink, pizza → suggest coke, ice cream → suggest toppings
+- **Proactive selling**: greet with popular items, suggest daily specials, mention free delivery above threshold
+- Rules: confirm order before finalizing, ask for change on cash, calculate delivery by zone, suggest alternatives when product not found
 - Store name and currency from settings
+- Delivery zones: Centro (free), Bairro (R$5), Rural (R$7), Premium (R$10), free above R$90
+
+### WhatsApp Persona Configuration
+
+- `WHATSAPP_PERSONA_ID` env var: sets the default persona for all WhatsApp messages (e.g., `loja-hlb` for a store)
+- If not set, falls back to session persona → user persona → active persona (env `PERSONA`)
+- Each bot instance can have its own persona via `bot_instances.persona_id`
+- Store persona `loja-hlb`: commerce-only identity, no religious content, `knowledge_sources: []`
+
+### Store Persona Onboarding (loja-hlb)
+
+Custom onboarding steps for commerce personas — only ask for name and phone (skip interest/feeling/email):
+1. **name** (required): "Ola! Prazer te atender! Como posso te chamar?"
+2. **phone** (optional): "Pode me passar seu telefone?"
+
+Global onboarding steps (interest, feeling, email) are overridden when the persona has its own steps in `PERSONA_STEP_CONFIGS`.
+
+### B2B Business Model
+
+Each installation = one client. No multi-tenancy needed.
+- **Implementation fee**: one-time setup (brand, products, WhatsApp config, persona training)
+- **Monthly management**: support, optimization, analytics, persona updates
+- **Revenue streams**: setup + monthly retainer + usage-based (API keys, LLM costs)
+- **Delivery model**: self-hosted (client server) or managed (our infra)
+
+### Store Personas as Product
+
+The `loja-hlb` pattern is the template for selling to businesses:
+1. Create persona with commerce identity (no AI mentions, natural selling)
+2. Configure `WHATSAPP_PERSONA_ID` to point to store persona
+3. Seed products via admin API or DB
+4. Set store settings: brand_name, delivery zones, currency
+5. Customer conversations flow naturally → LLM uses commerce tools automatically
+6. Store persona onboarding: name + phone only (not interest/feeling/email)
 
 ### Admin Panel — ERP Sections
 
@@ -1390,3 +1426,12 @@ When `commerce_enabled` is not disabled, the chat engine injects a COMMERCE SYST
 - Admin ERP routes require auth + admin role — `/api/erp/*`
 - `admin.js` uses `loading()` not `showLoading()` for spinner
 - Settings allowlist in admin routes includes store_* keys
+- `seedDefaultCommands` must be exported from `src/chat/commands.js`
+- `WHATSAPP_PERSONA_ID` env var sets default persona for WhatsApp messages
+- Commerce persona onboarding uses `PERSONA_STEP_CONFIGS` keyed by persona_id (e.g., `loja-hlb`)
+- Store persona identity must NOT be NULL — requires commerce-only identity in DB
+- Commerce system prompt emphasizes natural conversation, proactive selling, upsell/cross-sell
+- **`catalog_search` filters by `context.personaId`** — only returns products belonging to the current persona's store
+- **`session_id` is optional in commerce tools** — falls back to `context.sessionId` from the chat engine
+- **Payment methods are configurable** via settings: `store_payment_methods`, `store_pix_key`, `store_pix_name`, `store_bank_info`
+- **PIX key injected into commerce prompt** — LLM tells customers the real PIX key, NEVER makes up payment info

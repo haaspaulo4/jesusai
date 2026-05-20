@@ -37,7 +37,10 @@ const EVO_API_KEY = process.env.EVO_API_KEY || '';
 const EVO_INSTANCE = process.env.EVO_INSTANCE || 'metapersona-ai';
 const WHATSAPP_AUDIO = process.env.WHATSAPP_AUDIO !== 'false';
 const WHATSAPP_BOT_JID = process.env.WHATSAPP_BOT_JID || '';
+const WHATSAPP_PERSONA_ID = process.env.WHATSAPP_PERSONA_ID || '';
 const WHATSAPP_BOT_PHONE = process.env.WHATSAPP_BOT_PHONE || '';
+
+const sessionAudioDisabled = new Set();
 const WEBHOOK_SECRET = process.env.WEBHOOK_SECRET || '';
 
 function getCommands() {
@@ -1034,7 +1037,7 @@ async function handleCommand(remoteJid, text, pushName) {
       const verse = verses[Math.floor(Math.random() * verses.length)];
       const verseText = `${verse.reference}. ${verse.text}`;
       await sendWhatsAppText(remoteJid, `📖 *${verse.reference}*\n\n${verse.text}`);
-      if (WHATSAPP_AUDIO) {
+    if (WHATSAPP_AUDIO && !noAudio) {
         try {
           const audioBuffer = await generateAudioBuffer(verseText, { lang: getTTSLang(DEFAULT_LANG) });
           if (audioBuffer && audioBuffer.length > 0) {
@@ -1349,6 +1352,28 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
     await messenger.markAsRead(remoteJid, messageId);
   }
 
+  const audioTogglePatterns = [
+    { disable: /^(para\s*(de\s*)?(mandar|enviar|falar|mand|tocar|toc|)?\s*(áudio|audio|voz|som|som|áudios|audios)|desativ\s*(a|o)?\s*(áudio|audio|voz|som)|não\s*(quero|quero|gosto|prefiro|preciso)\s*(de\s*)?(áudio|audio|voz|som)|sem\s*(áudio|audio|voz|som)|cadê?\s*(sua|a)?\s*voz|sem\s*voz|não\s*manda\s*(mais\s*)?(áudio|audio|som)|sem\s*áudio|desliga\s*(o\s*)?(áudio|audio|som)|desativa\s*(o\s*)?(áudio|audio|voz)|tira\s*(o\s*)?(áudio|audio|voz)|chato\s*(esse|o\s*)?(áudio|audio|voz)|nojento\s*(esse|o\s*)?(áudio|audio|voz))/i,
+      enable: /^(manda\s*(áudio|audio|voz|som)|ativa\s*(o\s*)?(áudio|audio|voz|som)|liga\s*(o\s*)?(áudio|audio|voz|som)|quero\s*(ouvir|áudio|audio|voz|som)|fala\s*com\s*(voz|áudio|audio)|ouv\w*\s*(sua|a)\s*voz|com\s*voz|com\s*áudio|com\s*audio|ativar?\s*(áudio|audio|voz))/i },
+  ];
+
+  let audioDisabledForSession = sessionAudioDisabled.has(sid);
+
+  for (const pattern of audioTogglePatterns) {
+    if (pattern.disable.test(text.trim())) {
+      sessionAudioDisabled.add(sid);
+      audioDisabledForSession = true;
+      await messenger.queueText(remoteJid, '🔇 Áudio desativado! A partir de agora vou responder só por texto. Para reativar, é só pedir!');
+      return;
+    }
+    if (pattern.enable.test(text.trim())) {
+      sessionAudioDisabled.delete(sid);
+      audioDisabledForSession = false;
+      await messenger.queueText(remoteJid, '🔊 Áudio ativado! Vou voltar a mandar áudio. Para desativar, é só pedir!');
+      return;
+    }
+  }
+
   if (text.trim().startsWith('/')) {
     try {
       const { handleChatCommand } = require('../chat/engine');
@@ -1376,6 +1401,7 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
       isGroup,
       source: 'whatsapp',
       userName: pushName || undefined,
+      personaId: WHATSAPP_PERSONA_ID || undefined,
     });
 
     console.log(`[WhatsApp] processMessage result: response=${result.response?.substring(0, 100)}, ttsVoice=${result.ttsVoice}, sources=${result.sources?.length}`);
@@ -1390,6 +1416,7 @@ async function handleWhatsAppMessageWithId(remoteJid, senderId, text, pushName, 
       silenced: result.silenced || false,
       messageId,
       originalMessage: text,
+      noAudio: audioDisabledForSession,
     });
   } catch (err) {
     console.error('[WhatsApp] handleWhatsAppMessageWithId error:', err.message, err.stack?.substring(0, 500));
@@ -2130,7 +2157,7 @@ class WhatsAppMessenger {
   }
 
   async queueReply(jid, reply, opts = {}) {
-    const { lang = DEFAULT_LANG, voice = null, source = 'whatsapp', isGroup = false, pushName = null, interactiveOptions = null, sources = null, silenced = false, messageId = null, originalMessage } = opts;
+    const { lang = DEFAULT_LANG, voice = null, source = 'whatsapp', isGroup = false, pushName = null, interactiveOptions = null, sources = null, silenced = false, messageId = null, originalMessage, noAudio = false } = opts;
 
     console.log('[WhatsApp] queueReply opts keys:', Object.keys(opts), 'originalMessage type:', typeof originalMessage);
 
