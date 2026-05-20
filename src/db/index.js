@@ -1006,6 +1006,104 @@ async function initDatabase() {
     }
     console.log('[DB] Default categories seeded');
   }
+
+  // AI Usage Logs table
+  try { await pool.execute(`
+    CREATE TABLE IF NOT EXISTS ai_usage_logs (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      tenant_id VARCHAR(60) DEFAULT 'default',
+      model VARCHAR(100) NOT NULL,
+      provider VARCHAR(50) DEFAULT 'llm',
+      request_type VARCHAR(30) DEFAULT 'chat',
+      prompt_tokens INT DEFAULT 0,
+      completion_tokens INT DEFAULT 0,
+      cost DECIMAL(10, 6) DEFAULT 0,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_usage_tenant (tenant_id),
+      KEY idx_usage_model (model),
+      KEY idx_usage_date (created_at)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
+
+  // Automation logs table
+  try { await pool.execute(`
+    CREATE TABLE IF NOT EXISTS automation_logs (
+      id BIGINT AUTO_INCREMENT PRIMARY KEY,
+      automation_id VARCHAR(80) NOT NULL,
+      user_id VARCHAR(60) DEFAULT NULL,
+      session_id VARCHAR(80) DEFAULT NULL,
+      trigger_type VARCHAR(30) DEFAULT NULL,
+      action_type VARCHAR(30) DEFAULT NULL,
+      result JSON DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_automlog_automation (automation_id),
+      KEY idx_automlog_user (user_id),
+      KEY idx_automlog_session (session_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
+
+  // Scheduling tables
+  try { await pool.execute(`
+    CREATE TABLE IF NOT EXISTS scheduling_settings (
+      id VARCHAR(80) PRIMARY KEY,
+      persona_id VARCHAR(60) DEFAULT 'default',
+      max_daily_appointments INT DEFAULT 50,
+      slot_duration_minutes INT DEFAULT 30,
+      buffer_minutes INT DEFAULT 10,
+      capacity_per_slot INT DEFAULT 1,
+      working_days VARCHAR(20) DEFAULT '1,2,3,4,5,6',
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      UNIQUE KEY idx_sched_settings_persona (persona_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
+
+  try { await pool.execute(`
+    CREATE TABLE IF NOT EXISTS scheduling_working_hours (
+      id VARCHAR(80) PRIMARY KEY,
+      persona_id VARCHAR(60) DEFAULT 'default',
+      day_of_week INT NOT NULL,
+      start_time TIME NOT NULL,
+      end_time TIME NOT NULL,
+      slot_capacity INT DEFAULT 1,
+      is_active TINYINT(1) DEFAULT 1,
+      KEY idx_wh_persona_day (persona_id, day_of_week)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
+
+  try { await pool.execute(`
+    CREATE TABLE IF NOT EXISTS scheduling_service_types (
+      id VARCHAR(80) PRIMARY KEY,
+      persona_id VARCHAR(60) DEFAULT 'default',
+      name VARCHAR(200) NOT NULL,
+      description TEXT,
+      duration_minutes INT DEFAULT 30,
+      price DECIMAL(10, 2) DEFAULT 0,
+      buffer_minutes INT DEFAULT 10,
+      capacity_per_slot INT DEFAULT 1,
+      is_active TINYINT(1) DEFAULT 1,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      KEY idx_st_persona (persona_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
+
+  try { await pool.execute(`
+    CREATE TABLE IF NOT EXISTS scheduling_appointments (
+      id VARCHAR(80) PRIMARY KEY,
+      persona_id VARCHAR(60) DEFAULT 'default',
+      service_type_id VARCHAR(80) DEFAULT NULL,
+      start_time DATETIME NOT NULL,
+      end_time DATETIME NOT NULL,
+      customer_name VARCHAR(255) DEFAULT '',
+      customer_phone VARCHAR(50) DEFAULT '',
+      customer_email VARCHAR(255) DEFAULT '',
+      notes TEXT,
+      status VARCHAR(30) DEFAULT 'pending',
+      owner_id VARCHAR(60) DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      KEY idx_appt_persona (persona_id),
+      KEY idx_appt_status (status),
+      KEY idx_appt_start (start_time),
+      KEY idx_appt_customer_phone (customer_phone)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
+
+  console.log('[DB] Additional schemas initialized');
 }
 
 module.exports = { pool, initDatabase };
