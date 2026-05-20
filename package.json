@@ -7,6 +7,10 @@
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "ingest": "node scripts/ingest.js",
+    "lint": "eslint src/ scripts/ tests/",
+    "lint:fix": "eslint src/ scripts/ tests/ --fix",
+    "format": "prettier --write src/ scripts/ tests/",
+    "format:check": "prettier --check src/ scripts/ tests/",
     "ngrok": "node scripts/ngrok-start.js",
     "tunnel": "node scripts/ngrok-start.js",
     "tts:start": "python tts-server/kokoro_server.py --port 8001",
@@ -56,7 +60,11 @@
     "xml2js": "^0.5.0"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.4.0",
+    "eslint-config-prettier": "^10.1.8",
     "jest": "^30.4.2",
+    "prettier": "^3.8.3",
     "supertest": "^7.2.2"
   }
 }

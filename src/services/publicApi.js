@@ -71,7 +71,7 @@ class PublicApiClient {
   async joke(category = '') {
     try {
       const params = category ? { category } : {};
-      const data = await this.get('https://v2.jokeapi.dev/joke/Any', { params: { safe-mode: true, ...params } });
+      const data = await this.get('https://v2.jokeapi.dev/joke/Any', { params: { 'safe-mode': true, ...params } });
       return data.type === 'twopart' ? { setup: data.setup, delivery: data.delivery } : { joke: data.joke };
     } catch (e) { return { error: e.message }; }
   }

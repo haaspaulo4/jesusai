@@ -1,0 +1,8 @@
+node_modules/
+evolution-api/
+coverage/
+public/
+data/
+tts-server/
+*.md
+package-lock.json
