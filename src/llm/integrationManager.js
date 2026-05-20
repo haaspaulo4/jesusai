@@ -4,6 +4,7 @@ const { pool } = require('../db');
 const SERVICE_TYPES = {
   llm: { label: 'LLM / Chat', envKey: 'OLLAMA_API_KEY', envUrl: 'OLLAMA_BASE_URL', testModel: true, healthModel: 'ok', healthMaxTokens: 1 },
   llm_groq: { label: 'LLM Groq', envKey: 'GROQ_API_KEY', envUrl: 'GROQ_BASE_URL', testModel: true, healthModel: 'llama-3.3-70b-versatile', healthMaxTokens: 1 },
+  llm_claude: { label: 'LLM Claude (Aibee)', envKey: 'CLAUDE_API_KEY', envUrl: 'CLAUDE_BASE_URL', testModel: true, healthModel: 'claude-sonnet-4-20250514', healthMaxTokens: 1 },
   tts_kokoro: { label: 'TTS Kokoro', envKey: '', envUrl: 'KOKORO_URL', testModel: false, healthEndpoint: '/health' },
   tts_edge: { label: 'TTS Edge', envKey: '', envUrl: '', testModel: false, healthCmd: 'edge-tts' },
   tts_multivozes: { label: 'TTS Multivozes', envKey: 'MULTIVOZES_KEY', envUrl: 'MULTIVOZES_URL', testModel: false },
@@ -129,6 +130,18 @@ class IntegrationManager {
           id: 'env_llm_groq',
           type, key: process.env.GROQ_API_KEY, baseUrl: url, model,
           label: 'LLM Groq (env)', priority: 0, active: true,
+          healthy: true, lastUsed: null, lastError: null, consecutiveFailures: 0,
+          lastHealthCheck: null, rateLimitRemaining: null, extraConfig: {},
+        });
+      }
+
+      if (type === 'llm_claude' && process.env.CLAUDE_API_KEY) {
+        const url = process.env.CLAUDE_BASE_URL || 'https://api.aibee.cloud/v1';
+        const model = process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514';
+        this.integrations[type].push({
+          id: 'env_llm_claude',
+          type, key: process.env.CLAUDE_API_KEY, baseUrl: url, model,
+          label: 'Claude (Aibee)', priority: 0, active: true,
           healthy: true, lastUsed: null, lastError: null, consecutiveFailures: 0,
           lastHealthCheck: null, rateLimitRemaining: null, extraConfig: {},
         });
@@ -302,7 +315,7 @@ class IntegrationManager {
 
   async callLLM(messages, options = {}) {
     const useGroq = process.env.GROQ_AS_PRIMARY === 'true';
-    const serviceTypes = useGroq ? ['llm_groq', 'llm'] : ['llm', 'llm_groq'];
+    const serviceTypes = useGroq ? ['llm_groq', 'llm_claude', 'llm'] : ['llm', 'llm_claude', 'llm_groq'];
     let lastErr = null;
 
     for (const st of serviceTypes) {
@@ -329,22 +342,30 @@ class IntegrationManager {
       const timer = setTimeout(() => controller.abort(), timeout);
 
       const isOllama = integ.baseUrl?.includes('ollama.com') || integ.baseUrl?.includes(':11434');
-      const endpoint = isOllama ? '/chat' : '/chat/completions';
+      const isClaude = integ.baseUrl?.includes('aibee.cloud') || serviceType === 'llm_claude';
+      const isAnthropic = isClaude || (integ.baseUrl?.includes('anthropic') || integ.baseUrl?.includes('anthropic.com'));
 
-      let body;
+      let body, endpoint, headers;
       if (isOllama) {
+        endpoint = '/chat';
         body = { model: options.model || integ.model, messages, stream, options: { temperature, num_predict: numPredict } };
+        headers = { 'Content-Type': 'application/json', ...(integ.key ? { Authorization: `Bearer ${integ.key}` } : {}) };
+      } else if (isAnthropic) {
+        endpoint = '/messages';
+        body = { model: options.model || integ.model, max_tokens: numPredict, messages };
+        if (temperature !== undefined && temperature !== null) body.temperature = temperature;
+        if (tools?.length > 0) body.tools = tools;
+        headers = { 'Content-Type': 'application/json', 'x-api-key': integ.key, 'anthropic-version': '2023-06-01' };
       } else {
+        endpoint = '/chat/completions';
         body = { model: options.model || integ.model, messages, temperature, max_tokens: numPredict, stream };
+        if (tools?.length > 0) body.tools = tools;
+        headers = { 'Content-Type': 'application/json', ...(integ.key ? { Authorization: `Bearer ${integ.key}` } : {}) };
       }
-      if (tools?.length > 0) body.tools = tools;
 
       const response = await fetch(`${integ.baseUrl}${endpoint}`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(integ.key ? { Authorization: `Bearer ${integ.key}` } : {}),
-        },
+        headers,
         body: JSON.stringify(body),
         signal: controller.signal,
       });
@@ -736,10 +757,23 @@ function normalizeLLMResponse(data) {
   }
 
   if (data.content !== undefined && !data.message) {
+    if (Array.isArray(data.content)) {
+      const textBlocks = data.content.filter(b => b.type === 'text');
+      const toolBlocks = data.content.filter(b => b.type === 'tool_use');
+      let toolCalls = null;
+      if (toolBlocks.length > 0) {
+        toolCalls = toolBlocks.map((b, i) => ({ id: b.id || `tool_${i}`, function: { name: b.name, arguments: b.input ? JSON.stringify(b.input) : '{}' }, type: 'function' }));
+      }
+      return {
+        message: { role: 'assistant', content: textBlocks.map(b => b.text).join(''), thinking: '' },
+        tool_calls: toolCalls,
+        done: data.stop_reason === 'end_turn' || data.stop_reason === 'tool_use',
+      };
+    }
     return {
       message: { role: 'assistant', content: data.content || '', thinking: '' },
       tool_calls: null,
-      done: true,
+      done: data.stop_reason === 'end_turn',
     };
   }
 
