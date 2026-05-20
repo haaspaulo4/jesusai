@@ -34,7 +34,32 @@ const agentModule = require('../agent');
 const smartFollowUp = require('../onboarding/followup');
 
 const MAX_TOOL_ROUNDS = 5;
+const TOTAL_TOOL_TIMEOUT_MS = 60000; // 60s max for entire tool loop
+const PER_TOOL_TIMEOUT_MS = 10000; // 10s max per individual tool execution
 const SILENCE_TTL = 24 * 60 * 60 * 1000;
+
+// Circuit breaker for LLM calls
+const circuitBreaker = {
+  failures: 0,
+  lastFailure: 0,
+  threshold: 3,
+  cooldownMs: 30000, // 30s cooldown after threshold failures
+  isOpen() {
+    if (this.failures < this.threshold) return false;
+    if (Date.now() - this.lastFailure > this.cooldownMs) {
+      this.failures = 0; // Reset after cooldown
+      return false;
+    }
+    return true;
+  },
+  recordFailure() {
+    this.failures++;
+    this.lastFailure = Date.now();
+  },
+  recordSuccess() {
+    this.failures = 0;
+  },
+};
 
 const silenceCache = new Map();
 const MAX_SILENCE_CACHE_SIZE = 10000;
@@ -443,6 +468,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
   let fullResponse = '';
   let toolRounds = 0;
+  let toolLoopStart = Date.now();
   let lastLLMResult = null;
   let sources = relevantVerses.slice(0, 4).map(v => ({
     reference: v.reference,
@@ -455,6 +481,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
 
   const maxTokens = 1024;
   const temperature = parseFloat(await getSetting('temperature', '0.7')) || 0.7;
+  const llmTimeout = parseInt(await getSetting('llm_timeout', '30000')) || 30000;
 
   const isMetaPersona = persona.id === 'meta-persona';
   const isAdmin = await isUserAdmin(uid);
@@ -475,6 +502,23 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   }
 
   while (toolRounds < MAX_TOOL_ROUNDS) {
+    // Circuit breaker: if LLM is failing repeatedly, return graceful error
+    if (circuitBreaker.isOpen()) {
+      console.warn('[ChatEngine] Circuit breaker OPEN — LLM unavailable, returning fallback');
+      fullResponse = lang === 'en-US' ? 'I\'m having trouble connecting right now. Please try again in a moment.'
+        : lang === 'es-ES' ? 'Estoy teniendo problemas de conexión. Por favor, intenta de nuevo en un momento.'
+        : 'Estou com dificuldade de conexão no momento. Por favor, tente novamente em instantes.';
+      break;
+    }
+
+    // Total timeout: abort if tool loop exceeds 60s
+    const loopElapsed = Date.now() - toolLoopStart;
+    if (loopElapsed > TOTAL_TOOL_TIMEOUT_MS) {
+      console.warn(`[ChatEngine] Total tool loop timeout (${TOTAL_TOOL_TIMEOUT_MS}ms) exceeded after ${toolRounds} rounds`);
+      fullResponse = messages.filter(m => m.role === 'assistant' && m.content).pop()?.content || fullResponse;
+      break;
+    }
+
     const llmTools = getToolDefinitions();
     const extTools = getExtToolDefs ? getExtToolDefs() : [];
     const allTools = [...llmTools, ...extTools];
@@ -504,16 +548,18 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
       temperature,
       numPredict: maxTokens,
       retries: 2,
-      timeout: parseInt(await getSetting('llm_timeout', '30000')) || 30000,
+      timeout: llmTimeout,
       tools: tools,
     });
     lastLLMResult = result;
 
     if (!result) {
       console.error('[ChatEngine] LLM returned null result');
+      circuitBreaker.recordFailure();
       toolRounds++;
       continue;
     }
+    circuitBreaker.recordSuccess();
 
     const toolCalls = result.tool_calls;
     let content = extractContent(result) || '';
@@ -548,7 +594,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
             temperature: Math.max(0.3, temperature - 0.3),
             numPredict: maxTokens,
             retries: 1,
-            timeout: parseInt(await getSetting('llm_timeout', '30000')) || 30000,
+            timeout: llmTimeout,
             tools: null,
           });
           const retryContent = extractContent(retryResult) || '';
@@ -583,10 +629,19 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
       }
       let toolResult;
       const isExternalTool = fnName === 'use_external_tool' || fnName === 'list_external_tools';
-      if (isExternalTool) {
-        toolResult = await execExtTool(fnName, fnArgs, { userId: uid, lang });
-      } else {
-        toolResult = await executeTool(fnName, fnArgs, { userId: uid, lang, isAdmin: isAdmin || isMetaPersona, personaId: persona.id, sessionId: sid });
+      try {
+        const toolPromise = isExternalTool
+          ? execExtTool(fnName, fnArgs, { userId: uid, lang })
+          : executeTool(fnName, fnArgs, { userId: uid, lang, isAdmin: isAdmin || isMetaPersona, personaId: persona.id, sessionId: sid });
+        
+        // Per-tool timeout
+        toolResult = await Promise.race([
+          toolPromise,
+          new Promise((_, reject) => setTimeout(() => reject(new Error(`Tool ${fnName} timed out after ${PER_TOOL_TIMEOUT_MS}ms`)), PER_TOOL_TIMEOUT_MS)),
+        ]);
+      } catch (toolErr) {
+        console.error(`[ChatEngine] Tool ${fnName} error:`, toolErr.message);
+        toolResult = { error: toolErr.message };
       }
 
       messages.push({

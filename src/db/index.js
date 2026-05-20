@@ -1104,6 +1104,22 @@ async function initDatabase() {
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
 
   console.log('[DB] Additional schemas initialized');
+
+  // Performance indexes — Phase 2 (added 2026-05-20)
+  try { await pool.execute('CREATE INDEX idx_messages_session_ts ON messages (session_id, timestamp)'); } catch {}
+  try { await pool.execute('CREATE INDEX idx_cognitive_session_created ON cognitive_states (session_id, created_at)'); } catch {}
+  try { await pool.execute('CREATE INDEX idx_embeddings_source_model ON embeddings (source_id, model)'); } catch {}
+  try { await pool.execute('CREATE INDEX idx_orders_persona_status_created ON orders (persona_id, status, created_at)'); } catch {}
+  try { await pool.execute('CREATE INDEX idx_carts_session_step ON commerce_carts (session_id, flow_step)'); } catch {}
+  try { await pool.execute('CREATE INDEX idx_loyalty_user_persona_created ON loyalty_transactions (user_id, persona_id, created_at)'); } catch {}
+  try { await pool.execute('CREATE INDEX idx_broadcasts_persona_status ON broadcasts (persona_id, status)'); } catch {}
+  try { await pool.execute('CREATE INDEX idx_orders_customer_phone ON orders (customer_phone)'); } catch {}
+  try { await pool.execute('CREATE INDEX idx_orders_order_number ON orders (order_number)'); } catch {}
+  try { await pool.execute('CREATE INDEX idx_rate_limits_user_service ON rate_limits (user_id, service_type)'); } catch {}
+  try { await pool.execute('CREATE INDEX idx_loyalty_order_type ON loyalty_transactions (order_id, type)'); } catch {}
+  try { await pool.execute('CREATE INDEX idx_user_xp_persona_xp ON user_xp (persona_id, xp DESC)'); } catch {}
+
+  console.log('[DB] Performance indexes verified');
 }
 
 module.exports = { pool, initDatabase };
