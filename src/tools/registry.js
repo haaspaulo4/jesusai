@@ -2342,6 +2342,32 @@ async function loadRegistry() {
   });
 
   console.log(`[ToolRegistry] Loaded ${TOOL_REGISTRY.size} external tools`);
+
+  const apiClient = require('../services/publicApi');
+  const publicTools = [
+    { id: 'public_weather', name: 'Weather', desc: 'Get weather for a city', params: ['city'], fn: async (p) => apiClient.weather(p.city) },
+    { id: 'public_cep', name: 'CEP Lookup', desc: 'Find Brazilian address by CEP', params: ['cep'], fn: async (p) => apiClient.cep(p.cep) },
+    { id: 'public_geocode', name: 'Geocoding', desc: 'Convert address to lat/lon', params: ['address'], fn: async (p) => apiClient.geocode(p.address) },
+    { id: 'public_exchange', name: 'Exchange Rates', desc: 'Currency exchange rates', params: ['base'], fn: async (p) => apiClient.exchangeRates(p.base) },
+    { id: 'public_joke', name: 'Joke', desc: 'Random joke', params: ['category'], fn: async (p) => apiClient.joke(p.category) },
+    { id: 'public_advice', name: 'Advice', desc: 'Random advice slip', params: [], fn: async () => apiClient.advice() },
+    { id: 'public_cat_fact', name: 'Cat Fact', desc: 'Random cat fact', params: [], fn: async () => apiClient.catFact() },
+    { id: 'public_dog_fact', name: 'Dog Fact', desc: 'Random dog fact', params: [], fn: async () => apiClient.dogFact() },
+    { id: 'public_wiki', name: 'Wikipedia', desc: 'Search Wikipedia summary', params: ['query'], fn: async (p) => apiClient.wikiSearch(p.query) },
+    { id: 'public_horoscope', name: 'Horoscope', desc: 'Daily horoscope by sign', params: ['sign'], fn: async (p) => apiClient.horoscope(p.sign) },
+    { id: 'public_news', name: 'News', desc: 'Latest news (Brazil)', params: ['topic'], fn: async (p) => apiClient.news(p.topic) },
+    { id: 'public_number_fact', name: 'Number Fact', desc: 'Trivia about a number', params: ['num', 'type'], fn: async (p) => apiClient.numberFact(p.num, p.type) },
+    { id: 'public_definition', name: 'Word Definition', desc: 'English word definition', params: ['word'], fn: async (p) => apiClient.wordDefinition(p.word) },
+    { id: 'public_random_user', name: 'Random User', desc: 'Generate random user data', params: [], fn: async () => apiClient.randomUser() },
+    { id: 'public_emoji', name: 'Emoji Search', desc: 'Search emojis by keyword', params: ['query'], fn: async (p) => apiClient.emojiSearch(p.query) },
+    { id: 'public_qr', name: 'QR Code', desc: 'Generate QR code URL', params: ['text', 'size'], fn: async (p) => apiClient.qrCode(p.text, p.size) },
+    { id: 'public_crypto', name: 'Crypto Price', desc: 'Get cryptocurrency price', params: ['coin'], fn: async (p) => apiClient.cryptoPrice(p.coin) },
+    { id: 'public_gitub_user', name: 'GitHub User', desc: 'GitHub user profile', params: ['username'], fn: async (p) => apiClient.gitHubUser(p.username) },
+  ];
+  for (const t of publicTools) {
+    registerTool({ id: t.id, category: 'public_api', name: t.name, description: t.desc, input: t.params, output: ['result'], enabled: true, priority: 3, execute: t.fn });
+  }
+  console.log(`[ToolRegistry] Loaded ${publicTools.length} public API tools`);
 }
 
 async function searchExternalKnowledge(query, category, limit = 5) {
