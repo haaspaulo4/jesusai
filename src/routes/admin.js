@@ -271,10 +271,11 @@ router.put('/settings', authMiddleware, adminMiddleware, async (req, res) => {
       'rate_limit_guest', 'rate_limit_user', 'rate_limit_premium', 'rate_limit_admin',
       'message_chunk_size', 'audio_chunk_size', 'default_persona', 'default_language',
       'welcome_message', 'welcome_message_en', 'welcome_message_es',
-      'store_currency', 'store_currency_symbol', 'store_whatsapp', 'store_hero_video', 'store_footer_text',
+      'store_currency', 'store_currency_symbol', 'store_whatsapp', 'store_address', 'store_hero_video', 'store_footer_text',
       'store_instagram_url', 'store_facebook_url', 'store_tiktok_url', 'store_cookie_consent',
       'store_delivery_fee', 'store_free_delivery_above', 'store_delivery_zones', 'commerce_enabled',
       'store_payment_methods', 'store_pix_key', 'store_pix_name', 'store_bank_info',
+      'loyalty_enabled', 'loyalty_type', 'loyalty_points_per_real', 'loyalty_cashback_percent', 'loyalty_minimum_redemption',
     ];
     const { key, value } = req.body;
     if (!key) return res.status(400).json({ error: 'key is required' });
@@ -2349,6 +2350,388 @@ router.post('/b2b/pipeline', authMiddleware, adminMiddleware, async (req, res) =
     console.error('[Admin] B2B pipeline error:', err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ========== LOYALTY ==========
+router.get('/loyalty/programs', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const programs = await loyalty.listPrograms(req.query.persona_id || 'default');
+    res.json(programs);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/loyalty/programs', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const { getSetting } = require('../settings');
+    const personaId = req.body.persona_id || await getSetting('persona') || process.env.PERSONA || 'default';
+    const program = await loyalty.getOrCreateLoyaltyProgram(personaId);
+    if (req.body.name || req.body.type || req.body.points_per_real || req.body.cashback_percent || req.body.redemption_threshold) {
+      await loyalty.updateProgram(program.id, {
+        name: req.body.name, type: req.body.type,
+        points_per_real: req.body.points_per_real,
+        cashback_percent: req.body.cashback_percent,
+        redemption_threshold: req.body.redemption_threshold,
+      });
+    }
+    res.json(await loyalty.getLoyaltyProgram(personaId));
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/loyalty/programs/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const result = await loyalty.updateProgram(req.params.id, req.body);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/loyalty/programs/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    await loyalty.deleteProgram(req.params.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/loyalty/balance/:userId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const balance = await loyalty.getLoyaltyBalance(req.params.userId, req.query.persona_id || 'default');
+    res.json(balance);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/loyalty/history/:userId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const history = await loyalty.getLoyaltyHistory(req.params.userId, req.query.persona_id || 'default', req.query.limit || 20);
+    res.json(history);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/loyalty/earn', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const result = await loyalty.earnPoints(req.body.user_id, req.body.persona_id || 'default', req.body.order_id, req.body.amount, req.body.reason);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/loyalty/redeem', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const result = await loyalty.redeemPoints(req.body.user_id, req.body.persona_id || 'default', req.body.amount, req.body.reward_id);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/loyalty/rewards', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const rewards = await loyalty.getRewards(req.query.persona_id || 'default');
+    res.json(rewards);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/loyalty/rewards', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const reward = await loyalty.createReward(req.body);
+    res.json(reward);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/loyalty/rewards/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const result = await loyalty.updateReward(req.params.id, req.body);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/loyalty/rewards/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    await loyalty.deleteReward(req.params.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/loyalty/stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const stats = await loyalty.getLoyaltyStats(req.query.persona_id || 'default');
+    res.json(stats);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/loyalty/expire', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const result = await loyalty.expireOldPoints(req.body.persona_id || 'default', req.body.days || 90);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ========== BROADCAST ==========
+router.get('/broadcasts', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const broadcast = require('../broadcast');
+    const list = await broadcast.listBroadcasts(req.query.persona_id || 'default', req.query.limit);
+    res.json(list);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/broadcasts', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const broadcast = require('../broadcast');
+    const bc = await broadcast.createBroadcast({ ...req.body, persona_id: req.body.persona_id || 'default' });
+    res.json(bc);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/broadcasts/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const broadcast = require('../broadcast');
+    const bc = await broadcast.getBroadcast(req.params.id);
+    if (!bc) return res.status(404).json({ error: 'Broadcast não encontrado' });
+    res.json(bc);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/broadcasts/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const broadcast = require('../broadcast');
+    const result = await broadcast.updateBroadcast(req.params.id, req.body);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/broadcasts/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const broadcast = require('../broadcast');
+    await broadcast.deleteBroadcast(req.params.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/broadcasts/:id/send', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const broadcast = require('../broadcast');
+    const result = await broadcast.sendBroadcast(req.params.id);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/broadcasts/:id/logs', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const broadcast = require('../broadcast');
+    const logs = await broadcast.getBroadcastLogs(req.params.id, req.query.limit);
+    res.json(logs);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/broadcast-stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const broadcast = require('../broadcast');
+    const stats = await broadcast.getBroadcastStats(req.query.persona_id || 'default');
+    res.json(stats);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ========== REPORTS ==========
+router.get('/reports/dashboard', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const reports = require('../erp/reports');
+    const { getSetting } = require('../settings');
+    const personaId = req.query.persona_id || await getSetting('persona') || process.env.PERSONA || 'default';
+    const dashboard = await reports.getFullDashboard(personaId, req.query.date_from, req.query.date_to);
+    res.json(dashboard);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/reports/revenue', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const reports = require('../erp/reports');
+    const { getSetting } = require('../settings');
+    const personaId = req.query.persona_id || await getSetting('persona') || process.env.PERSONA || 'default';
+    const revenue = await reports.getRevenueReport(personaId, req.query.date_from, req.query.date_to);
+    res.json(revenue);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/reports/top-products', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const reports = require('../erp/reports');
+    const { getSetting } = require('../settings');
+    const personaId = req.query.persona_id || await getSetting('persona') || process.env.PERSONA || 'default';
+    const products = await reports.getTopProducts(personaId, req.query.limit || 10, req.query.date_from, req.query.date_to);
+    res.json(products);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/reports/sales-trend', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const reports = require('../erp/reports');
+    const { getSetting } = require('../settings');
+    const personaId = req.query.persona_id || await getSetting('persona') || process.env.PERSONA || 'default';
+    const trend = await reports.getSalesTrend(personaId, req.query.days || 30);
+    res.json(trend);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/reports/conversion', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const reports = require('../erp/reports');
+    const { getSetting } = require('../settings');
+    const personaId = req.query.persona_id || await getSetting('persona') || process.env.PERSONA || 'default';
+    const funnel = await reports.getConversionFunnel(personaId);
+    res.json(funnel);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/reports/customers', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const reports = require('../erp/reports');
+    const { getSetting } = require('../settings');
+    const personaId = req.query.persona_id || await getSetting('persona') || process.env.PERSONA || 'default';
+    const customers = await reports.getCustomerMetrics(personaId);
+    res.json(customers);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ========== DELIVERY DRIVERS ==========
+router.get('/delivery/drivers', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const delivery = require('../erp/delivery');
+    const drivers = await delivery.listDrivers(req.query.persona_id || 'default');
+    res.json(drivers);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/delivery/drivers', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const delivery = require('../erp/delivery');
+    const driver = await delivery.createDriver({ ...req.body, persona_id: req.body.persona_id || 'default' });
+    res.json(driver);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/delivery/drivers/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const delivery = require('../erp/delivery');
+    const result = await delivery.updateDriver(req.params.id, req.body);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/delivery/drivers/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const delivery = require('../erp/delivery');
+    await delivery.deleteDriver(req.params.id);
+    res.json({ success: true });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/delivery/assign', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const delivery = require('../erp/delivery');
+    const result = await delivery.assignDriver(req.body.order_id, req.body.driver_id);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/delivery/status/:orderId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const delivery = require('../erp/delivery');
+    const result = await delivery.updateAssignment(req.params.orderId, req.body.status, req.body.notes);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/delivery/track/:orderId', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const delivery = require('../erp/delivery');
+    const assignment = await delivery.getOrderAssignment(req.params.orderId);
+    res.json(assignment || { found: false });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ========== CUSTOMER RECOVERY ==========
+router.get('/recovery/inactive', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const recovery = require('../erp/recovery');
+    const customers = await recovery.getInactiveCustomers(req.query.persona_id || 'default', req.query.days || 7);
+    res.json(customers);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/recovery/churn-risk', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const recovery = require('../erp/recovery');
+    const customers = await recovery.getChurnRiskCustomers(req.query.persona_id || 'default');
+    res.json(customers);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/recovery/at-risk', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const recovery = require('../erp/recovery');
+    const stats = await recovery.getAtRiskCustomers(req.query.persona_id || 'default');
+    res.json(stats);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/recovery/seed-automations', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const recovery = require('../erp/recovery');
+    const result = await recovery.seedRecoveryAutomations(req.body.persona_id || 'default');
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ========== STT STATUS ==========
+router.get('/stt/status', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { getSTTStatus } = require('../stt');
+    const status = await getSTTStatus();
+    res.json(status);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ========== SETUP WIZARD ==========
+router.get('/wizard', authMiddleware, async (req, res) => {
+  try {
+    const wizard = require('../wizard');
+    const state = await wizard.getWizardState(req.userId);
+    res.json(state || { currentStep: 0, completed: [], data: {} });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/wizard/:step', authMiddleware, async (req, res) => {
+  try {
+    const wizard = require('../wizard');
+    const result = await wizard.saveWizardStep(req.userId, req.params.step, req.body);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/wizard/apply', authMiddleware, async (req, res) => {
+  try {
+    const wizard = require('../wizard');
+    const result = await wizard.applyWizard(req.userId);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/wizard/reset', authMiddleware, async (req, res) => {
+  try {
+    const wizard = require('../wizard');
+    const result = await wizard.resetWizard(req.userId);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
 module.exports = router;

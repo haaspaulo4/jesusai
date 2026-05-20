@@ -235,6 +235,22 @@ async function finalizeOrder(sessionId, source = 'whatsapp') {
     // Mark cart as completed
     await pool.execute("UPDATE commerce_carts SET status = 'completed', flow_step = 'completed', order_id = ? WHERE id = ?", [order.id, cart.id]);
 
+    // Award loyalty points/cashback for this order
+    try {
+      const { getSetting } = require('../settings');
+      const loyalty = require('../loyalty');
+      const loyaltyEnabled = await getSetting('loyalty_enabled');
+      if (loyaltyEnabled !== 'false' && loyaltyEnabled !== '0') {
+        const personaId = cart.persona_id || await getSetting('persona') || process.env.PERSONA || 'default';
+        const userId = cart.user_id || null;
+        if (userId && order.total > 0) {
+          await loyalty.earnPoints(userId, personaId, order.id, parseFloat(order.total), 'Pontos por pedido #' + order.order_number);
+        }
+      }
+    } catch (loyaltyErr) {
+      console.error('[Commerce] Loyalty earn error:', loyaltyErr.message);
+    }
+
     return {
       success: true,
       order_id: order.id,

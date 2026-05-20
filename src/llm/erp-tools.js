@@ -312,6 +312,21 @@ const ERP_TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'commerce_set_fulfillment',
+      description: 'Define se o pedido é delivery (entrega) ou pickup (retirada no balcão). Use QUANDO o cliente dizer "vou buscar", "retirada", "pickup" ou "delivery" / "entrega". Para pickup, NÃO pede endereço.',
+      parameters: {
+        type: 'object',
+        properties: {
+          session_id: { type: 'string', description: 'ID da sessão (preencha com o session_id da conversa)' },
+          type: { type: 'string', enum: ['delivery', 'pickup'], description: 'delivery = entrega no endereço, pickup = retirada no balcão' },
+        },
+        required: ['type'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'commerce_set_payment',
       description: 'Registra a forma de pagamento e opcionalmente o valor para troco.',
       parameters: {
@@ -380,6 +395,178 @@ const ERP_TOOL_DEFINITIONS = [
           address: { type: 'string', description: 'Endereço completo ou parcial para cálculo do frete' },
         },
         required: ['address'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'loyalty_balance',
+      description: 'Consulta o saldo de fidelidade do cliente (pontos, cashback ou carimbos). Use quando o cliente perguntar sobre seus pontos/cashback.',
+      parameters: {
+        type: 'object',
+        properties: {
+          user_id: { type: 'string', description: 'ID do usuário' },
+        },
+        required: ['user_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'loyalty_reward_list',
+      description: 'Lista as recompensas disponíveis do programa de fidelidade que o cliente pode resgatar.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'loyalty_redeem',
+      description: 'Resgata pontos/cashback do cliente por uma recompensa ou desconto. Use quando o cliente quiser usar seus pontos.',
+      parameters: {
+        type: 'object',
+        properties: {
+          user_id: { type: 'string', description: 'ID do usuário' },
+          reward_id: { type: 'string', description: 'ID da recompensa (se aplicável)' },
+          amount: { type: 'number', description: 'Quantidade de pontos ou valor de cashback a resgatar' },
+        },
+        required: ['user_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'loyalty_history',
+      description: 'Mostra o histórico de transações de fidelidade do cliente (pontos ganhos, resgatados, etc.).',
+      parameters: {
+        type: 'object',
+        properties: {
+          user_id: { type: 'string', description: 'ID do usuário' },
+          limit: { type: 'integer', description: 'Limite de registros (padrão: 10)' },
+        },
+        required: ['user_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'reports_dashboard',
+      description: 'Dashboard financeiro completo: receita, pedidos por status, top produtos, tendências, métricas de clientes e funil de conversão.',
+      parameters: {
+        type: 'object',
+        properties: {
+          date_from: { type: 'string', description: 'Data inicial (YYYY-MM-DD)' },
+          date_to: { type: 'string', description: 'Data final (YYYY-MM-DD)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'reports_top_products',
+      description: 'Top produtos mais vendidos por quantidade e receita.',
+      parameters: {
+        type: 'object',
+        properties: {
+          limit: { type: 'integer', description: 'Quantidade de produtos (padrão: 10)' },
+          date_from: { type: 'string', description: 'Data inicial (YYYY-MM-DD)' },
+          date_to: { type: 'string', description: 'Data final (YYYY-MM-DD)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'reports_sales_trend',
+      description: 'Tendência de vendas diária nos últimos N dias (receita e pedidos por dia).',
+      parameters: {
+        type: 'object',
+        properties: {
+          days: { type: 'integer', description: 'Número de dias (padrão: 30)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'reports_conversion_funnel',
+      description: 'Funil de conversão: conversas → carrinhos → pedidos → entregas. Use para entender onde os clientes desistem.',
+      parameters: {
+        type: 'object',
+        properties: {},
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delivery_track',
+      description: 'Rastreia a entrega de um pedido. Retorna motorista, status e localização.',
+      parameters: {
+        type: 'object',
+        properties: {
+          order_id: { type: 'string', description: 'ID do pedido' },
+        },
+        required: ['order_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'delivery_update_status',
+      description: 'Atualiza o status de uma entrega (motorista pegou, saiu para entrega, entregue, etc.).',
+      parameters: {
+        type: 'object',
+        properties: {
+          order_id: { type: 'string', description: 'ID do pedido' },
+          status: { type: 'string', enum: ['picked_up', 'on_the_way', 'delivered', 'failed'], description: 'Novo status da entrega' },
+          notes: { type: 'string', description: 'Notas sobre a entrega' },
+        },
+        required: ['order_id', 'status'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'customer_recovery',
+      description: 'Lista clientes em risco de churn (inativos, baixo engajamento, alta probabilidade de abandono). Use para criar ações de reengajamento.',
+      parameters: {
+        type: 'object',
+        properties: {
+          type: { type: 'string', enum: ['inactive', 'churn_risk', 'at_risk'], description: 'Tipo de cliente: inactive (inativos), churn_risk (risco alto), at_risk (todos em risco)' },
+          days: { type: 'integer', description: 'Dias de inatividade (padrão: 7)' },
+        },
+        required: ['type'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'broadcast_create',
+      description: 'Cria uma campanha de broadcast para enviar mensagens em massa para segmentos de clientes.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Título da campanha' },
+          message: { type: 'string', description: 'Mensagem a enviar' },
+          segment: { type: 'string', enum: ['all', 'new', 'inactive_7d', 'inactive_15d', 'inactive_30d', 'vip', 'tag'], description: 'Segmento de clientes' },
+          segment_config: { type: 'object', description: 'Configuração adicional do segmento (tags, etc.)' },
+          scheduled_at: { type: 'string', description: 'Data/hora para envio agendado (ISO format)' },
+        },
+        required: ['message'],
       },
     },
   },
@@ -744,6 +931,28 @@ async function executeERPTool(name, args, context = {}) {
       return { success: true, address, delivery, total: newSummary.total, message: msg };
     }
 
+    case 'commerce_set_fulfillment': {
+      const commerce = require('../erp/commerce');
+      if (!sid) return { error: 'Sessão não encontrada.' };
+      let cart = await commerce.getOrCreateCart(sid, null, null);
+      if (!cart || cart.items.length === 0) return { error: 'Carrinho vazio. Adicione itens primeiro.' };
+      const isPickup = args.type === 'pickup';
+      let metadata = cart.metadata || {};
+      metadata.fulfillment = isPickup ? 'pickup' : 'delivery';
+      if (isPickup) metadata.pickup = true;
+      else { delete metadata.pickup; delete metadata.fulfillment; }
+      if (isPickup) {
+        metadata.shipping_fee = 0;
+      }
+      const flowStep = isPickup ? 'confirming_payment' : 'confirming_address';
+      cart = await commerce.updateCart(sid, { metadata, flow_step: flowStep });
+      const summary = commerce.getCartSummary(cart);
+      let msg = isPickup
+        ? `🏪 *Retirada no balcão* confirmada!\n\nSeu pedido estará pronto em 20-30 minutos.\n\n${commerce.formatCartForWhatsApp(cart)}\n\nQual a forma de pagamento? (${commerce.PAYMENT_METHODS[Object.keys(commerce.PAYMENT_METHODS).find(k => k)] || 'PIX, Dinheiro, Cartão'})`
+        : `🚚 *Delivery* selecionado!\n\nMe passa o endereço de entrega pra calcular o frete.\n\n${commerce.formatCartForWhatsApp(cart)}`;
+      return { success: true, type: args.type, is_pickup: isPickup, flow_step: flowStep, message: msg };
+    }
+
     case 'commerce_set_payment': {
       const commerce = require('../erp/commerce');
       if (!sid) return { error: 'Sessão não encontrada.' };
@@ -795,19 +1004,33 @@ async function executeERPTool(name, args, context = {}) {
       if (!sid) return { error: 'Sessão não encontrada.' };
       const cart = await commerce.getCart(sid);
       if (!cart || cart.items.length === 0) return { error: 'Carrinho vazio. Adicione itens antes de finalizar.' };
-      if (!cart.shipping_address) return { error: 'Endereço de entrega não informado. Peça o endereço do cliente primeiro.' };
+      const isPickup = cart.metadata?.pickup === true || cart.metadata?.fulfillment === 'pickup';
+      if (!isPickup && !cart.shipping_address) return { error: 'Endereço de entrega não informado. Peça o endereço do cliente, ou confirme se é retirada no balcão.' };
+      if (isPickup && !cart.shipping_address) {
+        await commerce.updateCart(sid, { shipping_address: { type: 'pickup' }, metadata: { ...cart.metadata, shipping_fee: 0 } });
+      }
       const result = await commerce.finalizeOrder(sid, args.source || 'whatsapp');
       if (result.error) return result;
       const changeFor = cart.metadata?.change_for;
       const summary = commerce.getCartSummary(cart);
+      const paymentMethod = cart.metadata?.payment_method;
+      const paymentLabels = { pix: 'PIX', cash: 'Dinheiro', dinheiro: 'Dinheiro', credit_card: 'Cartão de Crédito', debit_card: 'Cartão de Débito', cartao_credito: 'Cartão de Crédito', cartao_debito: 'Cartão de Débito', bank_transfer: 'Transferência', boleto: 'Boleto' };
       let msg = `✅ *Pedido confirmado!*\n\n📋 Pedido: *#${result.order_number}*\n`;
       msg += `\n${result.formatted}`;
+      if (isPickup) {
+        msg += '\n\n🏪 *Retirada no balcão* — Estará pronto em 20-30 minutos!';
+      } else {
+        msg += '\n\n🚚 *Delivery* — Entrega a caminho!';
+      }
       if (changeFor) {
         const change = changeFor - summary.total;
         msg += `\n\n💵 Pagamento em dinheiro: R$ ${changeFor.toFixed(2)}`;
         msg += `\n💵 Troco: R$ ${change.toFixed(2)}`;
       }
-      msg += '\n\nO pedido foi enviado e você será avisado sobre o progresso! 🎉';
+      if (paymentMethod === 'pix' || paymentMethod === 'PIX') {
+        msg += '\n\n💳 Pagamento via PIX — Aguardando pagamento.';
+      }
+      msg += '\n\nO pedido foi registrado! Você será avisado sobre o progresso. 🎉';
       return { ...result, message: msg };
     }
 
@@ -830,6 +1053,124 @@ async function executeERPTool(name, args, context = {}) {
       msg += `\nPrevisão: ${result.estimatedMinutes} minutos`;
       if (result.matchedZone) msg += `\nZona: ${result.matchedZone.name}`;
       return { ...result, message: msg };
+    }
+
+    case 'loyalty_balance': {
+      const loyalty = require('../loyalty');
+      const balance = await loyalty.getLoyaltyBalance(args.user_id, context?.personaId || 'default');
+      if (!balance.program) return { active: false, message: 'Programa de fidelidade não ativado.' };
+      const contextStr = loyalty.formatLoyaltyContext(balance);
+      return {
+        active: true,
+        type: balance.program.type,
+        points: balance.points,
+        cashback: balance.cashback,
+        program_name: balance.program.name,
+        message: contextStr.trim(),
+      };
+    }
+
+    case 'loyalty_reward_list': {
+      const loyalty = require('../loyalty');
+      const rewards = await loyalty.getRewards(context?.personaId || 'default');
+      if (rewards.length === 0) return { rewards: [], message: 'Nenhuma recompensa disponível no momento.' };
+      return {
+        rewards: rewards.map(r => ({
+          id: r.id, name: r.name, description: r.description,
+          points_cost: r.points_cost, discount_percent: r.discount_percent, discount_fixed: r.discount_fixed,
+        })),
+      };
+    }
+
+    case 'loyalty_redeem': {
+      const loyalty = require('../loyalty');
+      const result = await loyalty.redeemPoints(args.user_id, context?.personaId || 'default', args.amount, args.reward_id);
+      if (result.error) return result;
+      return { success: true, ...result, message: 'Resgate realizado com sucesso!' };
+    }
+
+    case 'loyalty_history': {
+      const loyalty = require('../loyalty');
+      const history = await loyalty.getLoyaltyHistory(args.user_id, context?.personaId || 'default', args.limit || 10);
+      return { history: history.map(h => ({ type: h.type, points: h.points, cashback_amount: h.cashback_amount, description: h.description, date: h.created_at })) };
+    }
+
+    case 'reports_dashboard': {
+      const reports = require('../erp/reports');
+      const dashboard = await reports.getFullDashboard(context?.personaId || 'default', args.date_from, args.date_to);
+      return dashboard;
+    }
+
+    case 'reports_top_products': {
+      const reports = require('../erp/reports');
+      const products = await reports.getTopProducts(context?.personaId || 'default', args.limit || 10, args.date_from, args.date_to);
+      return { top_products: products };
+    }
+
+    case 'reports_sales_trend': {
+      const reports = require('../erp/reports');
+      const trend = await reports.getSalesTrend(context?.personaId || 'default', args.days || 30);
+      return { trend };
+    }
+
+    case 'reports_conversion_funnel': {
+      const reports = require('../erp/reports');
+      const funnel = await reports.getConversionFunnel(context?.personaId || 'default');
+      return { funnel };
+    }
+
+    case 'delivery_track': {
+      const delivery = require('../erp/delivery');
+      const assignment = await delivery.getOrderAssignment(args.order_id);
+      if (!assignment) return { found: false, message: 'Nenhuma entrega encontrada para este pedido.' };
+      const statusLabels = { assigned: '🟡 Atribuído', preparing: '🟠 Preparando', picked_up: '📦 Separado', on_the_way: '🛵 A caminho', delivered: '✅ Entregue', failed: '❌ Falha', cancelled: '🚫 Cancelado' };
+      return {
+        found: true,
+        order_id: args.order_id,
+        driver: assignment.driver_name,
+        driver_phone: assignment.driver_phone,
+        vehicle: assignment.vehicle_type,
+        status: assignment.status,
+        status_label: statusLabels[assignment.status] || assignment.status,
+        assigned_at: assignment.assigned_at,
+        delivered_at: assignment.delivered_at,
+        message: `📦 Rastreio do pedido:\n\n🧑‍🍳 Motorista: *${assignment.driver_name}*\n🚚 Veículo: ${assignment.vehicle_type}\n📊 Status: ${statusLabels[assignment.status] || assignment.status}`,
+      };
+    }
+
+    case 'delivery_update_status': {
+      const delivery = require('../erp/delivery');
+      const result = await delivery.updateAssignment(args.order_id, args.status, args.notes);
+      const statusLabels = { picked_up: '📦 Separado', on_the_way: '🛵 Saiu para entrega', delivered: '✅ Entregue', failed: '❌ Falha na entrega' };
+      return { success: true, ...result, message: `Status atualizado: ${statusLabels[args.status] || args.status}` };
+    }
+
+    case 'customer_recovery': {
+      const recovery = require('../erp/recovery');
+      if (args.type === 'inactive') {
+        const customers = await recovery.getInactiveCustomers(context?.personaId || 'default', args.days || 7);
+        return { type: 'inactive', count: customers.length, customers: customers.slice(0, 20).map(c => ({ id: c.id, name: c.name, phone: c.phone, days_inactive: c.days_inactive })) };
+      }
+      if (args.type === 'churn_risk') {
+        const customers = await recovery.getChurnRiskCustomers(context?.personaId || 'default');
+        return { type: 'churn_risk', count: customers.length, customers: customers.slice(0, 20).map(c => ({ id: c.user_id, name: c.name, phone: c.phone, churn_risk: c.churn_risk, suggested_action: c.suggested_action })) };
+      }
+      const atRisk = await recovery.getAtRiskCustomers(context?.personaId || 'default');
+      return { type: 'at_risk', ...atRisk };
+    }
+
+    case 'broadcast_create': {
+      const broadcast = require('../broadcast');
+      const bc = await broadcast.createBroadcast({
+        persona_id: context?.personaId || 'default',
+        title: args.title || 'Campanha',
+        message: args.message,
+        segment: args.segment || 'all',
+        segment_config: args.segment_config || {},
+        status: 'draft',
+        scheduled_at: args.scheduled_at || null,
+      });
+      return { success: true, id: bc.id, message: `Campanha "${bc.title}" criada! Use /broadcast ${bc.id}/send para enviar.` };
     }
 
     default:

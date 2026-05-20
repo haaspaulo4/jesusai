@@ -24,6 +24,7 @@ Persistent. Cognizant. Goal-oriented. Whitelabel-ready.
 | **AI Coaches** — Fitness, nutrition, hypnotherapy with gamification and streaks | **AI Receptionists** — Multi-channel (WhatsApp, Telegram, Web), scheduling, contacts |
 | **AI Influencers** — Persistent personality, content generation, audience engagement | **AI Sales Agents** — Pipeline management, follow-up automation, conversion tracking |
 | **AI Support Teams** — Cognitive routing, churn detection, human escalation | **AI Companions** — Memory, emotional awareness, evolving relationship |
+| **AI Stores** — Autonomous e-commerce with catalog, cart, delivery, loyalty, broadcasts | **AI Consultants** — B2B prospecting, financial reports, customer recovery, delivery tracking |
 
 Every agent gets: **memory + goals + cognition + skills + personality + voice**.
 
@@ -67,43 +68,43 @@ No code. No config files. Just conversation.
                         │   → Decide → Act     │
                         └──────────┬──────────┘
                                    │
-          ┌────────────────────────┼────────────────────────┐
-          │                        │                        │
-   ┌──────▼──────┐        ┌───────▼───────┐       ┌───────▼───────┐
-   │  Cognitive   │        │  Memory Layer  │       │  Goal Stack   │
-   │  Layer       │        │                │       │               │
-   │  Emotion     │        │  Session       │       │  Strategic    │
-   │  Intent      │        │  Profile        │       │  Tactical     │
-   │  Churn Risk  │        │  Org Memory    │       │  Operational  │
-   │  Engagement  │        │  Progress      │       │  Hierarchy    │
-   └──────┬──────┘        └───────┬───────┘       └───────┬───────┘
-          │                        │                        │
-          └────────────────────────┼────────────────────────┘
+           ┌────────────────────────┼────────────────────────┐
+           │                        │                        │
+    ┌──────▼──────┐        ┌───────▼───────┐       ┌───────▼───────┐
+    │  Cognitive   │        │  Memory Layer  │       │  Goal Stack   │
+    │  Layer       │        │                │       │               │
+    │  Emotion     │        │  Session       │       │  Strategic    │
+    │  Intent      │        │  Profile        │       │  Tactical    │
+    │  Churn Risk  │        │  Org Memory    │       │  Operational │
+    │  Engagement  │        │  Progress      │       │  Loyalty     │
+    └──────┬──────┘        └───────┬───────┘       └───────┬───────┘
+           │                        │                        │
+           └────────────────────────┼────────────────────────┘
                                    │
                         ┌──────────▼──────────┐
                         │  Context Compiler   │
-                        │  8 layers injected  │
+                        │  9 layers injected  │
                         │  into system prompt │
                         └──────────┬──────────┘
                                    │
-          ┌────────────────────────┼────────────────────────┐
-          │                        │                        │
-   ┌──────▼──────┐        ┌───────▼───────┐       ┌───────▼───────┐
-   │  RAG Layer   │        │  Skill Runtime │       │  Event Bus    │
-   │  Multi-source│        │  Action         │       │  Reactive     │
-   │  Per-persona  │        │  Generator      │       │  Triggers     │
-   │  TF-IDF       │        │  Communication  │       │  Automations  │
-   └──────────────┘        │  Workflow       │       │  Webhooks     │
-                            └───────────────┘       └───────────────┘
+           ┌────────────────────────┼────────────────────────┐
+           │                        │                        │
+    ┌──────▼──────┐        ┌───────▼───────┐       ┌───────▼───────┐
+    │  RAG Layer   │        │  Skill Runtime │       │  Event Bus    │
+    │  Multi-source│        │  Action         │       │  Reactive     │
+    │  Per-persona  │        │  Generator      │       │  Triggers     │
+    │  TF-IDF       │        │  Communication  │       │  Automations  │
+    │  + Embeddings │        │  Workflow       │       │  Webhooks     │
+    └──────────────┘        └───────────────┘       └───────────────┘
 
-          ┌────────────────────────┼────────────────────────┐
-          │                        │                        │
-   ┌──────▼──────┐        ┌───────▼───────┐       ┌───────▼───────┐
-   │  Blueprint  │        │  Human Override │       │  Proactive    │
-   │  System     │        │  Full           │       │  Engine       │
-   │  Cloneable   │        │  Approval       │       │  Streak Rem.  │
-   │  Templates   │        │  Observation    │       │  Goal Deadlines│
-   └──────────────┘        └───────────────┘       └───────────────┘
+           ┌────────────────────────┼────────────────────────┐
+           │                        │                        │
+    ┌──────▼──────┐        ┌───────▼───────┐       ┌───────▼───────┐
+    │  Blueprint  │        │  Human Override │       │  Proactive     │
+    │  System     │        │  Full           │       │  Engine        │
+    │  Cloneable   │        │  Approval       │       │  Streak Rem.  │
+    │  Templates   │        │  Observation    │       │  Goal Deadlines│
+    └──────────────┘        └───────────────┘       └───────────────┘
 ```
 
 ### What makes this different from a chatbot wrapper?
@@ -114,12 +115,14 @@ No code. No config files. Just conversation.
 | **Goals** | None | Hierarchical goal stack injected into every response |
 | **Cognition** | None | Emotion, intent, churn risk, engagement — real-time |
 | **Identity** | System prompt | Full persona config in 3 languages with genome |
-| **Autonomy** | None | Tasks, calendar, CRM, automations, skills |
+| **Autonomy** | None | Tasks, calendar, CRM, automations, skills, commerce |
 | **Evolution** | None | Self-optimization, progress tracking, stage advancement |
 | **Observability** | None | Agent thought log, cognitive states, suggestions |
 | **Control** | None | Human override (full/approval/observation) |
 | **Scalability** | None | Blueprint system — clone personas from templates |
 | **Events** | None | Event bus — reactive triggers on goals, badges, churn |
+| **Loyalty** | None | Points, cashback, stamp cards, rewards, per-persona |
+| **Commerce** | None | Full cart, delivery zones, coupons, loyalty integration |
 
 ---
 
@@ -130,13 +133,22 @@ Every message is analyzed for emotion, intent, churn risk, conversion probabilit
 
 ### Agent Runtime Loop
 The core loop is: **Perceive → Think → Decide → Act → Reflect**.
-Each message triggers context compilation (8 layers), tool execution (29 tools for meta-persona), and thought logging. The AI doesn't just respond — it reasons, acts, and remembers.
+Each message triggers context compilation (9 layers), tool execution (74 tools for meta-persona), and thought logging. The AI doesn't just respond — it reasons, acts, and remembers.
 
 ### Goal Stack
 Hierarchical goals (strategic → tactical → operational) with progress tracking, target metrics, and parent-child relationships. Active goals are injected into every system prompt — the AI always knows what it's working toward.
 
 ### Conversation Stages
 Configurable funnel stages per persona (greeting → discovery → engagement → conversion → retention). Users advance through stages based on behavior or manually. The AI knows where each user is in the journey.
+
+### Loyalty System
+Per-persona programs: points, cashback, stamp cards, tiers. Auto-earn on order finalization. AI context injection shows balance naturally in conversation. Chat commands: `/fidelidade`, `/pontos`, `/cashback`.
+
+### Broadcast System
+Segmented mass messaging (all, new, inactive 7d/15d/30d, vip, tag). Admin API and chat commands create and send campaigns.
+
+### Customer Recovery
+Automatic detection of inactive customers, high churn risk, and low engagement. Seed default recovery automations (7d, 15d, 30d).
 
 ### Organizational Memory
 Business knowledge in 10 categories (products, services, pricing, team, policies, FAQ, processes, brand, market, custom). Searched by keywords and injected into context. This is not RAG of documents — it's the company's **operational brain**.
@@ -145,13 +157,16 @@ Business knowledge in 10 categories (products, services, pricing, team, policies
 Cloneable persona templates. Create a blueprint from any persona, clone it as a new persona with overrides, or apply it to an existing persona. 5 official blueprints seeded: Coach de Vendas, Hipnoterapeuta, Tutor ENEM, Consultor Imobiliário, Nutricionista.
 
 ### Event Bus
-Reactive triggers for key lifecycle events: goal completed, stage advanced, badge earned, level up, churn risk high, XP milestone, cognitive state change. Events can trigger automations, send webhooks, create tasks, or send messages — making the system **feel alive**.
+Reactive triggers for key lifecycle events: goal completed, stage advanced, badge earned, level up, churn risk high, XP milestone, cognitive state change. Events can trigger automations, send webhooks, create tasks, or send messages.
 
 ### Gamification
 XP (30 levels), daily streaks, badges (auto-awarded), leaderboard — all per persona. The AI adapts tone for level-ups and streaks because gamification data is injected into every system prompt.
 
-### Progress State
-Free-form JSON state per user+persona. Track mastery, weak topics, learning style, funnel position, or any domain-specific data. The AI uses this to personalize every interaction.
+### Financial Reports
+Revenue reports, top products, sales trends, customer metrics, conversion funnel. Full dashboard via admin API or `/relatorios` chat command.
+
+### Delivery Drivers
+Register drivers, assign to orders, track delivery status. Public tracking endpoint for customers.
 
 ### Self-Optimization
 The system analyzes its own patterns — emotion distribution, churn risk averages, engagement levels, tool usage — and generates actionable suggestions for persona improvement.
@@ -168,13 +183,15 @@ Three modes per session: **full** (human takes over entirely), **approval** (hum
 | Runtime | Node.js 18+ / Express |
 | Database | MySQL 8.4 (mysql2/promise) |
 | LLM | Ollama Cloud API (native `/chat`, multi-key fallback, tool calling) |
-| RAG | TF-IDF pluggable + multimodal ingestion |
+| RAG | Hybrid TF-IDF + Vector Embeddings (Ollama, MySQL vector storage) |
+| Fulltext | FlexSearch — in-memory fulltext across entities |
 | Auth | JWT + bcrypt + Google OAuth + role-based + rate limiting |
-| Telegram | Multi-instance via bot manager |
-| WhatsApp | Multi-instance via Evolution API v2 |
-| TTS | Kokoro-82M + Edge TTS + Google Translate (fallback) |
-| STT | Groq Whisper + OpenAI Whisper (fallback) |
-| i18n | pt-BR, en-US, es-ES |
+| Bots | Multi-instance Telegram + WhatsApp (Evolution API) + Instagram |
+| TTS | Kokoro-82M (30+ languages) + Edge TTS + Google Translate (fallback) |
+| STT | **Whisper Local** (faster-whisper/whisper.cpp) + Groq Whisper + OpenAI Whisper |
+| i18n | pt-BR, en-US, es-ES (30+ TTS languages) |
+| Jobs | BullMQ (Redis-backed) — proactive, ingestion, embedding, automation |
+| Search | FlexSearch — fulltext across personas, contacts, goals, org memory, tasks |
 
 ---
 
@@ -192,18 +209,31 @@ npm start        # or npm run dev
 
 Access `http://localhost:3000` | Admin: `http://localhost:3000/admin` | Store: `http://localhost:3000/store`
 
-### Kokoro TTS (natural voice)
+### Voice Setup
+
 ```bash
+# Kokoro TTS (natural voice)
 npm run tts:install   # Install Python dependencies
 npm run tts:start     # Start Kokoro server on port 8001
+
+# Whisper STT (local speech-to-text)
+npm run whisper:setup  # Install faster-whisper + FastAPI
+npm run whisper:start  # Start Whisper server on port 9000 (downloads model on first run)
+npm run whisper:start:small   # Small model (500MB, better accuracy)
+npm run whisper:start:gpu     # GPU/CUDA mode
+npm run whisper:check        # Check if Whisper server is running
 ```
 
 ### Prerequisites
 1. **MySQL 8.4** on localhost (root, no password, database `jesus_ai`)
 2. **OLLAMA_API_KEY** in `.env`
 3. `npm run ingest` before first use
-4. Schema auto-created on startup (68+ tables)
-5. **Kokoro TTS** (optional): `npm run tts:install` → `npm run tts:start`
+4. DB schema auto-created on startup (75+ tables)
+5. **Kokoro TTS** (recommended): `npm run tts:install` → `npm run tts:start`
+6. **Whisper STT** (recommended): `npm run whisper:setup` → `npm run whisper:start`
+7. (Optional) Serper API key for B2B prospecting
+8. (Optional) GNews API key for news search
+9. (Optional) YouTube Data API key for video search
 
 ---
 
@@ -211,11 +241,11 @@ npm run tts:start     # Start Kokoro server on port 8001
 
 | Module | File | Description |
 |--------|------|-------------|
-| Chat Engine | `src/chat/engine.js` | Rate limit, onboarding, persona-aware RAG, tools, cognitive, override, tool call execution loop |
+| Chat Engine | `src/chat/engine.js` | Rate limit, onboarding, persona-aware RAG, tools, cognitive, override, commerce, loyalty context |
 | Persona Manager | `src/persona/manager.js` | Multi-persona DB, cache, invalidation |
 | Meta-RAG | `src/persona/meta-rag.js` | LLM persona generation, switchPersona |
 | Agent | `src/agent/index.js` | Tasks, calendar, contacts, automations, history, dashboard |
-| Skills | `src/skills/index.js` | Skills CRUD + invocation (action, generator, communication, analysis, workflow) |
+| Skills | `src/skills/index.js` | Skills CRUD + invocation (5 types) |
 | Goals | `src/goals/index.js` | Goal stack CRUD + hierarchy + progress + context injection |
 | Stages | `src/stages/index.js` | Conversation stages + user tracking + context injection |
 | Org Memory | `src/orgmemory/index.js` | Organizational memory CRUD + search + context injection |
@@ -226,55 +256,38 @@ npm run tts:start     # Start Kokoro server on port 8001
 | Thoughts | `src/thoughts/index.js` | Agent thought log (tools, context, reasoning, response time) |
 | Optimization | `src/optimization/index.js` | Self-optimization suggestions based on patterns |
 | Proactive | `src/proactive/index.js` | Cron-based proactive intelligence (streaks, goals, automations) |
-| Events | `src/events/index.js` | Event bus (on_goal_completed, on_badge_earned, on_churn_risk_high, etc.) |
+| Events | `src/events/index.js` | Event bus (12 event types) + automation triggers |
 | Blueprints | `src/blueprints/index.js` | Cloneable persona templates, CRUD, clone, seed |
-| LLM Tools | `src/llm/tools.js` + `src/llm/erp-tools.js` | 62 tool definitions (29 base + 7 language + 23 ERP + 10 commerce) |
-| Integration Mgr | `src/llm/integrationManager.js` | Multi-key fallback, Ollama/Groq auto-detect, normalizeLLMResponse (Ollama + OpenAI + inline) |
+| **Loyalty** | `src/loyalty/index.js` | **Points, cashback, stamp cards, tiers, rewards, per-persona** |
+| **Broadcast** | `src/broadcast/index.js` | **Segmented mass messaging (all, new, inactive, vip, tag)** |
+| **Reports** | `src/erp/reports.js` | **Revenue, top products, sales trend, conversion funnel, dashboard** |
+| **Recovery** | `src/erp/recovery.js` | **Inactive customers, churn risk, at-risk stats, seed automations** |
+| **Delivery** | `src/erp/delivery.js` | **Driver CRUD, order assignment, tracking, status updates** |
+| **Wizard** | `src/wizard/index.js` | **5-step setup: brand → persona → products → whatsapp → finish** |
+| LLM Tools | `src/llm/tools.js` + `src/llm/erp-tools.js` | 74 tool definitions (29 base + 7 language + 23 ERP + 10 commerce + 5 new) |
+| Integration Mgr | `src/llm/integrationManager.js` | Multi-key fallback, Ollama/Groq auto-detect, normalizeLLMResponse |
 | Knowledge | `src/knowledge/` | TF-IDF RAG, multimodal ingestion, per-persona sources, 11 language sources |
 | Skills (seed) | `src/seed/skillsAndBlueprints.js` | 57 global skills + 7 language skills + 6 blueprint templates |
 | Auth | `src/auth/` | JWT, bcrypt, Google OAuth, role-based, rate limiting |
-| Onboarding | `src/onboarding/index.js` | State machine (3 langs, configurable steps) |
+| Onboarding | `src/onboarding/index.js` | State machine (3 langs, configurable steps, per-persona) |
 | Survey | `src/survey/index.js` | Surveys, ratings, follow-ups |
-| TTS | `src/tts/` | Kokoro + Edge TTS + Google Translate fallback |
-| STT | `src/stt/` | Groq Whisper + OpenAI Whisper fallback |
+| TTS | `src/tts/` | **Kokoro (30+ languages, 35+ voices) + Edge TTS + Google Translate** |
+| STT | `src/stt/` | **Whisper Local (faster-whisper + whisper.cpp) + Groq + OpenAI** |
 | i18n | `src/i18n/index.js` | pt-BR, en-US, es-ES |
 | Settings | `src/settings/index.js` | DB-backed runtime settings + whitelabel |
-| DB | `src/db/index.js` | MySQL pool + 68+ tables + auto-migration |
-| **ERP** | `src/erp/` | Products, orders, finance, suppliers, site CMS, **commerce** |
-| **Commerce** | `src/erp/commerce.js` | Cart state machine, delivery zones, coupons, order finalization, WhatsApp receipt formatting |
+| DB | `src/db/index.js` | MySQL pool + 75+ tables + auto-migration |
+| **ERP** | `src/erp/` | Products, orders, finance, suppliers, site CMS, **commerce**, **reports**, **recovery**, **delivery** |
+| **Commerce** | `src/erp/commerce.js` | Cart state machine, delivery zones, coupons, **loyalty earn on order** |
 
 ---
 
-## Event Bus
+## LLM Tools (74)
 
-| Event | Triggered When |
-|-------|---------------|
-| `on_goal_completed` | A goal status changes to "completed" |
-| `on_goal_created` | A new goal is created |
-| `on_stage_advance` | A user advances to a new conversation stage |
-| `on_badge_earned` | A gamification badge is auto-awarded |
-| `on_level_up` | A user reaches a new XP level |
-| `on_churn_risk_high` | Cognitive analysis detects churn risk > 60% |
-| `on_cognitive_change` | User's emotional state changes between messages |
-| `on_xp_milestone` | User crosses an XP milestone (100, 500, 1000, 5000, 10000) |
-| `on_message_sent` | Every message (for automation triggers) |
-| `on_user_created` | New user created (onboarding) |
-| `on_automation_triggered` | An automation fires |
-| `on_override_activated` | Human override is activated for a session |
-
-Events can trigger automations (messages, tasks, webhooks, persona switches, skills, emails).
-
----
-
-## LLM Tools (62)
+### Base Tools (29)
 
 | Tool | Description |
 |------|-------------|
-| `bible_lookup` | Search knowledge sources |
 | `user_stats` | User statistics |
-| `get_daily_devotional` | Daily devotional content |
-| `send_prayer_request` | Register prayer request |
-| `list_sessions` | List user sessions |
 | `update_settings` | Update settings (admin) |
 | `manage_users` | User management (admin) |
 | `send_email_to_user` | Send email (admin) |
@@ -298,7 +311,24 @@ Events can trigger automations (messages, tasks, webhooks, persona switches, ski
 | `get_suggestions` | Self-optimization suggestions |
 | `get_dashboard` | Dashboard stats |
 | `get_history` | Conversation history |
-| `manage_blueprints` | Manage persona blueprints (list, clone, apply, create) |
+| `manage_blueprints` | Manage persona blueprints |
+| `create_visual` | Generate visual content |
+| `list_visual_templates` | List available creative templates |
+| `manage_business_config` | Manage business configuration |
+| `manage_quizzes` | Manage interactive quizzes |
+| `manage_media` | Media listing |
+
+### Language Tools (7)
+
+| Tool | Description |
+|------|-------------|
+| `language.translate` | Translation with cultural notes |
+| `language.correct` | Error correction with grammar explanations |
+| `language.listen` | Listening comprehension exercises |
+| `language.pronunciation` | IPA transcription, phonetic comparison |
+| `language.quiz` | Adaptive quizzes by CEFR level |
+| `language.flashcards` | Spaced-repetition flashcards |
+| `language.roleplay` | Conversation simulation |
 
 ### ERP Tools (23)
 
@@ -327,65 +357,233 @@ Events can trigger automations (messages, tasks, webhooks, persona switches, ski
 | `commerce_cart_summary` | Show cart items, subtotal, shipping, total |
 | `commerce_clear_cart` | Empty cart |
 | `commerce_set_address` | Save delivery address + calculate shipping by zone |
+| `commerce_set_fulfillment` | Set delivery (endereço) or pickup (retirada no balcão) — skip address for pickup |
 | `commerce_set_payment` | Set payment method (pix/dinheiro/cartao) + change amount |
 | `commerce_apply_coupon` | Apply discount coupon (percentage or fixed) |
-| `commerce_finalize_order` | Create order in DB, deduct stock, return receipt |
+| `commerce_finalize_order` | Create order in DB, deduct stock, return receipt, **earn loyalty points** |
 | `commerce_get_order` | Check order status by number or ID |
 | `commerce_calculate_delivery` | Calculate delivery fee for address by zone |
 
----
+### Loyalty Tools (4)
 
-## Blueprint System
+| Tool | Description |
+|------|-------------|
+| `loyalty_balance` | Check points, cashback, or stamp card balance |
+| `loyalty_reward_list` | List available rewards for redemption |
+| `loyalty_redeem` | Redeem points/cashback for a reward or discount |
+| `loyalty_history` | Transaction history (earned, redeemed, expired) |
 
-Personas can be saved as **cloneable templates** (blueprints). Each blueprint stores the full persona config (identity, rules, voice, keywords, commands) and can be:
+### Reports Tools (4)
 
-- **Cloned** as a new persona with optional name overrides
-- **Applied** to an existing persona (merge template into current config)
-- **Created from** any existing persona
+| Tool | Description |
+|------|-------------|
+| `reports_dashboard` | Full financial dashboard (revenue, orders, avg ticket, funnel) |
+| `reports_top_products` | Top selling products by quantity and revenue |
+| `reports_sales_trend` | Daily revenue and orders trend |
+| `reports_conversion_funnel` | Conversations → carts → orders → delivered |
 
-6 official blueprints are seeded on first startup:
-1. **Coach de Vendas** — Sales coach with funnel, objection handling, CRM
-2. **Hipnoterapeuta** — Hypnotherapy with safety rules, Ericksonian techniques
-3. **Tutor ENEM** — Exam prep with study techniques, progress tracking
-4. **Consultor Imobiliário** — Real estate with market knowledge, legal compliance
-5. **Nutricionista** — Nutrition with clinical safety, evidence-based recommendations
-6. **Tutor de Idiomas** — Language tutor (EN, ES, FR, DE) with 7 specialized skills, 11 RAG knowledge sources, pronunciation, roleplay, quizzes, flashcards
+### Delivery Tools (2)
 
-### Language Tutor Skills
+| Tool | Description |
+|------|-------------|
+| `delivery_track` | Track delivery by order ID (driver, status, ETA) |
+| `delivery_update_status` | Update delivery status (picked up, on the way, delivered) |
 
-The `tutor-idiomas` persona includes 7 specialized skills:
+### B2B Tools (5)
 
-| Skill | Description |
-|-------|-------------|
-| `language.translate` | Translation with cultural notes, false cognate warnings, register analysis |
-| `language.correct` | Error correction with grammar explanations, CEFR level assessment, practice exercises |
-| `language.listen` | Listening comprehension: gap-fill dialogues, dictation, shadowing scripts |
-| `language.pronunciation` | IPA transcription, PT→target phonetic comparison, minimal pairs, mouth positioning |
-| `language.quiz` | Adaptive quizzes (multiple choice, fill-in, translation, error spotting) by CEFR level |
-| `language.flashcards` | Smart spaced-repetition flashcards: vocabulary, false cognates, idioms, verbs |
-| `language.roleplay` | Realistic conversation simulation (restaurant, airport, interview, hotel, doctor) |
+| Tool | Description |
+|------|-------------|
+| `b2b_prospect` | Discover businesses by niche + location (Serper API) |
+| `cnpj_lookup` | CNPJ data via BrasilAPI |
+| `lead_scoring` | Calculate digital presence score (0-100) |
+| `site_scraper` | Extract emails, phones, socials from websites |
+| `google_places_search` | Find businesses on Google Maps |
 
-### Language Knowledge Sources (RAG)
+### Broadcast Tool (1)
 
-11 RAG sources power the tutor's knowledge:
+| Tool | Description |
+|------|-------------|
+| `broadcast_create` | Create mass broadcast campaign (all, new, inactive, vip, tag) |
 
-| Source | Content | Levels |
-|--------|---------|--------|
-| False Cognates EN↔PT | 40+ deceptive words | A1-B2 |
-| Phrasal Verbs EN | 65+ verbs with separability, examples | A2-B2 |
-| Idiomatic Expressions EN | 50+ idioms with origin, PT equivalent | A1-B2 |
-| English Grammar | 18 rules (tenses, conditionals, passive, articles, etc.) | A1-B2 |
-| Irregular Verbs EN | 20+ verbs with all forms, pronunciation, expressions | A1-B2 |
-| Vocabulary EN | 12 thematic groups (body, food, travel, emotions, business, etc.) | A1-B2 |
-| Slang & Abbreviations EN | 24 entries (no cap, GOAT, rizz, bussin, mid, etc.) | A1-B2 |
-| False Cognates ES↔PT | 37 deceptive Spanish-Portuguese words | A1-B2 |
-| Spanish Grammar | 16 rules (ser/estar, subjuntivo, por/para, etc.) | A1-B2 |
-| False Cognates FR↔PT | 29 deceptive French-Portuguese words | A1-B2 |
-| French Grammar | 16 rules (articles, accord, subjonctif, pronoms y/en, etc.) | A1-B2 |
+### Customer Recovery Tool (1)
+
+| Tool | Description |
+|------|-------------|
+| `customer_recovery` | List inactive, churn risk, or at-risk customers |
 
 ---
 
-## Database Schema (68+ tables)
+## STT — Speech-to-Text
+
+Three-tier fallback chain for maximum reliability:
+
+1. **IntegrationManager** — API keys configured as `stt_*` in settings
+2. **Whisper Local** — `faster-whisper` Python server on `localhost:9000` (free, private)
+3. **whisper.cpp** — Local binary with `WHISPER_CPP_PATH` env var (fastest, no Python needed)
+4. **Groq Whisper** — `whisper-large-v3` cloud API (free tier, 144 req/min)
+5. **OpenAI Whisper** — `whisper-1` cloud API (paid)
+
+```bash
+# Start local Whisper server (recommended)
+npm run whisper:start         # base model (148MB, fast)
+npm run whisper:start:small   # small model (500MB, better)
+npm run whisper:start:gpu    # GPU/CUDA mode
+
+# Check status
+npm run whisper:check
+```
+
+Environment variables:
+```
+WHISPER_CPP_PATH=C:\whisper\main.exe    # whisper.cpp binary path
+WHISPER_MODEL_PATH=C:\whisper\models\ggml-base.bin  # model path
+WHISPER_SERVER_URL=http://localhost:9000 # faster-whisper server URL
+LOCAL_WHISPER_URL=http://localhost:9000  # alias
+```
+
+---
+
+## TTS — Text-to-Speech (30+ Languages)
+
+| Language | Kokoro Voices | Edge TTS Voices |
+|----------|--------------|-----------------|
+| Portuguese (pt-BR) | pm_alex, pm_luis, pf_dora, pf_ana | Antonio, Francisca, Thalita |
+| Portuguese (pt-PT) | pm_alex | Duarte, Raquel |
+| English (en-US) | am_adam, am_michael, af_bella, af_nova, af_heart, af_sarah, af_emily, am_george | Guy, Jenny, Aria, Davis, Jason, Sara |
+| English (en-GB) | bm_george | Thomas, Sonia, Mia |
+| Spanish (es-ES) | ef_dora, em_alex | Alvaro, Elvira |
+| Spanish (es-MX) | em_alex | Jorge, Dalia |
+| French (fr-FR) | ff_sarah, fm_pierre | Henri, Denise, Coralie |
+| German (de-DE) | dm_david, dm_marcus | Killian, Katja, Conrad |
+| Italian (it-IT) | if_lucia, im_marco | Diego, Elsa, Giuseppe |
+| Japanese (ja-JP) | jm_kazu | Keita, Nanami |
+| Korean (ko-KR) | km_minsoo | InJoon, SunHi |
+| Chinese (zh-CN) | zm_xiaobei | Yunxi, Xiaoxiao, Yunjian |
+| Hindi (hi-IN) | hm_alpha | Madhur, Swara |
+| Russian (ru-RU) | rm_dmitri | Dmitri, Svetlana |
+| + 18 more languages | | |
+
+API: `GET /api/chat/voices` — list all available voices by language.
+
+---
+
+## Loyalty System
+
+Per-persona programs: **points**, **cashback**, **stamp cards**, **tiers**.
+
+```
+Customer orders → commerce_finalize_order → earnPoints() auto
+Customer: "Quanto de cashback eu tenho?" → loyalty_balance tool
+Customer: "Quero resgatar meus pontos" → loyalty_redeem tool
+```
+
+**Chat Commands**: `/fidelidade`, `/pontos`, `/cashback`, `/loyalty`
+**Admin API**: `/api/admin/loyalty/programs`, `/api/admin/loyalty/balance/:userId`, `/api/admin/loyalty/rewards`
+
+---
+
+## Broadcast System
+
+Segmented mass messaging for customer engagement.
+
+| Segment | Description |
+|---------|-------------|
+| `all` | All customers |
+| `new` | New customers (7 days) |
+| `inactive_7d` | Inactive for 7 days |
+| `inactive_15d` | Inactive for 15 days |
+| `inactive_30d` | Inactive for 30 days |
+| `vip` | High-XP customers (500+ XP) |
+| `tag` | Custom tag-based segment |
+
+**Chat Command**: `/broadcast list`, `/broadcast send <id>`
+**Admin API**: `/api/admin/broadcasts`, `/api/admin/broadcasts/:id/send`
+
+---
+
+## Financial Reports
+
+| Report | Description |
+|--------|-------------|
+| Revenue | Gross, net, refunds, average ticket, unique customers |
+| Top Products | Best sellers by quantity and revenue |
+| Sales Trend | Daily revenue and orders (7/30/90 days) |
+| Conversion Funnel | Conversations → carts → orders → delivered |
+| Customer Metrics | New customers, retention, avg messages |
+| Full Dashboard | All of the above combined |
+
+**Chat Command**: `/relatorios` (vendas, produtos, tendencia, funil)
+**LLM Tools**: `reports_dashboard`, `reports_top_products`, `reports_sales_trend`, `reports_conversion_funnel`
+
+---
+
+## Delivery Drivers
+
+Register drivers, assign to orders, track delivery status.
+
+**Public API**: `GET /api/store/delivery/track/:orderId` — customer-facing tracking
+**Admin API**: `/api/admin/delivery/drivers`, `/api/admin/delivery/assign`, `/api/admin/delivery/status/:orderId`
+**LLM Tools**: `delivery_track`, `delivery_update_status`
+
+---
+
+## Setup Wizard
+
+5-step guided setup: **brand → persona → products → whatsapp → finish**
+
+Saves progress per user, applies all settings at once on completion.
+
+**Admin API**: `/api/admin/wizard`, `POST /api/admin/wizard/:step`, `POST /api/admin/wizard/apply`, `POST /api/admin/wizard/reset`
+
+---
+
+## WhatsApp Commerce
+
+Complete commerce system for selling products via WhatsApp.
+
+```
+Customer: "Quero um sorvete de pistache e uma Coca 2L"
+    ↓ LLM detects product interest
+    ↓ catalog_search → finds Sorvete Lamello (R$25) + Coca-Cola 2L (R$15)
+    ↓ commerce_add_to_cart → adds both items (session_id auto-injected)
+
+Customer: "Rua Desembargador Munhoz de Melo, 466"
+    ↓ commerce_set_address → calculates delivery fee by zone
+    ↓ Zona "Centro" = R$0, "Bairro" = R$5, "Rural" = R$7
+
+Customer: "Vai ser no dinheiro, troco pra 100"
+    ↓ commerce_set_payment → cash, change_for: 100
+    ↓ Total R$65 + R$7 delivery = R$72, troco: R$28
+
+Customer: "Sim, confirmar"
+    ↓ commerce_finalize_order → creates order ORD-260519-0001
+    ↓ Deducts stock, earns loyalty points, sends formatted receipt
+```
+
+### Key Features
+
+- **Persona-aware product search**: `catalog_search` filters by `persona_id`
+- **Session auto-injection**: `session_id` auto-injected from chat context
+- **Configurable payment methods**: `store_payment_methods`, `store_pix_key`
+- **PIX key from settings**: LLM never fabricates payment info
+- **Loyalty integration**: auto-earn points/cashback on order finalization
+- **Delivery drivers**: assign drivers, track deliveries
+- **Financial reports**: revenue, top products, trends, funnel
+
+### Delivery Zones (configurable)
+
+| Zone | Keywords | Fee | ETA |
+|------|----------|-----|-----|
+| Centro | centro, praça, matriz | R$0 | 20-30 min |
+| Bairro | bairro, jardim, vila | R$5 | 30-40 min |
+| Rural | rural, rodovia, km | R$7 | 35-45 min |
+| Premium | condomínio, alphaville | R$10 | 40-55 min |
+
+Free delivery above R$90 (configurable).
+
+---
+
+## Database Schema (75+ tables)
 
 **Core**: `users`, `sessions`, `messages`, `profiles`, `settings`, `api_keys`
 
@@ -411,87 +609,19 @@ The `tutor-idiomas` persona includes 7 specialized skills:
 
 **ERP**: `products`, `product_variants`, `product_categories`, `orders`, `order_items`, `deliveries`, `notifications`, `financial_transactions`, `payment_links`, `suppliers`, `site_sections`, `coupon_codes`, `commerce_carts`
 
----
+**Loyalty**: `loyalty_programs`, `loyalty_transactions`, `loyalty_rewards`
 
-## WhatsApp Commerce
+**Broadcast**: `broadcasts`, `broadcast_logs`
 
-Complete commerce system for selling products via WhatsApp (inspired by real delivery bots).
+**Delivery**: `delivery_drivers`, `delivery_assignments`
 
-### How it Works
-
-```
-Customer: "Quero um sorvete de pistache e uma Coca 2L"
-    ↓ LLM detects product interest
-    ↓ catalog_search → finds Sorvete Lamello (R$25) + Coca-Cola 2L (R$15) [filtered by persona_id]
-    ↓ commerce_add_to_cart → adds both items [session_id auto-injected]
-    
-Customer: "Rua Desembargador Munhoz de Melo, 466"
-    ↓ commerce_set_address → calculates delivery fee by zone
-    ↓ Zona "Centro" = R$0, "Bairro" = R$5, "Rural" = R$7
-    
-Customer: "Vai ser no dinheiro, troco pra 100"
-    ↓ commerce_set_payment → cash, change_for: 100
-    ↓ Total R$65 + R$7 delivery = R$72, troco: R$28
-    
-Customer: "Sim, confirmar"
-    ↓ commerce_finalize_order → creates order ORD-260519-0001
-    ↓ Deducts stock, sends formatted receipt
-```
-
-### Key Features
-
-- **Persona-aware product search**: `catalog_search` filters by `persona_id` — each store sees only its own products
-- **Session auto-injection**: `session_id` is auto-injected from chat context (tool parameter is optional)
-- **Configurable payment methods**: `store_payment_methods` setting (pix, dinheiro, cartao_credito, etc.)
-- **PIX key in settings**: `store_pix_key` and `store_pix_name` — injected into commerce prompt, LLM never makes up payment info
-- **Store-specific onboarding**: `loja-hlb` asks name + phone only (not interest/feeling/email)
-- **WhatsApp persona resolution**: `WHATSAPP_PERSONA_ID=loja-hlb` env var sets default persona
-
-### Store Persona Setup Pattern
-
-1. Create persona with commerce identity (no AI mentions, natural selling)
-2. Set `WHATSAPP_PERSONA_ID=loja-hlb` in `.env`
-3. Seed products with `persona_id='loja-hlb'`
-4. Configure: `brand_name`, `store_pix_key`, `store_payment_methods`, delivery zones
-5. Customers talk naturally → LLM uses commerce tools automatically
-Customer: "Quero um sorvete de pistache e uma Coca 2L"
-    ↓ LLM detects product interest
-    ↓ catalog_search → finds Sorvete Lamello (R$25) + Coca-Cola 2L (R$15)
-    ↓ commerce_add_to_cart → adds both items
-    
-Customer: "Rua Desembargador Munhoz de Melo, 466"
-    ↓ commerce_set_address → calculates delivery fee by zone
-    ↓ Zona "Centro" = R$0, "Bairro" = R$5, "Rural" = R$7
-    
-Customer: "Vai ser no dinheiro, troco pra 100"
-    ↓ commerce_set_payment → cash, change_for: 100
-    ↓ Total R$65 + R$7 delivery = R$72, troco: R$28
-    
-Customer: "Sim, confirmar"
-    ↓ commerce_finalize_order → creates order ORD-260519-0001
-    ↓ Deducts stock, sends formatted receipt
-```
-
-### Delivery Zones (configurable via admin)
-
-| Zone | Keywords | Fee | ETA |
-|------|----------|-----|-----|
-| Centro | centro, praça, matriz | R$0 | 20-30 min |
-| Bairro | bairro, jardim, vila | R$5 | 30-40 min |
-| Rural | rural, rodovia, km | R$7 | 35-45 min |
-| Premium | condomínio, alphaville | R$10 | 40-55 min |
-
-Free delivery above R$90 (configurable).
-
-### Storefront (Whitelabel)
-
-Public SPA at `/store` — no auth required. Dynamic brand colors, product catalog, cart sidebar, coupon support, WhatsApp checkout.
+**B2B**: `b2b_searches`, `chat_commands`
 
 ---
 
 ## Admin Sections
 
-Dashboard, Users, Personas, Skills, Knowledge/RAG, Integrations, Settings, Bots, Surveys, Ratings, Follow-ups, Tasks, Calendar, Contacts, Automations, Goals, Stages, Org Memory, Blueprints, XP/Gamification, Progress, Cognitive, Override, Thoughts, Creatives, Events, Commands, Queue, Search, **Products**, **Orders**, **Stock**, **Finance**, **Suppliers**, **Site CMS**, **Coupons**, **Delivery**
+Dashboard, Users, Personas, Skills, Knowledge/RAG, Integrations, Settings, Bots, Surveys, Ratings, Follow-ups, Tasks, Calendar, Contacts, Automations, Goals, Stages, Org Memory, Blueprints, XP/Gamification, Progress, Cognitive, Override, Thoughts, Creatives, Events, Commands, Queue, Search, **Products**, **Orders**, **Stock**, **Finance**, **Suppliers**, **Site CMS**, **Coupons**, **Delivery**, **Loyalty**, **Broadcasts**, **Reports**, **Recovery**, **Drivers**, **Wizard**
 
 ---
 
@@ -512,6 +642,50 @@ Every persona can have its own brand. Global settings:
 | `rate_limit_premium` | 100 | Premium daily message limit |
 | `rate_limit_admin` | 999 | Admin daily message limit |
 | `message_chunk_size` | 200 | Max chars per text/audio chunk |
+| `loyalty_enabled` | true | Enable/disable loyalty program |
+| `loyalty_type` | points | Loyalty type (points/cashback/stamp_card/tier) |
+| `loyalty_points_per_real` | 1 | Points earned per R$1 |
+| `loyalty_cashback_percent` | 5 | Cashback percentage |
+| `loyalty_minimum_redemption` | 100 | Minimum points for redemption |
+| `store_payment_methods` | pix,dinheiro,cartao_credito,cartao_debito | Accepted payment methods |
+| `store_pix_key` | (empty) | PIX key for payments |
+| `store_free_delivery_above` | 90 | Free delivery threshold |
+| `commerce_enabled` | true | Enable/disable commerce system |
+
+---
+
+## Chat Commands (80+)
+
+| Command | Description |
+|---------|-------------|
+| `/persona` | List/switch personas |
+| `/persona create <desc>` | Create persona via Meta-RAG |
+| `/voice` | List/switch TTS voice (30+ languages) |
+| `/stats` | Your stats |
+| `/xp` | XP, level, streak, badges, leaderboard |
+| `/fidelidade` | Loyalty program balance, history, redemption |
+| `/relatorios` | Financial reports (vendas, produtos, tendencia, funil) |
+| `/broadcast` | Create and send mass campaigns |
+| `/dashboard` | Dashboard overview |
+| `/goals` | Goal management |
+| `/stages` | Conversation stages |
+| `/orgmem` | Organizational memory |
+| `/contacts` | CRM contacts |
+| `/tasks` | Task management |
+| `/calendar` | Calendar events |
+| `/automations` | Automation management |
+| `/cognitive` | Cognitive state (emotion, intent, churn risk) |
+| `/override` | Human override control |
+| `/thoughts` | Agent thought logs |
+| `/suggestions` | Self-optimization suggestions |
+| `/creative` | Generate visual content |
+| `/blueprints` | List/clone/view blueprints |
+| `/prospect` | B2B prospecting |
+| `/search` | Knowledge search |
+| `/progress` | Progress state |
+| `/quiz` | Interactive quizzes |
+| `/lang` | Switch language |
+| `/audio` / `/texto` | Toggle audio responses |
 
 ---
 
@@ -521,4 +695,4 @@ MIT — Use, modify, share.
 
 ---
 
-**Full Documentation**: [`AGENTS.md`](AGENTS.md) | **Credits**: [`CREDITS.md`](CREDITS.md)
+**Full Documentation**: [`AGENTS.md`](AGENTS.md) | **Project Spec**: [`PROJETO-LOJA-AUTONOMA.md`](PROJETO-LOJA-AUTONOMA.md) | **Credits**: [`CREDITS.md`](CREDITS.md)

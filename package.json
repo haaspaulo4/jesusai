@@ -13,7 +13,13 @@
     "tts:install": "pip install -r tts-server/requirements.txt",
     "tts:check": "node -e \"fetch('http://localhost:8001/health').then(r=>r.json()).then(d=>console.log(JSON.stringify(d,null,2))).catch(()=>console.log('Kokoro server not running'))\"",
     "migrate-vectors": "node scripts/migrate-vectors.js",
-    "migrate-vectors:force": "node scripts/migrate-vectors.js --force"
+    "migrate-vectors:force": "node scripts/migrate-vectors.js --force",
+    "whisper:start": "python whisper_server.py",
+    "whisper:start:small": "set WHISPER_MODEL=small&& python whisper_server.py",
+    "whisper:start:medium": "set WHISPER_MODEL=medium&& python whisper_server.py",
+    "whisper:start:gpu": "set WHISPER_DEVICE=cuda&& set WHISPER_COMPUTE=float16&& python whisper_server.py",
+    "whisper:setup": "scripts\\setup-whisper.bat",
+    "whisper:check": "node -e \"fetch('http://localhost:9000/health').then(r=>r.json()).then(d=>console.log(JSON.stringify(d,null,2))).catch(()=>console.log('Whisper server not running on :9000'))\""
   },
   "dependencies": {
     "axios": "^1.7.9",

@@ -429,6 +429,122 @@ CREATE TABLE IF NOT EXISTS commerce_carts (
   KEY idx_cart_user (user_id),
   KEY idx_cart_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ========== LOYALTY PROGRAMS ==========
+CREATE TABLE IF NOT EXISTS loyalty_programs (
+  id VARCHAR(80) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  name VARCHAR(100) NOT NULL,
+  type ENUM('points','cashback','stamp_card','tier') NOT NULL DEFAULT 'points',
+  points_per_real DECIMAL(5,2) DEFAULT 1.00,
+  cashback_percent DECIMAL(5,2) DEFAULT 5.00,
+  redemption_threshold INT DEFAULT 100,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_loyalty_persona (persona_id),
+  KEY idx_loyalty_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ========== LOYALTY TRANSACTIONS ==========
+CREATE TABLE IF NOT EXISTS loyalty_transactions (
+  id VARCHAR(80) PRIMARY KEY,
+  user_id VARCHAR(60) NOT NULL,
+  persona_id VARCHAR(60) NOT NULL,
+  order_id VARCHAR(80) DEFAULT NULL,
+  type ENUM('earn','redeem','expire','adjust','cashback_earn','cashback_redeem') NOT NULL,
+  points INT DEFAULT 0,
+  cashback_amount DECIMAL(10,2) DEFAULT 0.00,
+  description TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  KEY idx_loyalty_user (user_id, persona_id),
+  KEY idx_loyalty_order (order_id),
+  KEY idx_loyalty_type (type),
+  KEY idx_loyalty_date (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ========== LOYALTY REWARDS ==========
+CREATE TABLE IF NOT EXISTS loyalty_rewards (
+  id VARCHAR(80) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  name VARCHAR(100) NOT NULL,
+  description TEXT,
+  points_cost INT NOT NULL,
+  product_id VARCHAR(80) DEFAULT NULL,
+  discount_percent DECIMAL(5,2) DEFAULT NULL,
+  discount_fixed DECIMAL(10,2) DEFAULT NULL,
+  is_active TINYINT(1) DEFAULT 1,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_reward_persona (persona_id),
+  KEY idx_reward_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ========== BROADCASTS ==========
+CREATE TABLE IF NOT EXISTS broadcasts (
+  id VARCHAR(80) PRIMARY KEY,
+  persona_id VARCHAR(60) NOT NULL,
+  title VARCHAR(200) NOT NULL,
+  message TEXT NOT NULL,
+  segment ENUM('all','new','inactive_7d','inactive_15d','inactive_30d','vip','stagex','tag') DEFAULT 'all',
+  segment_config JSON DEFAULT NULL,
+  status ENUM('draft','scheduled','sending','sent','failed') DEFAULT 'draft',
+  scheduled_at TIMESTAMP DEFAULT NULL,
+  sent_count INT DEFAULT 0,
+  delivered_count INT DEFAULT 0,
+  read_count INT DEFAULT 0,
+  failed_count INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_broadcast_persona (persona_id),
+  KEY idx_broadcast_status (status),
+  KEY idx_broadcast_scheduled (scheduled_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ========== BROADCAST LOGS ==========
+CREATE TABLE IF NOT EXISTS broadcast_logs (
+  id VARCHAR(80) PRIMARY KEY,
+  broadcast_id VARCHAR(80) NOT NULL,
+  user_id VARCHAR(60) DEFAULT NULL,
+  phone VARCHAR(50) DEFAULT NULL,
+  status ENUM('pending','sent','delivered','read','failed') DEFAULT 'pending',
+  error_message TEXT DEFAULT NULL,
+  sent_at TIMESTAMP DEFAULT NULL,
+  KEY idx_blog_broadcast (broadcast_id),
+  KEY idx_blog_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ========== DELIVERY DRIVERS ==========
+CREATE TABLE IF NOT EXISTS delivery_drivers (
+  id VARCHAR(80) PRIMARY KEY,
+  persona_id VARCHAR(60) DEFAULT NULL,
+  name VARCHAR(100) NOT NULL,
+  phone VARCHAR(20) NOT NULL,
+  vehicle_type ENUM('motorcycle','bicycle','car','on_foot') DEFAULT 'motorcycle',
+  is_active TINYINT(1) DEFAULT 1,
+  current_lat DECIMAL(10,8) DEFAULT NULL,
+  current_lng DECIMAL(11,8) DEFAULT NULL,
+  metadata JSON DEFAULT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  KEY idx_driver_persona (persona_id),
+  KEY idx_driver_active (is_active)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ========== DELIVERY ASSIGNMENTS ==========
+CREATE TABLE IF NOT EXISTS delivery_assignments (
+  id VARCHAR(80) PRIMARY KEY,
+  order_id VARCHAR(80) NOT NULL,
+  driver_id VARCHAR(80) NOT NULL,
+  status ENUM('assigned','preparing','picked_up','on_the_way','delivered','failed','cancelled') DEFAULT 'assigned',
+  assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  picked_up_at TIMESTAMP DEFAULT NULL,
+  delivered_at TIMESTAMP DEFAULT NULL,
+  notes TEXT DEFAULT NULL,
+  KEY idx_assignment_order (order_id),
+  KEY idx_assignment_driver (driver_id),
+  KEY idx_assignment_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 `;
 
 module.exports = ERP_SCHEMA;

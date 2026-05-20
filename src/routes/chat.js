@@ -37,7 +37,7 @@ const optionalAuth = (req, res, next) => {
 };
 const { transcribeAudio } = require('../stt');
 const { t, getTranslations, getTTSLang, getSTTLang, SUPPORTED_LANGS, DEFAULT_LANG } = require('../i18n');
-const { generateAudioBuffer, getAudioContentType } = require('../tts');
+const { generateAudioBuffer, getAudioContentType, getAvailableVoices, getVoiceForLang, LANG_VOICES } = require('../tts');
 const surveyEngine = require('../survey');
 const personaManager = require('../persona/manager');
 const metaRag = require('../persona/meta-rag');
@@ -441,6 +441,21 @@ router.post('/tts', authMiddleware, async (req, res) => {
     console.error('[TTS] Server-side TTS error:', err.message);
     res.status(500).json({ error: 'TTS generation failed' });
   }
+});
+
+// ========== VOICES ==========
+
+router.get('/voices', (req, res) => {
+  const lang = req.query.lang || null;
+  const voices = getAvailableVoices(lang);
+  res.json({ languages: Object.keys(LANG_VOICES).length, voices });
+});
+
+router.get('/voices/:lang', (req, res) => {
+  const lang = req.params.lang;
+  const voices = getAvailableVoices(lang);
+  if (!voices[lang]) return res.status(404).json({ error: 'Language not found', available: Object.keys(LANG_VOICES) });
+  res.json(voices[lang]);
 });
 
 // ========== PERSONAS ==========

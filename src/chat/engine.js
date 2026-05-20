@@ -349,13 +349,15 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
    if (!orgContext) contextPromises.push(orgMemoryModule.searchOrgMemory(message, uid, persona.id, 5).then(om => { orgContext = orgMemoryModule.getOrgMemoryContext(om); }).catch(err => { console.error('[ChatEngine] org memory context error:', err.message); }));
    if (!stageContext) contextPromises.push(stagesModule.getUserStageContext(uid, persona.id).then(sc => { stageContext = sc; }).catch(err => { console.error('[ChatEngine] stage context error:', err.message); }));
    contextPromises.push(gamificationModule.getXp(uid, persona.id).then(xp => { xpData = xp; xpContext = gamificationModule.formatXpContext(xp); return gamificationModule.updateStreak(uid, persona.id); }).then(() => { if (xpData) realtime.emitXpUpdate(uid, xpData); }).catch(err => { console.error('[ChatEngine] xp context error:', err.message); }));
-   if (!progressContext) contextPromises.push(progressModule.getProgressState(uid, persona.id).then(p => { progressContext = progressModule.formatProgressContext(p); }).catch(err => { console.error('[ChatEngine] progress context error:', err.message); }));
-   await Promise.allSettled(contextPromises);
+    if (!progressContext) contextPromises.push(progressModule.getProgressState(uid, persona.id).then(p => { progressContext = progressModule.formatProgressContext(p); }).catch(err => { console.error('[ChatEngine] progress context error:', err.message); }));
+    let loyaltyContext = '';
+    contextPromises.push((async () => { try { const loyalty = require('../loyalty'); const balance = await loyalty.getLoyaltyBalance(uid, persona.id); if (balance.program) loyaltyContext = loyalty.formatLoyaltyContext(balance); } catch (err) { /* loyalty optional */ } })());
+    await Promise.allSettled(contextPromises);
 
    const session = await getSession(sid);
    const displayName = userName || session.userName || session.userContext?.name;
 
-   let extraContext = [goalContext, orgContext, stageContext, xpContext, progressContext, cognitiveContext].filter(Boolean).join('\n\n');
+    let extraContext = [goalContext, orgContext, stageContext, xpContext, progressContext, cognitiveContext, loyaltyContext].filter(Boolean).join('\n\n');
 
    let businessStr = '';
    try {
@@ -379,21 +381,28 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
         const methodLabels = { pix: 'PIX', dinheiro: 'Dinheiro', cartao_credito: 'Cartão de Crédito', cartao_debito: 'Cartão de Débito', transferencia: 'Transferência Bancária' };
         const methods = paymentMethods.split(',').map(m => methodLabels[m.trim()] || m.trim()).join(', ');
         let pixInfo = '';
-        if (pixKey) pixInfo = `\n- PIX key: ${pixKey}${pixName ? ` (${pixName})` : ''} — tell the customer this for payment`;
-        businessStr += `\n\nCOMMERCE SYSTEM: You are a SALES-FOCUSED assistant. Your PRIMARY goal is to help customers order products via natural conversation. You proactively sell and close deals.\n\nSESSION: ${sid}\nUse this session_id in all commerce tool calls (session_id: "${sid}").\n\nTOOL SEQUENCE (use in this order):\n1. catalog_search — Find products by name, category, or keyword (ALWAYS use this before adding to cart)\n2. commerce_add_to_cart — Add product to cart (uses session_id automatically)\n3. commerce_cart_summary — Show cart with items, quantities, subtotal, shipping, total\n4. commerce_set_address — Save delivery address + calculate shipping by zone (keyword matching)\n5. commerce_set_payment — Set payment method (${methods}). For cash, ask bill amount for change (change_for field)\n6. commerce_apply_coupon — Apply discount coupon if customer mentions one\n7. commerce_finalize_order — CONFIRM and create order (deducts stock automatically). ALWAYS show cart summary first!\n\nCRITICAL SALES RULES:\n- NEVER say you are an AI, bot, or assistant. You are the store staff.\n- NEVER mention slash commands (/cardapio, /menu, etc). Everything works via conversation.\n- When customer mentions ANY food/drink/product → immediately use catalog_search, then suggest adding to cart\n- ALWAYS upsell and cross-sell: burger? → suggest fries/drink. Pizza? → suggest a coke. Ice cream? → suggest toppings\n- Be PROACTIVE: if customer says \"hi\", greet them warmly and mention popular items or daily specials\n- If customer says they're hungry, show them categories and suggest popular items\n- NEVER leave the customer hanging — always guide them to the next step in the order flow\n- When showing cart summary, ALWAYS mention delivery fee and total clearly\n- Cash payments: ALWAYS ask what bill they'll pay with to calculate change\n- Free delivery above ${currency}${freeDeliveryAbove} — MENTION this to encourage bigger orders!\n- After order finalization, give order number and estimated delivery time\n- If product not found, suggest similar alternatives from catalog\n- Accept payment methods: ${methods}${pixInfo}\n- NEVER make up PIX keys, payment info, or order numbers — use only what the tools return\n- Current store: ${storeName || 'our store'} | Currency: ${currency}`;
-     }
-   } catch (err) { /* commerce context optional */ }
+        if (pixKey) pixInfo = `\n- STORE PIX for payment: ${pixKey}${pixName ? ` (${pixName})` : ''} — use EXACTLY this key, NEVER modify or guess it`;
+        const storeWhatsapp = await getSetting('store_whatsapp') || '';
+        const storeAddress = await getSetting('store_address') || await getSetting('brand_tagline') || '';
+        const deliveryZonesRaw = await getSetting('store_delivery_zones') || '[]';
+        let deliveryZones = [];
+        try { deliveryZones = JSON.parse(deliveryZonesRaw); } catch { deliveryZones = []; }
+        const deliveryZonesStr = deliveryZones.map(z => `  * ${z.name}: ${currency}${z.fee} (${z.estimated_minutes})`).join('\n');
+
+        businessStr += `\n\nCOMMERCE SYSTEM: You are a SALES-FOCUSED assistant working at ${storeName || 'our store'}. Your PRIMARY goal is to help customers order products via natural conversation. You proactively sell and close deals.\n\nSESSION: ${sid}\nUse this session_id in all commerce tool calls (session_id: "${sid}").\n\nORDER FLOW:\n1. catalog_search — Find products (ALWAYS search before adding to cart)\n2. commerce_add_to_cart — Add product (uses session_id automatically)\n3. commerce_cart_summary — Show cart total, shipping, discount\n4. IF DELIVERY → commerce_set_address (save address + calculate shipping)\n   IF PICKUP → Skip address, go straight to payment\n5. commerce_set_payment — Set payment method (${methods}). For cash: ask bill amount for change\n6. commerce_apply_coupon — Apply discount coupon if customer has one\n7. commerce_finalize_order — Create order ONLY after customer confirms. Shows order number, NOT payment confirmation\n\nCRITICAL SALES RULES:\n- NEVER say you are an AI, bot, or assistant. You are the store staff.\n- NEVER mention slash commands. Everything works via natural conversation.\n- When customer mentions ANY product → use catalog_search, then suggest adding to cart\n- ALWAYS upsell and cross-sell: burger? → suggest fries/drink\n- Be PROACTIVE: greet with popular items or daily specials\n- NEVER leave the customer hanging — always guide to the next step\n- Free delivery above ${currency}${freeDeliveryAbove} — MENTION this to encourage bigger orders\n\nPICKUP vs DELIVERY:\n- If customer says "retirada", "balcão", "buscar", "pick up", "vou buscar" → PICKUP order\n- For pickup: do NOT ask for address, do NOT charge delivery fee\n- For pickup: tell estimated preparation time (usually 20-30 min), give store address if asked\n- For delivery: use commerce_set_address, calculate shipping by zone\n\n🛑 STOP — DO NOT INVENT INFORMATION:\n1. NEVER make up, guess, or fabricate ANY payment info (PIX keys, QR codes, payment links)\n2. NEVER say a payment is "approved" or "confirmed" — you CANNOT process payments\n3. NEVER use the customer's phone number as your store's contact or PIX key\n4. NEVER share phone numbers that are not YOUR store's official number\n5. ONLY provide PIX/payment info that is explicitly listed below. If no PIX info is listed, say "I will send the payment details shortly"${pixInfo ? `\n6. STORE PIX for payment: ${pixKey}${pixName ? ` (${pixName})` : ''} — use EXACTLY this, never adjust or modify it` : '\n6. NO PIX key is configured for this store — tell customer "I will send payment details shortly" and do NOT make up any PIX key'}${storeWhatsapp ? `\n7. STORE WhatsApp: ${storeWhatsapp} — this is YOUR contact number, NOT the customer's` : ''}\n8. Orders are CONFIRMED (order number generated) but payments are PENDING — say "Please make the payment" NOT "Payment approved"\n9. After finalizing, the customer must pay separately. You cannot verify payment.${storeAddress ? `\n10. Store address: ${storeAddress} (for pickup orders)` : ''}\n11. NEVER ask for the customer's phone number on WhatsApp — you already have it\n\nDELIVERY ZONES:\n${deliveryZonesStr}\nFree delivery above ${currency}${freeDeliveryAbove}!\n\nAvailable payment methods: ${methods}${pixInfo}\nCurrent store: ${storeName || 'our store'} | Currency: ${currency}`;
+      }
+    } catch (err) { /* commerce context optional */ }
 
     let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, persona.knowledgeSources, businessStr);
-  if (extraContext) {
-    systemPrompt += '\n\n' + extraContext;
-  }
+    if (extraContext) {
+      systemPrompt += '\n\n' + extraContext;
+    }
 
     console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : (noKnowledgeSearch ? 'none' : 'bible')}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}`);
 
-  const toolsEnabled = await getSetting('tools_enabled', 'true') === 'true';
-  const historyLimit = Math.min(parseInt(await getSetting('history_limit', '10')) || 10, 50);
-  const history = await getHistoryForLLM(sid, historyLimit);
+    const toolsEnabled = await getSetting('tools_enabled', 'true') === 'true';
+    const historyLimit = Math.min(parseInt(await getSetting('history_limit', '10')) || 10, 50);
+    const history = await getHistoryForLLM(sid, historyLimit);
 
   console.log(`[ChatEngine] historyLen=${history.length}, firstMsg=${history.length > 0 ? history[0].role + ':' + history[0].content?.substring(0, 50) : 'none'}`);
 
@@ -2388,6 +2397,97 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       }
       const val = await getSetting(args.trim());
       return `⚙️ ${args.trim()}: ${val || '(não definido)'}`;
+    }
+
+    case '/fidelidade':
+    case '/pontos':
+    case '/cashback':
+    case '/loyalty': {
+      const loyalty = require('../loyalty');
+      const balance = await loyalty.getLoyaltyBalance(uid, persona.id);
+      if (!balance.program) return '📋 Programa de fidelidade não ativado. Peça ao admin para configurar.';
+      const subcmd = args ? args.split(' ')[0].toLowerCase() : '';
+      if (subcmd === 'historico' || subcmd === 'history') {
+        const history = await loyalty.getLoyaltyHistory(uid, persona.id, 10);
+        if (history.length === 0) return '📋 Nenhuma transação de fidelidade ainda.';
+        const lines = history.map(h => {
+          const date = new Date(h.created_at).toLocaleDateString();
+          if (h.type === 'earn') return `⭐ +${h.points} pts — ${h.description} (${date})`;
+          if (h.type === 'redeem') return `🎁 -${h.points} pts — ${h.description} (${date})`;
+          if (h.type === 'cashback_earn') return `💰 +R$${h.cashback_amount} — ${h.description} (${date})`;
+          if (h.type === 'cashback_redeem') return `💸 -R$${h.cashback_amount} — ${h.description} (${date})`;
+          return `${h.type}: ${h.description} (${date})`;
+        });
+        return `📋 Histórico de Fidelidade:\n\n${lines.join('\n')}`;
+      }
+      if (subcmd === 'resgatar' || subcmd === 'redeem') {
+        const rewards = await loyalty.getRewards(persona.id);
+        if (rewards.length === 0) return '🎁 Nenhuma recompensa disponível no momento.';
+        const lines = rewards.map(r => {
+          let desc = `🏆 ${r.name} — ${r.points_cost} pts`;
+          if (r.discount_percent) desc += ` (${r.discount_percent}% desconto)`;
+          if (r.discount_fixed) desc += ` (R$${r.discount_fixed} desconto)`;
+          return desc;
+        });
+        return `🎁 Recompensas disponíveis:\n\n${lines.join('\n')}\n\nDigite /pontos resgatar <id> para resgatar.`;
+      }
+      if (subcmd === 'resgatar' && args.split(' ')[1] || subcmd === 'redeem' && args.split(' ')[1]) {
+        const rewardId = args.split(' ')[1];
+        const result = await loyalty.redeemPoints(uid, persona.id, 0, rewardId);
+        if (result.error) return `❌ ${result.error}`;
+        return `✅ Resgate realizado! ${result.points_redeemed ? `-${result.points_redeemed} pts` : ''} ${result.cashback_redeemed ? `-R$${result.cashback_redeemed}` : ''}`;
+      }
+      const ctx = loyalty.formatLoyaltyContext(balance);
+      return `🏅 Fidelidade:\n${ctx || `Tipo: ${balance.program.type}\nPontos: ${balance.points}\nCashback: R$${balance.cashback}`}`;
+    }
+
+    case '/relatorios':
+    case '/reports': {
+      if (!isAdmin) return '❌ Apenas admins podem ver relatórios.';
+      const reports = require('../erp/reports');
+      const subcmd = args ? args.split(' ')[0].toLowerCase() : '';
+      const personaId = persona.id;
+      if (subcmd === 'vendas' || subcmd === 'revenue') {
+        const revenue = await reports.getRevenueReport(personaId);
+        return `📊 Relatório de Vendas:\n\n💰 Receita Bruta: R$${revenue.gross_revenue.toFixed(2)}\n💸 Reembolsos: R$${revenue.refunds.toFixed(2)}\n📈 Receita Líquida: R$${revenue.net_revenue.toFixed(2)}\n📦 Pedidos: ${revenue.total_orders}\n👥 Clientes: ${revenue.unique_customers}\n🎯 Ticket Médio: R$${revenue.average_ticket.toFixed(2)}`;
+      }
+      if (subcmd === 'produtos' || subcmd === 'products') {
+        const products = await reports.getTopProducts(personaId, 10);
+        const lines = products.map((p, i) => `${i+1}. ${p.title} — ${p.qty} vendidos (R$${p.revenue.toFixed(2)})`);
+        return `🏆 Top Produtos:\n\n${lines.join('\n')}`;
+      }
+      if (subcmd === 'tendencia' || subcmd === 'trend') {
+        const days = parseInt(args.split(' ')[1]) || 7;
+        const trend = await reports.getSalesTrend(personaId, days);
+        const lines = trend.map(t => `${t.date}: ${t.orders} pedidos, R$${t.revenue.toFixed(2)}`);
+        return `📈 Tendência (${days} dias):\n\n${lines.join('\n')}`;
+      }
+      if (subcmd === 'funil' || subcmd === 'funnel') {
+        const funnel = await reports.getConversionFunnel(personaId);
+        return `🔄 Funil de Conversão:\n\n💬 Conversas: ${funnel.conversations}\n🛒 Carrinhos: ${funnel.carts_started}\n📦 Pedidos: ${funnel.orders_placed}\n✅ Entregues: ${funnel.orders_completed}\n📊 Carrinho→Pedido: ${funnel.cart_to_order}\n📊 Pedido→Entrega: ${funnel.order_to_delivery}`;
+      }
+      const dashboard = await reports.getFullDashboard(personaId);
+      return `📊 Dashboard:\n\n💰 Receita: R$${dashboard.revenue.gross_revenue.toFixed(2)}\n📦 Pedidos: ${dashboard.revenue.total_orders}\n🎯 Ticket Médio: R$${dashboard.revenue.average_ticket.toFixed(2)}\n👥 Clientes: ${dashboard.revenue.unique_customers}\n🔄 Funil: ${dashboard.conversion_funnel.cart_to_order} carrinho→pedido`;
+    }
+
+    case '/broadcast': {
+      if (!isAdmin) return '❌ Apenas admins podem criar broadcasts.';
+      const broadcast = require('../broadcast');
+      const subcmd = args ? args.split(' ')[0].toLowerCase() : '';
+      if (subcmd === 'list' || subcmd === 'lista') {
+        const list = await broadcast.listBroadcasts(persona.id, 10);
+        if (list.length === 0) return '📭 Nenhuma campanha criada.';
+        const lines = list.map(b => `📌 ${b.title} — ${b.segment} — ${b.status}`);
+        return `📬 Campanhas:\n\n${lines.join('\n')}`;
+      }
+      if (subcmd === 'send' || subcmd === 'enviar') {
+        const bcId = args.split(' ')[1];
+        if (!bcId) return 'Uso: /broadcast send <id>';
+        const result = await broadcast.sendBroadcast(bcId);
+        if (result.error) return `❌ ${result.error}`;
+        return `✅ Campanha enviada para ${result.target_count} contatos!`;
+      }
+      return '📬 Comandos:\n• /broadcast list — Listar campanhas\n• /broadcast send <id> — Enviar campanha\n• Use a API admin para criar campanhas';
     }
 
     default:

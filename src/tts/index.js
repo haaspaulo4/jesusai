@@ -24,8 +24,25 @@ const MULTIVOZES_VOICE_MAP = {
 
 const KOKORO_VOICES = {
   'pt-BR': { voice: 'pm_alex', lang_code: 'p' },
+  'pt-PT': { voice: 'pm_alex', lang_code: 'p' },
   'en-US': { voice: 'am_adam', lang_code: 'a' },
+  'en-GB': { voice: 'bm_george', lang_code: 'b' },
   'es-ES': { voice: 'ef_dora', lang_code: 'e' },
+  'es-MX': { voice: 'em_alex', lang_code: 'e' },
+  'fr-FR': { voice: 'ff_sarah', lang_code: 'f' },
+  'de-DE': { voice: 'dm_david', lang_code: 'd' },
+  'it-IT': { voice: 'im_marco', lang_code: 'i' },
+  'ja-JP': { voice: 'jm_kazu', lang_code: 'j' },
+  'ko-KR': { voice: 'km_minsoo', lang_code: 'k' },
+  'zh-CN': { voice: 'zm_xiaobei', lang_code: 'z' },
+  'hi-IN': { voice: 'hm_alpha', lang_code: 'h' },
+  'ru-RU': { voice: 'rm_dmitri', lang_code: 'r' },
+  'nl-NL': { voice: 'nm_bram', lang_code: 'n' },
+  'pl-PL': { voice: 'pm_tadek', lang_code: 'p' },
+  'ar-SA': { voice: 'am_adam', lang_code: 'a' },
+  'tr-TR': { voice: 'em_alex', lang_code: 'e' },
+  'sv-SE': { voice: 'nm_bram', lang_code: 'n' },
+  'da-DK': { voice: 'nm_bram', lang_code: 'n' },
 };
 
 const KOKORO_VOICE_MAP = {
@@ -38,23 +55,98 @@ const KOKORO_VOICE_MAP = {
   rafael: 'pf_dora',
   dora: 'pf_dora',
   alex: 'pm_alex',
+  luis: 'pm_luis',
+  ana: 'pf_ana',
+  guy: 'am_adam',
+  michael: 'am_michael',
+  george: 'bm_george',
+  bella: 'af_bella',
+  heart: 'af_heart',
+  sarah: 'af_sarah',
+  nova_voice: 'af_nova',
+  emily: 'af_emily',
+  david: 'dm_david',
+  marcus: 'dm_marcus',
+  marco: 'im_marco',
+  lucia: 'if_lucia',
+  pierre: 'fm_pierre',
+  sarah_fr: 'ff_sarah',
+  kazu: 'jm_kazu',
+  minsoo: 'km_minsoo',
+  xiaobei: 'zm_xiaobei',
+  dmitri: 'rm_dmitri',
+  bram: 'nm_bram',
+  tadek: 'pm_tadek',
 };
 
 const KOKORO_EDGE_VOICE_MAP = {
   'pm_alex': 'pt-BR-AntonioNeural',
+  'pm_luis': 'pt-BR-AntonioNeural',
   'pf_dora': 'pt-BR-FranciscaNeural',
+  'pf_ana': 'pt-BR-ThalitaNeural',
   'am_adam': 'en-US-GuyNeural',
-  'af_bella': 'en-US-JennyNeural',
   'am_michael': 'en-US-GuyNeural',
+  'am_george': 'en-US-DavisNeural',
+  'af_bella': 'en-US-JennyNeural',
   'af_nova': 'en-US-AriaNeural',
-  'af_heart': 'pt-BR-ThalitaNeural',
+  'af_heart': 'en-US-AriaNeural',
+  'af_sarah': 'en-US-AriaNeural',
+  'af_emily': 'en-US-JennyNeural',
+  'bm_george': 'en-GB-ThomasNeural',
+  'ef_dora': 'es-ES-ElviraNeural',
+  'em_alex': 'es-ES-AlvaroNeural',
+  'ff_sarah': 'fr-FR-DeniseNeural',
+  'fm_pierre': 'fr-FR-HenriNeural',
+  'dm_david': 'de-DE-KillianNeural',
+  'dm_marcus': 'de-DE-KillianNeural',
+  'if_lucia': 'it-IT-ElsaNeural',
+  'im_marco': 'it-IT-DiegoNeural',
+  'jm_kazu': 'ja-JP-KeitaNeural',
+  'km_minsoo': 'ko-KR-InJoonNeural',
+  'zm_xiaobei': 'zh-CN-XiaoxiaoNeural',
+  'rm_dmitri': 'ru-RU-DmitriNeural',
+  'nm_bram': 'nl-NL-MaartenNeural',
+  'pm_tadek': 'pl-PL-MarekNeural',
+  'hm_alpha': 'en-US-GuyNeural',
 };
 
 const LANG_VOICES = {
   'pt-BR': { default: 'pt-BR-AntonioNeural', voices: ['pt-BR-AntonioNeural', 'pt-BR-FranciscaNeural', 'pt-BR-ThalitaNeural'] },
-  'en-US': { default: 'en-US-GuyNeural', voices: ['en-US-GuyNeural', 'en-US-JennyNeural', 'en-US-AriaNeural'] },
+  'pt-PT': { default: 'pt-PT-DuarteNeural', voices: ['pt-PT-DuarteNeural', 'pt-PT-RaquelNeural'] },
+  'en-US': { default: 'en-US-GuyNeural', voices: ['en-US-GuyNeural', 'en-US-JennyNeural', 'en-US-AriaNeural', 'en-US-DavisNeural', 'en-US-JasonNeural', 'en-US-SaraNeural'] },
+  'en-GB': { default: 'en-GB-ThomasNeural', voices: ['en-GB-ThomasNeural', 'en-GB-SoniaNeural', 'en-GB-MiaNeural'] },
+  'en-AU': { default: 'en-AU-WilliamNeural', voices: ['en-AU-WilliamNeural', 'en-AU-NatashaNeural'] },
+  'en-IN': { default: 'en-IN-PrabhatNeural', voices: ['en-IN-PrabhatNeural', 'en-IN-NeerjaNeural'] },
   'es-ES': { default: 'es-ES-AlvaroNeural', voices: ['es-ES-AlvaroNeural', 'es-ES-ElviraNeural'] },
+  'es-MX': { default: 'es-MX-JorgeNeural', voices: ['es-MX-JorgeNeural', 'es-MX-DaliaNeural'] },
+  'es-AR': { default: 'es-AR-ElenaNeural', voices: ['es-AR-ElenaNeural', 'es-AR-TomasNeural'] },
+  'fr-FR': { default: 'fr-FR-HenriNeural', voices: ['fr-FR-HenriNeural', 'fr-FR-DeniseNeural', 'fr-FR-CoralieNeural'] },
+  'de-DE': { default: 'de-DE-KillianNeural', voices: ['de-DE-KillianNeural', 'de-DE-KatjaNeural', 'de-DE-ConradNeural'] },
+  'it-IT': { default: 'it-IT-DiegoNeural', voices: ['it-IT-DiegoNeural', 'it-IT-ElsaNeural', 'it-IT-GiuseppeNeural'] },
+  'ja-JP': { default: 'ja-JP-KeitaNeural', voices: ['ja-JP-KeitaNeural', 'ja-JP-NanamiNeural'] },
+  'ko-KR': { default: 'ko-KR-InJoonNeural', voices: ['ko-KR-InJoonNeural', 'ko-KR-SunHiNeural'] },
+  'zh-CN': { default: 'zh-CN-YunxiNeural', voices: ['zh-CN-YunxiNeural', 'zh-CN-XiaoxiaoNeural', 'zh-CN-YunjianNeural'] },
+  'hi-IN': { default: 'hi-IN-MadhurNeural', voices: ['hi-IN-MadhurNeural', 'hi-IN-SwaraNeural'] },
+  'ru-RU': { default: 'ru-RU-DmitriNeural', voices: ['ru-RU-DmitriNeural', 'ru-RU-SvetlanaNeural'] },
+  'nl-NL': { default: 'nl-NL-MaartenNeural', voices: ['nl-NL-MaartenNeural', 'nl-NL-FennaNeural'] },
+  'pl-PL': { default: 'pl-PL-MarekNeural', voices: ['pl-PL-MarekNeural', 'pl-PL-AgnieszkaNeural'] },
+  'ar-SA': { default: 'ar-SA-HamedNeural', voices: ['ar-SA-HamedNeural', 'ar-SA-ZariyahNeural'] },
+  'tr-TR': { default: 'tr-TR-AhmetNeural', voices: ['tr-TR-AhmetNeural', 'tr-TR-EmelNeural'] },
+  'sv-SE': { default: 'sv-SE-MattiasNeural', voices: ['sv-SE-MattiasNeural', 'sv-SE-SofieNeural'] },
+  'da-DK': { default: 'da-DK-JeppeNeural', voices: ['da-DK-JeppeNeural', 'da-DK-ChristelNeural'] },
+  'fi-FI': { default: 'fi-FI-HarriNeural', voices: ['fi-FI-HarriNeural', 'fi-FI-NooraNeural'] },
+  'no-NO': { default: 'no-NO-FinnNeural', voices: ['no-NO-FinnNeural', 'no-NO-PernilleNeural'] },
+  'uk-UA': { default: 'uk-UA-OstapNeural', voices: ['uk-UA-OstapNeural', 'uk-UA-PolinaNeural'] },
+  'vi-VN': { default: 'vi-VN-HoaiMyNeural', voices: ['vi-VN-HoaiMyNeural', 'vi-VN-NamMinhNeural'] },
+  'id-ID': { default: 'id-ID-ArdiNeural', voices: ['id-ID-ArdiNeural', 'id-ID-GadisNeural'] },
+  'th-TH': { default: 'th-TH-NiwatNeural', voices: ['th-TH-NiwatNeural', 'th-TH-PremwadeeNeural'] },
+  'el-GR': { default: 'el-GR-NestorasNeural', voices: ['el-GR-NestorasNeural', 'el-GR-AthinaNeural'] },
+  'cs-CZ': { default: 'cs-CZ-AntoninNeural', voices: ['cs-CZ-AntoninNeural', 'cs-CZ-VlastaNeural'] },
+  'ro-RO': { default: 'ro-RO-EmilNeural', voices: ['ro-RO-EmilNeural', 'ro-RO-AlinaNeural'] },
+  'hu-HU': { default: 'hu-HU-TamasNeural', voices: ['hu-HU-TamasNeural', 'hu-HU-NoemiNeural'] },
 };
+
+const SUPPORTED_TTS_LANGS = Object.keys(LANG_VOICES);
 
 const TTS_MODE = process.env.TTS_MODE || 'kokoro';
 const MULTIVOZES_URL = (process.env.MULTIVOZES_URL || '').replace(/\/+$/, '');
@@ -70,7 +162,6 @@ const DEFAULT_VOLUME = process.env.TTS_VOLUME || '+0%';
 const MAX_TTS_LENGTH = 5000;
 const MAX_EDGE_TTS_CHUNK = 5000;
 const MAX_KOKORO_CHUNK = 200;
-const SUPPORTED_TTS_LANGS = ['pt-BR', 'en-US', 'es-ES'];
 
 function normalizeTextForTTS(text, lang = 'pt-BR') {
   let t = text;
@@ -664,6 +755,34 @@ function getAudioContentType(buffer) {
   return 'audio/mp3';
 }
 
+function getAvailableVoices(lang = null) {
+  const voices = {};
+  for (const [langCode, config] of Object.entries(LANG_VOICES)) {
+    if (lang && langCode !== lang) continue;
+    voices[langCode] = {
+      default: config.default,
+      voices: config.voices,
+      kokoro: KOKORO_VOICES[langCode] ? KOKORO_VOICES[langCode].voice : null,
+    };
+  }
+  return voices;
+}
+
+function getVoiceForLang(lang = 'pt-BR', voiceName = null) {
+  const langConfig = LANG_VOICES[lang] || LANG_VOICES['pt-BR'];
+  if (voiceName) {
+    const directMatch = langConfig.voices.find(v => v.toLowerCase().includes(voiceName.toLowerCase()));
+    if (directMatch) return directMatch;
+    const kokoroMatch = KOKORO_VOICE_MAP[voiceName];
+    if (kokoroMatch) {
+      const edgeMatch = KOKORO_EDGE_VOICE_MAP[kokoroMatch];
+      if (edgeMatch) return edgeMatch;
+      return kokoroMatch;
+    }
+  }
+  return langConfig.default;
+}
+
 async function generateWithEngine(engine, text, options = {}) {
   switch (engine) {
     case 'kokoro':
@@ -689,9 +808,12 @@ module.exports = {
   generateAudioBuffer,
   generateAudioDataUrl,
   getAudioContentType,
+  getAvailableVoices,
+  getVoiceForLang,
   VOICES,
   KOKORO_VOICES,
   KOKORO_VOICE_MAP,
+  KOKORO_EDGE_VOICE_MAP,
   LANG_VOICES,
   DEFAULT_VOICE,
   DEFAULT_RATE,

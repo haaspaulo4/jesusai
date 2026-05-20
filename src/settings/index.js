@@ -86,6 +86,7 @@ const DEFAULTS = {
   store_currency: 'BRL',
   store_currency_symbol: 'R$',
   store_whatsapp: '',
+  store_address: '',
   store_hero_video: '',
   store_footer_text: '',
   store_instagram_url: '',

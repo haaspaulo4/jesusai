@@ -22,8 +22,8 @@ Plataforma de agentes cognitivos persistentes com RAG multimodal, multi-persona 
 - **Realtime**: Socket.IO — eventos ao vivo (new_message, agent_thinking, xp_update, badge_earned, stage_advance, goal_update, creative_progress, override_status, cognitive_state)
 - **Job Queue**: BullMQ (Redis-backed) — proactive engine, ingestion, embeddings, automations, blog, email com retry e scheduling
 - **Creative Engine**: Handlebars templates + html-to-image — quote_post, announcement_post, carousel_slide, minimal_blog + post sizes (Instagram, Facebook, Twitter, YouTube, blog, ebook)
-- **STT**: Groq Whisper (primary) + OpenAI Whisper (fallback) + web mic input
-- **TTS**: Kokoro-82M (default) + Edge TTS (fallback) + Google Translate (fallback)
+- **STT**: Whisper local (faster-whisper Python server on port 9000, primary) + Groq Whisper + OpenAI Whisper + whisper.cpp fallback
+- **TTS**: Kokoro-82M (30+ languages, 35+ voices) + Edge TTS + Google Translate (fallback)
 - **Instagram**: instagram-private-api (DM polling, persona per instance)
 - **Surveys**: CRUD completo com triggers (after_messages, after_session, manual)
 - **Ratings**: 1-5 stars com categorias e feedback
@@ -1435,3 +1435,142 @@ The `loja-hlb` pattern is the template for selling to businesses:
 - **`session_id` is optional in commerce tools** — falls back to `context.sessionId` from the chat engine
 - **Payment methods are configurable** via settings: `store_payment_methods`, `store_pix_key`, `store_pix_name`, `store_bank_info`
 - **PIX key injected into commerce prompt** — LLM tells customers the real PIX key, NEVER makes up payment info
+
+### Loyalty System (Fidelidade + Cashback)
+
+**Module:** `src/loyalty/index.js`
+
+Programs: points, cashback, stamp_card, tier. Each persona can have its own program (or global if `persona_id IS NULL`).
+
+**Key Functions:**
+- `getLoyaltyProgram(personaId)` — get active program for persona (falls back to global)
+- `getOrCreateLoyaltyProgram(personaId)` — auto-creates from settings if none exists
+- `getLoyaltyBalance(userId, personaId)` — returns `{ points, cashback, program }`
+- `earnPoints(userId, personaId, orderId, amount, reason)` — earn points/cashback/stamp on order
+- `redeemPoints(userId, personaId, amount, rewardId)` — redeem points/cashback for rewards
+- `getRewards(personaId)` — list available rewards
+- `createReward(data)` — create a redeemable reward
+- `getLoyaltyHistory(userId, personaId, limit)` — transaction history
+- `expireOldPoints(personaId, daysOld)` — expire earned points older than N days
+- `formatLoyaltyContext(balance)` — inject into system prompt
+
+**Settings:** `loyalty_enabled`, `loyalty_type`, `loyalty_points_per_real`, `loyalty_cashback_percent`, `loyalty_minimum_redemption`
+
+**Integration:**
+- `ecommerce.finalizeOrder()` auto-calls `earnPoints()` when loyalty enabled
+- Chat engine injects loyalty context into system prompt via `formatLoyaltyContext()`
+- Chat commands: `/fidelidade`, `/pontos`, `/cashback`, `/loyalty`
+
+**DB Tables:** `loyalty_programs`, `loyalty_transactions`, `loyalty_rewards`
+
+**Admin API:** `/api/admin/loyalty/programs`, `/api/admin/loyalty/balance/:userId`, `/api/admin/loyalty/history/:userId`, `/api/admin/loyalty/earn`, `/api/admin/loyalty/redeem`, `/api/admin/loyalty/rewards`, `/api/admin/loyalty/stats`, `/api/admin/loyalty/expire`
+
+**Public API:** `/api/store/loyalty/balance`, `/api/store/loyalty/rewards`
+
+**LLM Tools:** `loyalty_balance`, `loyalty_reward_list`, `loyalty_redeem`, `loyalty_history`
+
+### Broadcast System (Disparos em Massa)
+
+**Module:** `src/broadcast/index.js`
+
+Send messages to customer segments via WhatsApp/Telegram.
+
+**Segments:** all, new (7d), inactive_7d, inactive_15d, inactive_30d, vip, tag
+
+**Key Functions:**
+- `createBroadcast(data)` — create campaign
+- `sendBroadcast(id)` — send to targets (calculates targets by segment)
+- `getBroadcastTargets(personaId, segment, segmentConfig)` — resolve target customers
+- `getBroadcastStats(personaId)` — stats by status
+
+**DB Tables:** `broadcasts`, `broadcast_logs`
+
+**Admin API:** `/api/admin/broadcasts`, `/api/admin/broadcasts/:id`, `/api/admin/broadcasts/:id/send`, `/api/admin/broadcasts/:id/logs`, `/api/admin/broadcast-stats`
+
+**Chat Command:** `/broadcast list`, `/broadcast send <id>`
+
+**LLM Tool:** `broadcast_create`
+
+### Reports Module (Financial Dashboard)
+
+**Module:** `src/erp/reports.js`
+
+**Key Functions:**
+- `getRevenueReport(personaId, startDate, endDate)` — gross, net, refunds, orders, avg ticket
+- `getOrdersByStatus(personaId)` — count and total per status
+- `getTopProducts(personaId, limit)` — top selling products
+- `getSalesTrend(personaId, days)` — daily revenue/orders
+- `getCustomerMetrics(personaId)` — new customers, retention, avg messages
+- `getConversionFunnel(personaId)` — conversations → carts → orders → delivered
+- `getFullDashboard(personaId)` — all of the above combined
+
+**Admin API:** `/api/admin/reports/dashboard`, `/api/admin/reports/revenue`, `/api/admin/reports/top-products`, `/api/admin/reports/sales-trend`, `/api/admin/reports/conversion`, `/api/admin/reports/customers`
+
+**Chat Command:** `/relatorios` (with subcommands: vendas, produtos, tendencia, funil)
+
+**LLM Tools:** `reports_dashboard`, `reports_top_products`, `reports_sales_trend`, `reports_conversion_funnel`
+
+### Customer Recovery Module
+
+**Module:** `src/erp/recovery.js`
+
+**Key Functions:**
+- `getInactiveCustomers(personaId, daysInactive)` — users who haven't messaged in N days
+- `getChurnRiskCustomers(personaId)` — cognitive states with churn_risk > 0.5
+- `getAtRiskCustomers(personaId)` — aggregated stats (inactive 7d, high churn, low engagement)
+- `seedRecoveryAutomations(personaId)` — seed 3 default recovery automations (7d, 15d, 30d)
+
+**Admin API:** `/api/admin/recovery/inactive`, `/api/admin/recovery/churn-risk`, `/api/admin/recovery/at-risk`, `/api/admin/recovery/seed-automations`
+
+**LLM Tool:** `customer_recovery`
+
+### Delivery Driver Module
+
+**Module:** `src/erp/delivery.js`
+
+**Key Functions:**
+- `createDriver(data)` — register delivery driver
+- `listDrivers(personaId)` — list active drivers
+- `assignDriver(orderId, driverId)` — assign driver to order
+- `updateAssignment(orderId, status, notes)` — update delivery status
+- `getOrderAssignment(orderId)` — get delivery tracking info
+
+**DB Tables:** `delivery_drivers`, `delivery_assignments`
+
+**Admin API:** `/api/admin/delivery/drivers`, `/api/admin/delivery/assign`, `/api/admin/delivery/status/:orderId`, `/api/admin/delivery/track/:orderId`
+
+**Public API:** `/api/store/delivery/track/:orderId`
+
+**LLM Tools:** `delivery_track`, `delivery_update_status`
+
+### Setup Wizard
+
+**Module:** `src/wizard/index.js`
+
+5-step setup: brand → persona → products → whatsapp → finish
+
+**Key Functions:**
+- `getWizardState(userId)` — get current setup progress
+- `saveWizardStep(userId, step, data)` — save step data (brand, persona, products, whatsapp)
+- `applyWizard(userId)` — apply all saved settings to DB
+- `resetWizard(userId)` — clear setup progress
+
+**Steps:** brand, persona, products, whatsapp, finish
+
+**Admin API:** `/api/admin/wizard`, `POST /api/admin/wizard/:step`, `POST /api/admin/wizard/apply`, `POST /api/admin/wizard/reset`
+
+### Database Tables (New)
+
+**loyalty_programs** — id, persona_id, name, type (points/cashback/stamp_card/tier), points_per_real, cashback_percent, redemption_threshold, is_active
+
+**loyalty_transactions** — id, user_id, persona_id, order_id, type (earn/redeem/expire/adjust/cashback_earn/cashback_redeem), points, cashback_amount, description
+
+**loyalty_rewards** — id, persona_id, name, description, points_cost, product_id, discount_percent, discount_fixed, is_active
+
+**broadcasts** — id, persona_id, title, message, segment, segment_config, status (draft/scheduled/sending/sent/failed), scheduled_at, sent_count, delivered_count, read_count, failed_count
+
+**broadcast_logs** — id, broadcast_id, user_id, phone, status, error_message, sent_at
+
+**delivery_drivers** — id, persona_id, name, phone, vehicle_type, is_active, current_lat, current_lng, metadata
+
+**delivery_assignments** — id, order_id, driver_id, status (assigned/preparing/picked_up/on_the_way/delivered/failed/cancelled), assigned_at, picked_up_at, delivered_at, notes

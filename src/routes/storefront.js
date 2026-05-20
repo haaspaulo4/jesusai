@@ -323,4 +323,43 @@ router.get('/coupons/:code', async (req, res) => {
   }
 });
 
+// ========== LOYALTY (PUBLIC) ==========
+router.get('/loyalty/balance', async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const { getSetting } = require('../settings');
+    const personaId = await getSetting('persona') || process.env.PERSONA || 'default';
+    const userId = req.query.user_id;
+    if (!userId) return res.status(400).json({ error: 'user_id is required' });
+    const balance = await loyalty.getLoyaltyBalance(userId, personaId);
+    res.json(balance);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/loyalty/rewards', async (req, res) => {
+  try {
+    const loyalty = require('../loyalty');
+    const { getSetting } = require('../settings');
+    const personaId = await getSetting('persona') || process.env.PERSONA || 'default';
+    const rewards = await loyalty.getRewards(personaId);
+    res.json(rewards);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/delivery/track/:orderId', async (req, res) => {
+  try {
+    const delivery = require('../erp/delivery');
+    const assignment = await delivery.getOrderAssignment(req.params.orderId);
+    if (!assignment) return res.json({ found: false });
+    res.json({
+      found: true,
+      driver: assignment.driver_name,
+      vehicle: assignment.vehicle_type,
+      status: assignment.status,
+      assigned_at: assignment.assigned_at,
+      delivered_at: assignment.delivered_at,
+    });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 module.exports = router;
