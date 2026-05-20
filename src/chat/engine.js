@@ -407,7 +407,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
         const methods = paymentMethods.split(',').map(m => methodLabels[m.trim()] || m.trim()).join(', ');
         let pixInfo = '';
         if (pixKey) pixInfo = `\n- STORE PIX for payment: ${pixKey}${pixName ? ` (${pixName})` : ''} — use EXACTLY this key, NEVER modify or guess it`;
-        const storeWhatsapp = await getSetting('store_whatsapp') || '';
+        const storeWhatsapp = await getSetting('store_whatsapp') || process.env.WHATSAPP_BOT_PHONE || process.env.WHATSAPP_NUMBER || '';
         const storeAddress = await getSetting('store_address') || await getSetting('brand_tagline') || '';
         const deliveryZonesRaw = await getSetting('store_delivery_zones') || '[]';
         let deliveryZones = [];
@@ -420,10 +420,14 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
           ? `\n6. PIX DA LOJA: ${pixKey}${pixName ? ` (${pixName})` : ''} — use EXATAMENTE esta chave, NUNCA modifique ou invente outra`
           : `\n6. NENHUMA chave PIX configurada — ${noPixMsg}. NUNCA invente uma chave PIX.`;
 
+        // Mask customer phone from session ID to prevent LLM from using it as store info
+        const safeSessionId = sid;
+
         businessStr += `\n\nSISTEMA DE VENDAS: Você é o atendente da ${storeName || 'loja'}. Seu objetivo PRINCIPAL é ajudar clientes a fazer pedidos via conversa natural. Seja proativo em vender e fechar pedidos.
 
-SESSÃO: ${sid}
-Use este session_id em TODAS as chamadas de ferramentas de comércio (session_id: "${sid}").
+SESSÃO: ${safeSessionId}
+Use este session_id em TODAS as chamadas de ferramentas de comércio (session_id: "${safeSessionId}").
+IMPORTANTE: O session_id contém dados internos do sistema. NUNCA extraia números dele para usar como telefone, PIX ou contato.
 
 FLUXO DO PEDIDO:
 1. catalog_search — Buscar produtos (SEMPRE busque antes de adicionar ao carrinho)

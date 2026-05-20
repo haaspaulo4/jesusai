@@ -1551,12 +1551,14 @@ async function fetchBotJid() {
     botWhatsAppJid = WHATSAPP_BOT_JID.includes('@') ? WHATSAPP_BOT_JID : WHATSAPP_BOT_JID + '@s.whatsapp.net';
     botWhatsAppPhone = botWhatsAppJid.replace(/@.*/, '').replace(/\D/g, '');
     console.log(`[WhatsApp] Bot JID (env): ${botWhatsAppJid}`);
+    await autoPopulateStoreWhatsApp(botWhatsAppPhone);
     return botWhatsAppJid;
   }
   if (WHATSAPP_BOT_PHONE) {
     botWhatsAppPhone = WHATSAPP_BOT_PHONE.replace(/\D/g, '');
     botWhatsAppJid = botWhatsAppPhone + '@s.whatsapp.net';
     console.log(`[WhatsApp] Bot JID (env phone): ${botWhatsAppJid}`);
+    await autoPopulateStoreWhatsApp(botWhatsAppPhone);
     return botWhatsAppJid;
   }
 
@@ -1587,6 +1589,7 @@ async function fetchBotJid() {
         botWhatsAppJid = jid;
         botWhatsAppPhone = botWhatsAppJid.replace(/@.*/, '').replace(/\D/g, '');
         console.log(`[WhatsApp] Bot JID (auto): ${botWhatsAppJid}, phone: ${botWhatsAppPhone}`);
+        await autoPopulateStoreWhatsApp(botWhatsAppPhone);
         return botWhatsAppJid;
       }
     } catch {}
@@ -1594,6 +1597,25 @@ async function fetchBotJid() {
 
   console.warn('[WhatsApp] Could not auto-detect bot JID. Group mention detection may not work. Set WHATSAPP_BOT_JID or WHATSAPP_BOT_PHONE env var.');
   return null;
+}
+
+/**
+ * Auto-populate store_whatsapp setting if empty.
+ * This ensures the commerce system prompt always has the store's real number.
+ */
+async function autoPopulateStoreWhatsApp(phone) {
+  if (!phone) return;
+  try {
+    const { getSetting, setSetting } = require('../settings');
+    const current = await getSetting('store_whatsapp');
+    if (!current) {
+      await setSetting('store_whatsapp', phone);
+      console.log(`[WhatsApp] Auto-populated store_whatsapp setting: ${phone}`);
+    }
+  } catch (err) {
+    // Non-critical — don't crash if settings module isn't ready
+    console.warn('[WhatsApp] Could not auto-populate store_whatsapp:', err.message);
+  }
 }
 
 async function refreshLidCache() {
