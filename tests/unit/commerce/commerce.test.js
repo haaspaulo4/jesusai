@@ -5,6 +5,18 @@
 const { mockPool, mockExecute, mockConnection, resetMocks } = require('../../helpers/mockDb');
 const { setMockSettings, resetSettings } = require('../../helpers/mockSettings');
 
+// Mock products module (used by stock validation in addCartItem)
+jest.mock('../../../src/erp/products', () => ({
+  getProduct: jest.fn().mockResolvedValue(null), // No stock tracking by default
+  searchProducts: jest.fn().mockResolvedValue([]),
+  adjustStock: jest.fn().mockResolvedValue({ success: true }),
+}));
+
+// Mock orders module
+jest.mock('../../../src/erp/orders', () => ({
+  createOrder: jest.fn().mockResolvedValue({ id: 'ord_test', order_number: 'ORD-001' }),
+}));
+
 const commerce = require('../../../src/erp/commerce');
 
 beforeEach(() => {
@@ -112,6 +124,61 @@ describe('Commerce - Cart Operations', () => {
 
     const result = await commerce.clearCart('sess_1');
     expect(result).not.toBeNull();
+  });
+
+  test('addCartItem rejects when stock is insufficient', async () => {
+    const { getProduct } = require('../../../src/erp/products');
+    getProduct.mockResolvedValueOnce({ id: 'p1', name: 'Burger', stock: 2, track_stock: true });
+
+    mockExecute.mockResolvedValueOnce([[{ ...mockCart, items: JSON.stringify([{ product_id: 'p1', variant_id: null, title: 'Burger', unit_price: 25, quantity: 2, total: 50 }]), metadata: '{}' }], []]);
+
+    const result = await commerce.addCartItem('sess_1', {
+      product_id: 'p1',
+      title: 'Burger',
+      unit_price: 25,
+      quantity: 1,
+    });
+    expect(result.error).toContain('Estoque insuficiente');
+  });
+
+  test('addCartItem allows when stock is sufficient', async () => {
+    const { getProduct } = require('../../../src/erp/products');
+    getProduct.mockResolvedValueOnce({ id: 'p1', name: 'Burger', stock: 10, track_stock: true });
+
+    mockExecute.mockResolvedValueOnce([[{ ...mockCart, items: '[]', metadata: '{}' }], []]);
+    mockExecute.mockResolvedValueOnce([[{ ...mockCart, items: '[]', metadata: '{}' }], []]);
+    mockExecute.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    const updated = { ...mockCart, items: JSON.stringify([{ product_id: 'p1', title: 'Burger', unit_price: 25, quantity: 1, total: 25 }]), metadata: '{}' };
+    mockExecute.mockResolvedValueOnce([[updated], []]);
+
+    const result = await commerce.addCartItem('sess_1', {
+      product_id: 'p1',
+      title: 'Burger',
+      unit_price: 25,
+      quantity: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result.error).toBeUndefined();
+  });
+
+  test('addCartItem skips stock check when product has no track_stock', async () => {
+    const { getProduct } = require('../../../src/erp/products');
+    getProduct.mockResolvedValueOnce({ id: 'p1', name: 'Burger', stock: 0, track_stock: false });
+
+    mockExecute.mockResolvedValueOnce([[{ ...mockCart, items: '[]', metadata: '{}' }], []]);
+    mockExecute.mockResolvedValueOnce([[{ ...mockCart, items: '[]', metadata: '{}' }], []]);
+    mockExecute.mockResolvedValueOnce([{ affectedRows: 1 }, []]);
+    const updated = { ...mockCart, items: JSON.stringify([{ product_id: 'p1', title: 'Burger', unit_price: 25, quantity: 1, total: 25 }]), metadata: '{}' };
+    mockExecute.mockResolvedValueOnce([[updated], []]);
+
+    const result = await commerce.addCartItem('sess_1', {
+      product_id: 'p1',
+      title: 'Burger',
+      unit_price: 25,
+      quantity: 1,
+    });
+    expect(result).not.toBeNull();
+    expect(result.error).toBeUndefined();
   });
 });
 

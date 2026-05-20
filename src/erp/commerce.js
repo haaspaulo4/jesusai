@@ -81,6 +81,34 @@ async function updateCart(sessionId, updates) {
 async function addCartItem(sessionId, product) {
   let cart = await getCart(sessionId);
   if (!cart) return null;
+
+  // Validate stock before adding
+  if (product.product_id) {
+    try {
+      const p = await erpProducts.getProduct(product.product_id);
+      if (p && p.track_stock) {
+        const requestedQty = product.quantity || 1;
+        const existingItem = cart.items.find(i => i.product_id === product.product_id && (product.variant_id ? i.variant_id === product.variant_id : !i.variant_id));
+        const currentQtyInCart = existingItem ? existingItem.quantity : 0;
+        const totalNeeded = currentQtyInCart + requestedQty;
+
+        // Check variant stock if applicable
+        let availableStock = p.stock;
+        if (product.variant_id && Array.isArray(p.variants)) {
+          const variant = p.variants.find(v => v.id === product.variant_id);
+          if (variant && variant.stock !== undefined) availableStock = variant.stock;
+        }
+
+        if (availableStock < totalNeeded) {
+          return { error: `Estoque insuficiente para "${product.title || p.name}". Disponível: ${availableStock}, no carrinho: ${currentQtyInCart}.` };
+        }
+      }
+    } catch (stockErr) {
+      console.error('[Commerce] Stock check error:', stockErr.message);
+      // Continue anyway — don't block sale on stock check failure
+    }
+  }
+
   const items = [...cart.items];
   const existing = items.find(i => i.product_id === product.product_id && (product.variant_id ? i.variant_id === product.variant_id : !i.variant_id));
   if (existing) {
