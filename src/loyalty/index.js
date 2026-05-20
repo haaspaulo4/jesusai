@@ -42,6 +42,18 @@ async function getLoyaltyBalance(userId, personaId) {
 async function earnPoints(userId, personaId, orderId, amount, reason) {
   const program = await getOrCreateLoyaltyProgram(personaId);
   const id = `lt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+
+  // Idempotency: prevent duplicate points for same order
+  if (orderId) {
+    const [existing] = await pool.execute(
+      'SELECT id FROM loyalty_transactions WHERE order_id = ? AND (type = "earn" OR type = "cashback_earn") LIMIT 1',
+      [orderId]
+    );
+    if (existing.length > 0) {
+      return { id: existing[0].id, already_awarded: true, message: 'Pontos já concedidos para este pedido' };
+    }
+  }
+
   if (program.type === 'points') {
     const points = Math.round(amount * parseFloat(program.points_per_real));
     await pool.execute(
@@ -88,7 +100,7 @@ async function redeemPoints(userId, personaId, pointsOrAmount, rewardId) {
     if (parseFloat(balance.cashback) < amount) return { error: `Cashback insuficiente. Você tem R$${balance.cashback}, precisa R$${amount}.` };
     await pool.execute(
       'INSERT INTO loyalty_transactions (id, user_id, persona_id, type, cashback_amount, description) VALUES (?, ?, ?, "cashback_redeem", ?, ?)',
-      [id, userId, personaId, amount, reason || 'Resgate de cashback']
+      [id, userId, personaId, amount, 'Resgate de cashback']
     );
     return { id, cashback_redeemed: amount, remaining: parseFloat(balance.cashback) - amount };
   }
@@ -131,11 +143,24 @@ async function getLoyaltyHistory(userId, personaId, limit = 20) {
 }
 
 async function expireOldPoints(personaId, daysOld = 90) {
-  const [result] = await pool.execute(
-    'UPDATE loyalty_transactions t JOIN loyalty_programs p ON t.persona_id = p.persona_id SET t.type = "expire" WHERE t.type = "earn" AND t.persona_id = ? AND t.created_at < DATE_SUB(NOW(), INTERVAL ? DAY)',
-    [personaId, daysOld]
+  // Find earn transactions older than N days that haven't been expired yet
+  const [rows] = await pool.execute(
+    `SELECT id, user_id, persona_id, points FROM loyalty_transactions 
+     WHERE type = "earn" AND persona_id = ? AND created_at < DATE_SUB(NOW(), INTERVAL ? DAY)
+     AND id NOT IN (SELECT COALESCE(JSON_UNQUOTE(JSON_EXTRACT(description, '$.ref')), '') FROM loyalty_transactions WHERE type = "expire" AND persona_id = ?)`,
+    [personaId, daysOld, personaId]
   );
-  return { expired: result.affectedRows };
+  
+  let expired = 0;
+  for (const row of rows) {
+    const id = `lt_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    await pool.execute(
+      'INSERT INTO loyalty_transactions (id, user_id, persona_id, type, points, description) VALUES (?, ?, ?, "expire", ?, ?)',
+      [id, row.user_id, row.persona_id, row.points, JSON.stringify({ ref: row.id, reason: 'Pontos expirados' })]
+    );
+    expired++;
+  }
+  return { expired };
 }
 
 function formatLoyaltyContext(balance) {

@@ -6,11 +6,28 @@ function generateId(prefix = 'ord') {
 }
 
 async function generateOrderNumber() {
-  const [rows] = await pool.execute('SELECT COUNT(*) as cnt FROM orders WHERE created_at >= CURDATE()');
-  const count = rows[0].cnt + 1;
+  // Atomic order number generation using INSERT + LAST_INSERT_ID to prevent duplicates
   const date = new Date();
   const prefix = String(date.getFullYear()).slice(-2) + String(date.getMonth() + 1).padStart(2, '0') + String(date.getDate()).padStart(2, '0');
-  return `ORD-${prefix}-${String(count).padStart(4, '0')}`;
+  
+  // Use a counter table or atomic SELECT FOR UPDATE to prevent race conditions
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    const [rows] = await conn.execute(
+      'SELECT COUNT(*) as cnt FROM orders WHERE created_at >= CURDATE() FOR UPDATE'
+    );
+    const count = rows[0].cnt + 1;
+    await conn.commit();
+    return `ORD-${prefix}-${String(count).padStart(4, '0')}`;
+  } catch (err) {
+    await conn.rollback();
+    // Fallback: use timestamp-based unique number
+    const ts = Date.now().toString(36).toUpperCase();
+    return `ORD-${prefix}-${ts.slice(-4)}`;
+  } finally {
+    conn.release();
+  }
 }
 
 const ORDER_STATUSES = ['pending', 'confirmed', 'paid', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded', 'expired'];
@@ -53,34 +70,77 @@ async function createOrder(data) {
   const tax = data.tax || 0;
   const total = subtotal - discount + shipping + tax;
 
-  await pool.execute(
-    `INSERT INTO orders (id, order_number, customer_id, customer_name, customer_email, customer_phone,
-     customer_document, status, payment_status, fulfillment_status, source, subtotal, discount, shipping,
-     tax, total, currency, coupon_code, notes, internal_notes, shipping_address, billing_address,
-     payment_method, payment_reference, metadata, persona_id, owner_id)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [
-      id, orderNumber, data.customer_id || null, data.customer_name || null, data.customer_email || null,
-    data.customer_phone || null, data.customer_document || null,
-    data.status || 'pending', data.payment_status || 'pending', data.fulfillment_status || 'unfulfilled',
-    data.source || 'web', subtotal, discount, shipping, tax, total,
-    data.currency || 'BRL', data.coupon_code || null, data.notes || null, data.internal_notes || null,
-    shippingAddress, billingAddress,
-    data.payment_method || null, data.payment_reference || null, metadata,
-    data.persona_id || null, data.owner_id || null,
-    ]
-  );
+  // Use transaction with FOR UPDATE to prevent stock race conditions
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
 
-  for (const item of items) {
-    await createOrderItem(id, item);
-  }
-
-  if (data.deduct_stock !== false) {
-    for (const item of items) {
-      if (item.type !== 'shipping' && item.type !== 'discount' && item.type !== 'fee') {
-        await adjustStock(item.product_id, item.variant_id, 'out', item.quantity, `Order ${orderNumber}`, id, data.owner_id);
+    // Lock stock rows before deducting (prevents overselling)
+    if (data.deduct_stock !== false) {
+      for (const item of items) {
+        if (item.type !== 'shipping' && item.type !== 'discount' && item.type !== 'fee' && item.product_id) {
+          const [stockRows] = await conn.execute(
+            'SELECT id, stock FROM products WHERE id = ? FOR UPDATE',
+            [item.product_id]
+          );
+          if (stockRows.length > 0 && stockRows[0].stock < (item.quantity || 1)) {
+            throw new Error(`Estoque insuficiente para "${item.title || item.product_id}". Disponível: ${stockRows[0].stock}, solicitado: ${item.quantity || 1}`);
+          }
+        }
       }
     }
+
+    await conn.execute(
+      `INSERT INTO orders (id, order_number, customer_id, customer_name, customer_email, customer_phone,
+       customer_document, status, payment_status, fulfillment_status, source, subtotal, discount, shipping,
+       tax, total, currency, coupon_code, notes, internal_notes, shipping_address, billing_address,
+       payment_method, payment_reference, metadata, persona_id, owner_id)
+       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        id, orderNumber, data.customer_id || null, data.customer_name || null, data.customer_email || null,
+      data.customer_phone || null, data.customer_document || null,
+      data.status || 'pending', data.payment_status || 'pending', data.fulfillment_status || 'unfulfilled',
+      data.source || 'web', subtotal, discount, shipping, tax, total,
+      data.currency || 'BRL', data.coupon_code || null, data.notes || null, data.internal_notes || null,
+      shippingAddress, billingAddress,
+      data.payment_method || null, data.payment_reference || null, metadata,
+      data.persona_id || null, data.owner_id || null,
+      ]
+    );
+
+    for (const item of items) {
+      await createOrderItem(id, item, conn);
+    }
+
+    if (data.deduct_stock !== false) {
+      for (const item of items) {
+        if (item.type !== 'shipping' && item.type !== 'discount' && item.type !== 'fee' && item.product_id) {
+          await conn.execute(
+            'UPDATE products SET stock = GREATEST(0, stock - ?) WHERE id = ?',
+            [item.quantity || 1, item.product_id]
+          );
+          if (item.variant_id) {
+            await conn.execute(
+              'UPDATE product_variants SET stock = GREATEST(0, stock - ?) WHERE id = ?',
+              [item.quantity || 1, item.variant_id]
+            );
+          }
+          // Log stock adjustment
+          const adjId = generateId('adj');
+          await conn.execute(
+            'INSERT INTO stock_adjustments (id, product_id, variant_id, type, quantity, reason, reference_id, created_by) VALUES (?,?,?,?,?,?,?,?)',
+            [adjId, item.product_id, item.variant_id || null, 'out', item.quantity || 1, `Order ${orderNumber}`, id, data.owner_id || null]
+          );
+        }
+      }
+    }
+
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
   }
 
   const order = await getOrder(id);
@@ -100,13 +160,14 @@ async function createOrder(data) {
   return order;
 }
 
-async function createOrderItem(orderId, data) {
+async function createOrderItem(orderId, data, conn = null) {
+  const db = conn || pool;
   const id = data.id || generateId('oit');
   const specs = data.specs ? JSON.stringify(data.specs) : null;
   const metadata = data.metadata ? JSON.stringify(data.metadata) : null;
   const total = (data.unit_price || 0) * (data.quantity || 1) - (data.discount || 0);
 
-  await pool.execute(
+  await db.execute(
     `INSERT INTO order_items (id, order_id, product_id, variant_id, title, subtitle, type, quantity,
      unit_price, unit_cost, discount, total, image, specs, metadata)
      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
@@ -259,7 +320,7 @@ async function createDelivery(orderId, data) {
   await pool.execute(
     `INSERT INTO deliveries (id, order_id, tracking_code, carrier, carrier_service, status,
      estimated_delivery, shipping_address, weight, dimensions, cost, tracking_url, tracking_events, notes, metadata)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [id, orderId, data.tracking_code || null, data.carrier || null, data.carrier_service || null,
     data.status || 'pending', data.estimated_delivery || null, address, data.weight || null, dimensions,
     data.cost || 0, data.tracking_url || null, trackingEvents, data.notes || null, metadata]

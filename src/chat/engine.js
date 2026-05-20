@@ -421,8 +421,18 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     messages.push({ role: 'user', content: message });
   }
 
+  // Mask sensitive commands (password) BEFORE saving and AFTER LLM array
   const sensitiveCmd = /^\s*\/(cadastrar|entrar|register|login|criarconta)\s/i.test(message);
-  const safeMessage = sensitiveCmd ? message.replace(/(\S+@\S+)|(\b\S{6,}\b)/g, (m) => m.includes('@') ? m : '••••••') : message;
+  if (sensitiveCmd) {
+    // Replace the LLM message with masked version — never send passwords to LLM
+    const parts = message.trim().split(/\s+/);
+    const maskedForLLM = `[Comando de autenticação: ${parts[0]}] — processando localmente, não responder sobre credenciais.`;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg && lastMsg.role === 'user') {
+      lastMsg.content = maskedForLLM;
+    }
+  }
+  const safeMessage = sensitiveCmd ? message.replace(/(\/(cadastrar|entrar|register|login|criarconta)\s+\S+\s+)(\S+)/i, '$1••••••') : message;
 
   await addMessage(sid, 'user', safeMessage);
 

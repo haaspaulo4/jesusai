@@ -163,7 +163,7 @@ function formatCartForWhatsApp(cart) {
   if (summary.discount > 0) text += `\nDesconto: -R$ ${summary.discount.toFixed(2)}`;
   text += `\n*Total: R$ ${summary.total.toFixed(2)}*`;
   const changeFor = cart.metadata?.change_for;
-  if (changeFor) text += `\nTroco para: R$ ${changeFor.toFixed(2)}`;
+  if (changeFor) text += `\nTroco para: R$ ${parseFloat(changeFor).toFixed(2)}`;
   return text;
 }
 
@@ -369,8 +369,21 @@ async function applyCoupon(sessionId, code, cartTotal) {
   if (coupon.min_value > 0 && cartTotal < coupon.min_value) {
     return { valid: false, error: `Pedido mínimo de R$ ${coupon.min_value.toFixed(2)} para usar este cupom.` };
   }
+
+  // Atomic increment used_count (prevents reuse beyond max_uses)
+  const [updateResult] = await pool.execute(
+    'UPDATE coupon_codes SET used_count = used_count + 1 WHERE code = ? AND is_active = 1 AND (max_uses = 0 OR max_uses IS NULL OR used_count < max_uses)',
+    [code.toUpperCase()]
+  );
+  if (updateResult.affectedRows === 0) {
+    return { valid: false, error: 'Cupom esgotado ou inválido.' };
+  }
+
+  // Merge metadata (preserve existing address, payment, customer info)
+  const cart = await getCart(sessionId);
+  const existingMeta = cart ? (cart.metadata || {}) : {};
   await updateCart(sessionId, {
-    metadata: { coupon_code: coupon.code, discount, coupon_type: coupon.type, coupon_value: coupon.value },
+    metadata: { ...existingMeta, coupon_code: coupon.code, discount, coupon_type: coupon.type, coupon_value: coupon.value },
   });
   return { valid: true, discount, code: coupon.code, type: coupon.type, value: coupon.value };
 }

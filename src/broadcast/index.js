@@ -73,10 +73,77 @@ async function sendBroadcast(id) {
   const broadcast = await getBroadcast(id);
   if (!broadcast) return { error: 'Broadcast não encontrado' };
   if (broadcast.status === 'sending' || broadcast.status === 'sent') return { error: 'Broadcast já enviado ou em envio' };
+  
   await pool.execute('UPDATE broadcasts SET status = ? WHERE id = ?', ['sending', id]);
+  
   const targets = await getBroadcastTargets(broadcast.persona_id, broadcast.segment, broadcast.segment_config ? JSON.parse(broadcast.segment_config) : {});
-  await pool.execute('UPDATE broadcasts SET status = ? WHERE id = ?', ['sent', id]);
-  return { id, status: 'sent', target_count: targets.length };
+  
+  if (targets.length === 0) {
+    await pool.execute('UPDATE broadcasts SET status = ?, sent_count = 0, failed_count = 0 WHERE id = ?', ['sent', id]);
+    return { id, status: 'sent', target_count: 0, sent: 0, failed: 0 };
+  }
+
+  let sentCount = 0;
+  let failedCount = 0;
+
+  // Send messages with rate limiting (1 per second to avoid bans)
+  for (const target of targets) {
+    const logId = `bl_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    try {
+      // Try WhatsApp via Evolution API
+      if (target.phone) {
+        const baseUrl = process.env.EVOLUTION_API_URL || process.env.EVO_API_URL;
+        const apiKey = process.env.EVOLUTION_API_KEY || process.env.EVO_API_KEY;
+        const instance = process.env.EVOLUTION_INSTANCE || process.env.EVO_INSTANCE || 'default';
+
+        if (baseUrl && apiKey) {
+          const phone = target.phone.replace(/\D/g, '');
+          const axios = require('axios');
+          await axios.post(`${baseUrl}/message/sendText/${instance}`, {
+            number: phone,
+            text: broadcast.message,
+          }, {
+            headers: { apikey: apiKey },
+            timeout: 10000,
+          });
+          sentCount++;
+          await pool.execute(
+            'INSERT INTO broadcast_logs (id, broadcast_id, user_id, phone, status, sent_at) VALUES (?, ?, ?, ?, ?, NOW())',
+            [logId, id, target.user_id, target.phone, 'sent']
+          );
+        } else {
+          // No Evolution API configured — log as failed
+          failedCount++;
+          await pool.execute(
+            'INSERT INTO broadcast_logs (id, broadcast_id, user_id, phone, status, error_message, sent_at) VALUES (?, ?, ?, ?, ?, ?, NOW())',
+            [logId, id, target.user_id, target.phone, 'failed', 'Evolution API not configured']
+          );
+        }
+      } else {
+        failedCount++;
+        await pool.execute(
+          'INSERT INTO broadcast_logs (id, broadcast_id, user_id, phone, status, error_message, sent_at) VALUES (?, ?, ?, ?, ?, ?, NOW())',
+          [logId, id, target.user_id, target.phone || null, 'failed', 'No phone number']
+        );
+      }
+
+      // Rate limit: 1 message per second
+      await new Promise(resolve => setTimeout(resolve, 1000));
+    } catch (err) {
+      failedCount++;
+      await pool.execute(
+        'INSERT INTO broadcast_logs (id, broadcast_id, user_id, phone, status, error_message, sent_at) VALUES (?, ?, ?, ?, ?, ?, NOW())',
+        [logId, id, target.user_id, target.phone || null, 'failed', (err.message || 'Unknown error').substring(0, 255)]
+      );
+    }
+  }
+
+  await pool.execute(
+    'UPDATE broadcasts SET status = ?, sent_count = ?, failed_count = ? WHERE id = ?',
+    ['sent', sentCount, failedCount, id]
+  );
+
+  return { id, status: 'sent', target_count: targets.length, sent: sentCount, failed: failedCount };
 }
 
 async function getBroadcastStats(personaId) {

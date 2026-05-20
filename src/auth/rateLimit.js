@@ -27,27 +27,33 @@ async function checkRateLimit(userId, role) {
   const windowMs = windowHours * 60 * 60 * 1000;
   const serviceType = 'chat';
 
-  await pool.execute(
+  // Atomic: reset window if expired, then increment ONLY if under limit
+  const [result] = await pool.execute(
     `INSERT INTO rate_limits (user_id, service_type, request_count, window_start) VALUES (?, ?, 1, NOW())
      ON DUPLICATE KEY UPDATE
-       request_count = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, 1, request_count + 1),
+       request_count = IF(
+         window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?,
+         1,
+         IF(request_count < ?, request_count + 1, request_count)
+       ),
        window_start = IF(window_start IS NULL OR TIMESTAMPDIFF(HOUR, window_start, NOW()) >= ?, NOW(), window_start)`,
-    [userId, serviceType, windowHours, windowHours]
+    [userId, serviceType, windowHours, limit, windowHours]
   );
 
   const [rows] = await pool.execute(
-    'SELECT request_count, window_start FROM rate_limits WHERE user_id = ? AND service_type = ? FOR UPDATE',
+    'SELECT request_count, window_start FROM rate_limits WHERE user_id = ? AND service_type = ?',
     [userId, serviceType]
   );
 
   const row = rows[0];
   if (!row) return { allowed: true, remaining: limit, limit, resetIn: Math.ceil(windowMs / 60000) };
 
-  if (row.request_count > limit) {
+  // If request_count >= limit, the increment was blocked — user is rate limited
+  if (row.request_count >= limit) {
     const windowStart = new Date(row.window_start);
     const elapsedMs = Date.now() - windowStart;
     const remainingMs = windowMs - elapsedMs;
-    const remainingMin = Math.ceil(remainingMs / 60000);
+    const remainingMin = Math.max(1, Math.ceil(remainingMs / 60000));
     return { allowed: false, remaining: 0, limit, resetIn: remainingMin };
   }
 
