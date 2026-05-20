@@ -2701,6 +2701,149 @@ router.get('/stt/status', authMiddleware, adminMiddleware, async (req, res) => {
   } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
+// ========== AI USAGE STATS ==========
+router.get('/ai-usage', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const { limit } = { limit: 100 };
+    const [rows] = await pool.execute(
+      `SELECT tenant_id, model, provider, request_type, SUM(prompt_tokens) as total_prompt, SUM(completion_tokens) as total_completion, SUM(cost) as total_cost, COUNT(*) as requests, DATE(created_at) as date
+       FROM ai_usage_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+       GROUP BY tenant_id, model, provider, request_type, DATE(created_at)
+       ORDER BY date DESC LIMIT ?`,
+      [limit]
+    );
+    const [totals] = await pool.execute(
+      `SELECT SUM(prompt_tokens) as total_prompt, SUM(completion_tokens) as total_completion, SUM(cost) as total_cost, COUNT(*) as total_requests FROM ai_usage_logs WHERE created_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)`
+    );
+    res.json({ daily: rows, totals: totals[0] });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ========== SCHEDULING ==========
+router.get('/scheduling/appointments', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const scheduling = require('../services/scheduling');
+    const { persona_id = 'default', status, date_from, date_to } = req.query;
+    const appointments = await scheduling.listAppointments(persona_id, { status, date_from, date_to, limit: 50 });
+    res.json({ appointments });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/scheduling/slots', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const scheduling = require('../services/scheduling');
+    const { persona_id = 'default', service_type_id, date } = req.query;
+    const slots = await scheduling.availableSlots(persona_id, service_type_id || null, date || new Date().toISOString().split('T')[0]);
+    res.json({ slots });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/scheduling/service-types', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const scheduling = require('../services/scheduling');
+    const { persona_id = 'default' } = req.query;
+    const types = await scheduling.getServiceTypes(persona_id);
+    res.json({ service_types: types });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/scheduling/service-types', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const scheduling = require('../services/scheduling');
+    const result = await scheduling.createServiceType({ ...req.body, personaId: req.body.persona_id || 'default' });
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/scheduling/book', authMiddleware, async (req, res) => {
+  try {
+    const scheduling = require('../services/scheduling');
+    const { persona_id, service_type_id, start_time, customer_name, customer_phone, customer_email, notes } = req.body;
+    const result = await scheduling.bookSlot(persona_id || 'default', service_type_id, start_time, { customerName: customer_name, customerPhone: customer_phone, customerEmail: customer_email, notes }, { ownerId: req.userId });
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/scheduling/appointments/:id/cancel', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const scheduling = require('../services/scheduling');
+    const result = await scheduling.cancelAppointment(req.params.id, req.body.reason || '');
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ========== AUTOMATIONS ==========
+router.get('/automations', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const automation = require('../services/automation');
+    const { persona_id = 'default', type } = req.query;
+    const automations = await automation.getAutomations(persona_id, type);
+    res.json({ automations });
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/automations', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const automation = require('../services/automation');
+    const result = await automation.createAutomation({
+      personaId: req.body.persona_id || 'default',
+      ownerId: req.userId,
+      name: req.body.name,
+      description: req.body.description,
+      triggerType: req.body.trigger_type,
+      triggerConfig: req.body.trigger_config || {},
+      actionType: req.body.action_type,
+      actionConfig: req.body.action_config || {},
+    });
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.put('/automations/:id/toggle', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const automation = require('../services/automation');
+    const result = await automation.toggleAutomation(req.params.id);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.delete('/automations/:id', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const automation = require('../services/automation');
+    const result = await automation.deleteAutomation(req.params.id);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.get('/automations/stats', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const automation = require('../services/automation');
+    const { persona_id = 'default' } = req.query;
+    const stats = await automation.getAutomationStats(persona_id);
+    res.json(stats);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.post('/automations/seed', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const automation = require('../services/automation');
+    const result = await automation.seedDefaultAutomations(req.body.persona_id || 'default', req.userId);
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+// ========== PUBLIC APIs ==========
+router.get('/public-apis/:endpoint', authMiddleware, adminMiddleware, async (req, res) => {
+  try {
+    const apiClient = require('../services/publicApi');
+    const { endpoint } = req.params;
+    const methods = ['weather', 'cep', 'geocode', 'catFact', 'dogFact', 'joke', 'advice', 'exchangeRates', 'wikiSearch', 'horoscope', 'news', 'dogImage', 'catImage', 'gitHubUser'];
+    if (!methods.includes(endpoint)) return res.status(404).json({ error: 'Unknown API endpoint' });
+    const result = await apiClient[endpoint](...Object.values(req.query));
+    res.json(result);
+  } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
 // ========== SETUP WIZARD ==========
 router.get('/wizard', authMiddleware, async (req, res) => {
   try {
