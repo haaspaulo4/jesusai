@@ -89,26 +89,58 @@ process.on('uncaughtException', (err) => {
 });
 
 let shutdownTimeout = null;
+let isShuttingDown = false;
 
 async function gracefulShutdown(signal) {
   if (shutdownTimeout) return;
-  console.log(`[${signal}] Graceful shutdown...`);
+  isShuttingDown = true;
+  console.log(`[${signal}] Graceful shutdown initiated...`);
+  
   shutdownTimeout = setTimeout(() => {
     console.log('[Shutdown] Force exit after 10s timeout');
     process.exit(1);
   }, 10000);
+
+  // 1. Stop accepting new connections
+  if (httpServer) {
+    httpServer.close(() => console.log('[Shutdown] HTTP server closed'));
+  }
+
+  // 2. Stop bots (Telegram, WhatsApp)
+  try {
+    const botManager = require('./bot/manager');
+    if (botManager.stopAll) await botManager.stopAll();
+    console.log('[Shutdown] Bots stopped');
+  } catch {}
+
+  // 3. Stop TTS server
   stopKokoroServer();
+
+  // 4. Disconnect WebSocket clients
+  if (io) {
+    io.disconnectSockets(true);
+    console.log('[Shutdown] WebSocket clients disconnected');
+  }
+
+  // 5. Wait for in-flight requests to drain (3s)
+  await new Promise(resolve => setTimeout(resolve, 3000));
+
+  // 6. Close job queues
   try {
     const jobQueue = require('./queue');
     if (jobQueue.isAvailable()) await jobQueue.shutdown();
+    console.log('[Shutdown] Job queues closed');
   } catch {}
-  if (io) io.disconnectSockets(true);
-  if (httpServer) httpServer.close();
+
+  // 7. Close DB pool
   try {
     const { pool } = require('./db');
     await pool.end();
+    console.log('[Shutdown] DB pool closed');
   } catch {}
+
   clearTimeout(shutdownTimeout);
+  console.log(`[${signal}] Shutdown complete`);
   process.exit(0);
 }
 
@@ -239,6 +271,9 @@ app.get('/create-persona', async (req, res) => {
 });
 
 app.get('/api/health', async (req, res) => {
+  if (isShuttingDown) {
+    return res.status(503).json({ status: 'shutting_down', timestamp: new Date().toISOString() });
+  }
   const health = { status: 'ok', timestamp: new Date().toISOString(), uptime: process.uptime(), memory: process.memoryUsage() };
   try {
     const { pool } = require('./db');
