@@ -9,6 +9,7 @@ let chatOpen = false;
 
 // Fix cache lock: use a dedicated userData path for the pet app
 app.setPath('userData', path.join(app.getPath('appData'), 'JesusAI-Pet'));
+app.commandLine.appendSwitch('disable-http-cache'); // Prevent "Unable to move the cache" error
 
 // Single instance lock
 const gotLock = app.requestSingleInstanceLock();
