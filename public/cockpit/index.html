@@ -29,10 +29,13 @@
           <i data-feather="message-square"></i> Console
         </button>
         <button class="nav-btn" data-tab="knowledge">
-          <i data-feather="database"></i> Knowledge Base
+          <i data-feather="database"></i> Base de Conhecimento
+        </button>
+        <button class="nav-btn" data-tab="skills">
+          <i data-feather="zap"></i> Skills / Agentes
         </button>
         <button class="nav-btn" data-tab="settings">
-          <i data-feather="settings"></i> Settings
+          <i data-feather="settings"></i> Configurações
         </button>
       </nav>
 
@@ -159,6 +162,25 @@
                 <button class="btn btn-secondary" id="btn-brain">
                   <i data-feather="folder"></i> Explorar Vault
                 </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: SKILLS / AGENTES -->
+      <div class="tab-content" id="tab-skills">
+        <div class="knowledge-container">
+          <div class="widget wide">
+            <div class="widget-header">
+              <i data-feather="zap"></i> Gerenciador de Skills
+            </div>
+            <div class="widget-body">
+              <div id="skills-list" style="display: flex; flex-direction: column; gap: 12px;">
+                <div class="empty-state">
+                  <i data-feather="loader" class="icon-lg"></i>
+                  <p>Carregando Skills...</p>
+                </div>
               </div>
             </div>
           </div>

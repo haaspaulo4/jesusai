@@ -46,7 +46,8 @@ function init() {
   setupEventListeners();
   startPolling();
   loadPersonas();
-  loadObsidianStats();
+  loadKnowledgeStats();
+  loadSkills();
   appendTerminal('[system] Sistema MetaPersona inicializado e pronto.', 'system-line');
 }
 
@@ -84,12 +85,46 @@ function setupEventListeners() {
   DOM.ingestTabs.forEach(tab => {
     tab.addEventListener('click', () => {
       DOM.ingestTabs.forEach(t => t.classList.remove('active'));
-      DOM.ingestPanels.forEach(p => p.classList.remove('active'));
+      DOM.ingestPanels.forEach(p => {
+        p.style.display = 'none';
+        p.classList.remove('active');
+      });
       
       tab.classList.add('active');
-      document.getElementById(tab.dataset.target).classList.add('active');
+      const target = document.getElementById(tab.dataset.target);
+      if (target) {
+        target.style.display = 'block';
+        target.classList.add('active');
+      }
     });
   });
+
+  // Dropzone handling
+  const dropzone = document.getElementById('ingest-dropzone');
+  const fileInput = document.getElementById('ingest-file-input');
+  const fileNameDisplay = document.getElementById('ingest-file-name');
+  if (dropzone && fileInput) {
+    dropzone.addEventListener('click', () => fileInput.click());
+    dropzone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropzone.style.borderColor = 'var(--primary)';
+    });
+    dropzone.addEventListener('dragleave', (e) => {
+      e.preventDefault();
+      dropzone.style.borderColor = 'var(--border-color)';
+    });
+    dropzone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropzone.style.borderColor = 'var(--border-color)';
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        fileNameDisplay.innerText = fileInput.files[0].name;
+      }
+    });
+    fileInput.addEventListener('change', () => {
+      if (fileInput.files.length) fileNameDisplay.innerText = fileInput.files[0].name;
+    });
+  }
 
   // Ingest Submit
   if (DOM.ingestSubmit) {
@@ -237,13 +272,13 @@ function updateActivePersonaUI(id) {
   });
 }
 
-async function loadObsidianStats() {
+async function loadKnowledgeStats() {
   if (!DOM.obsidianNotes) return;
   try {
-    const res = await fetch('/api/obsidian/stats');
+    const res = await fetch('/api/admin/knowledge');
     if (res.ok) {
       const data = await res.json();
-      DOM.obsidianNotes.innerText = data.total_files || data.notes_count || '--';
+      DOM.obsidianNotes.innerText = data.totalDocuments || '--';
       DOM.obsidianStatus.innerText = 'Online';
       DOM.obsidianStatus.style.color = 'var(--success)';
     } else {
@@ -259,27 +294,80 @@ async function handleIngest() {
   statusEl.innerText = 'Enviando...';
   
   try {
-    const text = document.getElementById('ingest-text-input').value;
-    if (!text) throw new Error("Texto vazio");
+    const activeTab = document.querySelector('#ingest-modal .tab.active').dataset.target;
     
-    const res = await fetch('/api/obsidian/ingest', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ content: text })
-    });
-    
-    if (res.ok) {
-      statusEl.innerText = 'Ingestão concluída com sucesso!';
-      statusEl.style.color = 'var(--success)';
-      document.getElementById('ingest-text-input').value = '';
-      loadObsidianStats();
-      setTimeout(() => DOM.ingestModal.classList.remove('show'), 2000);
-    } else {
-      throw new Error("Falha no servidor");
+    if (activeTab === 'ingest-text') {
+      const text = document.getElementById('ingest-text-input').value;
+      if (!text) throw new Error("Texto vazio");
+      
+      const res = await fetch('/api/admin/knowledge/upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ content: text, type: 'text' })
+      });
+      if (!res.ok) throw new Error("Falha na ingestão de texto");
+      
+    } else if (activeTab === 'ingest-file') {
+      const fileInput = document.getElementById('ingest-file-input');
+      if (!fileInput.files || fileInput.files.length === 0) throw new Error("Nenhum arquivo selecionado");
+      
+      const formData = new FormData();
+      formData.append('file', fileInput.files[0]);
+      
+      const res = await fetch('/api/admin/knowledge/upload', {
+        method: 'POST',
+        body: formData
+      });
+      if (!res.ok) throw new Error("Falha no upload do arquivo");
     }
+    
+    statusEl.innerText = 'Ingestão concluída com sucesso!';
+    statusEl.style.color = 'var(--success)';
+    
+    if (document.getElementById('ingest-text-input')) document.getElementById('ingest-text-input').value = '';
+    if (document.getElementById('ingest-file-input')) document.getElementById('ingest-file-input').value = '';
+    if (document.getElementById('ingest-file-name')) document.getElementById('ingest-file-name').innerText = '';
+    
+    loadKnowledgeStats();
+    setTimeout(() => {
+      DOM.ingestModal.classList.remove('show');
+      statusEl.innerText = '';
+    }, 2000);
+    
   } catch(e) {
     statusEl.innerText = `Erro: ${e.message}`;
     statusEl.style.color = 'var(--danger)';
+  }
+}
+
+async function loadSkills() {
+  const skillsListEl = document.getElementById('skills-list');
+  if (!skillsListEl) return;
+  
+  try {
+    const res = await fetch('/api/admin/skills');
+    if (!res.ok) throw new Error('Failed');
+    const data = await res.json();
+    
+    skillsListEl.innerHTML = '';
+    
+    if (data.skills && data.skills.length > 0) {
+      data.skills.forEach(skill => {
+        skillsListEl.innerHTML += `
+          <div style="background: var(--bg-dark); padding: 12px; border-radius: 8px; border: 1px solid var(--border-color);">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+              <strong>${skill.name}</strong>
+              <span style="font-size: 0.8rem; color: var(--primary);">${skill.type}</span>
+            </div>
+            <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0;">${skill.description || 'Sem descrição'}</p>
+          </div>
+        `;
+      });
+    } else {
+      skillsListEl.innerHTML = '<div class="empty-state"><p>Nenhuma skill encontrada.</p></div>';
+    }
+  } catch(e) {
+    skillsListEl.innerHTML = '<div class="error-text">Erro ao carregar skills.</div>';
   }
 }
 
