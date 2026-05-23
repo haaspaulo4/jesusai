@@ -584,6 +584,30 @@ Server Events:
 
 Integration: Chat engine emits events on message save, XP update, cognitive state
 ```
+### Synapse Engine
+```
+O Synapse Engine (presente em .synapse/) atua como a espinha dorsal de rastreamento de contexto e diagnóstico do sistema.
+Ele estabelece uma hierarquia de 7 camadas (L0 a L7) para estruturar a memória da IA:
+  - L0: Constitution (Regras globais e inquebráveis)
+  - L1: Global (Contexto fixo de operação)
+  - L2: Agent (Memória estruturada da persona)
+  - L3: Workflow (Fluxo de trabalho atual)
+  - L4: Task (Tarefa ativa)
+  - L5: Squad (Time de agentes colaborativos, ex: Conclave)
+  - L6: Keyword (Gatilhos rápidos)
+  - L7: Star Command (Overrides absolutos do usuário/admin)
+```
+
+### Claude Multi-Agent Governance
+```
+O diretório .claude/ abriga as regras (rules), habilidades (skills) e os agentes autônomos (agents) como o QA, Architect e UX Expert.
+O sistema possui hooks rígidos no git (ex: pre-commit e enforce-git-push-authority) que validam se os sub-agentes aprovaram as alterações na base de código, garantindo a integridade arquitetural (mind-clone-governance).
+```
+
+### Conclave Multi-Agent Debate
+```
+A ferramenta conclave permite que um agente instancie uma equipe temporária de especialistas (sub-agentes de LLM) para debaterem um problema antes de executar uma tarefa crítica. O Conclave gera um resumo sintetizado das opiniões (Chain of Thought avançado), permitindo maior robustez nas decisões da IA.
+```
 
 ## Admin Chat Commands
 | Command | Access | Description |
