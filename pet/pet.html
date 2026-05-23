@@ -845,6 +845,15 @@ async function sendChatMessage() {
     chatMessages.appendChild(jarvisMsgDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
+    if (chatData.personaId) currentPersonaId = chatData.personaId;
+    if (chatData.personaName) {
+      currentPersonaName = chatData.personaName;
+      const headerTitle = document.querySelector('#chat-header h3');
+      if (headerTitle) {
+        headerTitle.textContent = `${currentPersonaName.toUpperCase()} CLASSIC CO-COMPANION`;
+      }
+    }
+
     const voice = chatData.ttsVoice || currentVoice;
     const lang = chatData.ttsLang || chatData.language || currentLang;
 

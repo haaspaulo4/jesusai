@@ -95,22 +95,41 @@ contextBridge.exposeInMainWorld('jarvis', {
 `;
 fs.writeFileSync(path.join(__dirname, 'preload.js'), preloadContent, 'utf-8');
 
-// === IPC ===
+let clampShift = { x: 0, y: 0 };
+
 ipcMain.on('toggle-chat', (e, isOpen) => {
   if (!mainWindow) return;
   chatOpen = isOpen;
   const [x, y] = mainWindow.getPosition();
+  const { width, height } = screen.getPrimaryDisplay().workAreaSize;
+
   if (isOpen) {
-    mainWindow.setSize(CHAT_WIDTH, CHAT_HEIGHT);
-    mainWindow.setPosition(
-      Math.max(0, x - (CHAT_WIDTH - PET_WIDTH)),
-      Math.max(0, y - (CHAT_HEIGHT - PET_HEIGHT))
-    );
+    // Posição ideal para manter o pet (canto inferior direito) parado
+    let idealX = x - (CHAT_WIDTH - PET_WIDTH);
+    let idealY = y - (CHAT_HEIGHT - PET_HEIGHT);
+    
+    // Evita que a janela saia da tela
+    let clampedX = Math.max(0, Math.min(idealX, width - CHAT_WIDTH));
+    let clampedY = Math.max(0, Math.min(idealY, height - CHAT_HEIGHT));
+    
+    // Salva o quanto a janela foi "empurrada" para caber na tela
+    clampShift.x = clampedX - idealX;
+    clampShift.y = clampedY - idealY;
+    
+    mainWindow.setBounds({ x: Math.round(clampedX), y: Math.round(clampedY), width: CHAT_WIDTH, height: CHAT_HEIGHT });
   } else {
-    const newX = x + (CHAT_WIDTH - PET_WIDTH);
-    const newY = y + (CHAT_HEIGHT - PET_HEIGHT);
-    mainWindow.setSize(PET_WIDTH, PET_HEIGHT);
-    mainWindow.setPosition(newX, newY);
+    // Volta para a posição original, desfazendo o "empurrão" se houver
+    let idealX = x + (CHAT_WIDTH - PET_WIDTH) - clampShift.x;
+    let idealY = y + (CHAT_HEIGHT - PET_HEIGHT) - clampShift.y;
+    
+    // Garante que o pet não feche fora da tela (caso tenha sido arrastado pra fora)
+    let clampedX = Math.max(0, Math.min(idealX, width - PET_WIDTH));
+    let clampedY = Math.max(0, Math.min(idealY, height - PET_HEIGHT));
+    
+    // Reseta o shift
+    clampShift = { x: 0, y: 0 };
+    
+    mainWindow.setBounds({ x: Math.round(clampedX), y: Math.round(clampedY), width: PET_WIDTH, height: PET_HEIGHT });
   }
 });
 

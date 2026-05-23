@@ -780,10 +780,19 @@ setInterval(() => {
 router.get('/pet/status', async (req, res) => {
   try {
     const { sessionId } = req.query;
-    let persona;
-    if (sessionId) {
-      persona = await personaManager.getSessionPersona(sessionId);
-    } else {
+    
+    let uid = 'pet_anon';
+    try {
+      const [rows] = await pool.execute('SELECT id FROM users WHERE role = ? ORDER BY created_at ASC LIMIT 1', ['admin']);
+      if (rows.length > 0) {
+        uid = rows[0].id;
+      }
+    } catch {}
+    const sid = sessionId || 'pet_session_' + uid;
+
+    let persona = await personaManager.getSessionPersona(sid);
+
+    if (!persona) {
       persona = await personaManager.getActivePersona();
     }
 
@@ -908,7 +917,6 @@ router.post('/pet/chat', async (req, res) => {
       language: lang,
       isGroup: false,
       source: 'pet',
-      personaId: personaId || undefined,
     });
 
     const response = {
@@ -916,8 +924,8 @@ router.post('/pet/chat', async (req, res) => {
       sessionId: result.sessionId,
       sources: result.sources,
       language: result.language,
-      personaId: result.personaId,
-      personaName: result.personaName,
+      personaId: result.personaInfo?.id,
+      personaName: result.personaInfo?.name,
       ttsVoice: result.ttsVoice,
       ttsLang: result.ttsLang,
     };
