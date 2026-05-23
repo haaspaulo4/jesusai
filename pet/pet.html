@@ -744,24 +744,90 @@ socket.on('cognitive_state', (state) => {
 });
 
 
-// === BOTÃO DO MIC — Toggle cowork local ===
+// === BOTÃO DO MIC — STT & Audio Recording ===
 const micBtn = document.getElementById('mic-btn');
 let micActive = false;
+let mediaRecorder = null;
+let audioChunks = [];
 
 micBtn.addEventListener('mousedown', (e) => e.stopPropagation());
 micBtn.addEventListener('click', async (e) => {
   e.stopPropagation();
-  micActive = !micActive;
-  micBtn.classList.toggle('active', micActive);
-  micBtn.querySelector('svg').setAttribute('stroke', micActive ? '#0f0' : 'var(--accent-color)');
-  currentState = micActive ? 'listening' : 'idle';
-  tooltip.textContent = micActive ? `${currentPersonaName} — Escutando...` : `${currentPersonaName} — Online`;
-
-  try {
-    const endpoint = micActive ? '/api/cowork/start' : '/api/cowork/stop';
-    await fetch('http://localhost:3000' + endpoint, { method: 'POST' });
-  } catch(err) {
-    console.log('Erro ao disparar microfone:', err.message);
+  
+  if (!micActive) {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      mediaRecorder = new MediaRecorder(stream);
+      audioChunks = [];
+      
+      mediaRecorder.ondataavailable = event => {
+        if (event.data.size > 0) audioChunks.push(event.data);
+      };
+      
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach(track => track.stop());
+        const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+        
+        currentState = 'thinking';
+        tooltip.textContent = `${currentPersonaName} — Processando voz...`;
+        
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'pet_voice.webm');
+        
+        try {
+          const res = await fetch('http://localhost:3000/api/stt', {
+            method: 'POST',
+            body: formData
+          });
+          
+          if (res.ok) {
+            const data = await res.json();
+            if (data.text && data.text.trim()) {
+              chatInput.value = data.text;
+              
+              if (!chatOpen) {
+                chatOpen = true;
+                chatToggleBtn.classList.add('active');
+                chatBox.classList.add('open');
+                if (window.jarvis && typeof window.jarvis.toggleChat === 'function') {
+                  window.jarvis.toggleChat(chatOpen);
+                }
+              }
+              
+              sendChatMessage();
+            } else {
+              currentState = 'idle';
+              tooltip.textContent = `${currentPersonaName} — Não entendi o áudio.`;
+              setTimeout(() => { tooltip.textContent = `${currentPersonaName} — Online`; }, 3000);
+            }
+          }
+        } catch (err) {
+          console.error('[Pet STT] Erro:', err);
+          currentState = 'frustrated';
+          tooltip.textContent = `${currentPersonaName} — Falha no STT.`;
+          setTimeout(() => { currentState = 'idle'; }, 3000);
+        }
+      };
+      
+      mediaRecorder.start();
+      micActive = true;
+      micBtn.classList.add('active');
+      micBtn.querySelector('svg').setAttribute('stroke', '#0f0');
+      currentState = 'listening';
+      tooltip.textContent = `${currentPersonaName} — Escutando...`;
+      
+    } catch (err) {
+      console.error('[Pet Mic] Acesso negado:', err);
+      tooltip.textContent = `Microfone bloqueado/indisponível`;
+      setTimeout(() => { tooltip.textContent = `${currentPersonaName} — Online`; }, 3000);
+    }
+  } else {
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    micActive = false;
+    micBtn.classList.remove('active');
+    micBtn.querySelector('svg').setAttribute('stroke', 'var(--accent-color)');
   }
 });
 

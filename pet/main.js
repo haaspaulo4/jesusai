@@ -192,5 +192,15 @@ ipcMain.on('show-context-menu', () => {
   menu.popup({ window: mainWindow });
 });
 
-app.whenReady().then(createWindow);
+app.whenReady().then(() => {
+  const { session } = require('electron');
+  session.defaultSession.setPermissionRequestHandler((webContents, permission, callback) => {
+    if (permission === 'media') {
+      callback(true);
+    } else {
+      callback(false);
+    }
+  });
+  createWindow();
+});
 app.on('window-all-closed', () => app.quit());
