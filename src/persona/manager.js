@@ -2,6 +2,8 @@ const { pool } = require('../db');
 const { PERSONAS: HARDCODED_PERSONAS, buildSystemPrompt } = require('../persona/config');
 const { caches } = require('../cache');
 
+const cache = caches.personas;
+
 let loaded = false;
 
 const DEFAULT_PERSONAS = {
@@ -10,8 +12,6 @@ const DEFAULT_PERSONAS = {
 
 async function loadPersonas() {
   if (loaded) return;
-
-  const cache = caches.personas;
 
   try {
     const [rows] = await pool.execute('SELECT * FROM personas WHERE is_active = 1 ORDER BY priority ASC');
@@ -63,7 +63,7 @@ async function loadPersonas() {
         summaryPrompt: row.summary_prompt ? (typeof row.summary_prompt === 'string' ? JSON.parse(row.summary_prompt) : row.summary_prompt) : null,
         profileSummaryPrompt: row.profile_summary_prompt ? (typeof row.profile_summary_prompt === 'string' ? JSON.parse(row.profile_summary_prompt) : row.profile_summary_prompt) : null,
         ttsVoice: row.tts_voice || 'pm_alex',
-        ttsLang: row.tts_lang || 'p',
+        ttsLang: row.tts_lang || 'pt-BR',
         model: row.model || null,
         knowledgeSources: row.knowledge_sources ? (typeof row.knowledge_sources === 'string' ? JSON.parse(row.knowledge_sources) : row.knowledge_sources) : null,
         isActive: true,
@@ -92,7 +92,7 @@ async function loadPersonas() {
 
   for (const [id, persona] of Object.entries(DEFAULT_PERSONAS)) {
     if (!cache.has(id)) {
-      cache.set(id, { ...persona, id, isActive: true, priority: 0, ttsVoice: 'pm_alex', ttsLang: 'p' });
+      cache.set(id, { ...persona, id, isActive: true, priority: 0, ttsVoice: 'pm_alex', ttsLang: 'pt-BR' });
     }
   }
 
@@ -108,7 +108,7 @@ async function getPersona(personaId) {
 
 function getActivePersona() {
   const envId = process.env.PERSONA || 'jesus';
-  return cache.get(envId) || cache.get('jesus') || [...cache.values()][0];
+  return cache.get(envId) || cache.get('jesus') || [...cache.values()][0] || DEFAULT_PERSONAS[envId] || DEFAULT_PERSONAS.jesus;
 }
 
 async function listPersonas() {
@@ -153,7 +153,7 @@ async function createPersona(data) {
   const identity = data.identity || (cache.has(id) ? cache.get(id).identity : null) || null;
   const commands = data.commands || (cache.has(id) ? cache.get(id).commands : null) || null;
   const ttsVoice = data.tts_voice || data.ttsVoice || 'pm_alex';
-  const ttsLang = data.tts_lang || data.ttsLang || 'p';
+  const ttsLang = data.tts_lang || data.ttsLang || 'pt-BR';
   const model = data.model || null;
   const name = data.name || id;
   const name_en = data.name_en || data.nameEn || name;
@@ -285,7 +285,10 @@ async function togglePersona(personaId, isActive) {
 
 async function setSessionPersona(sessionId, personaId) {
   try {
-    await pool.execute('UPDATE sessions SET persona_id = ? WHERE id = ?', [personaId, sessionId]);
+    const [result] = await pool.execute('UPDATE sessions SET persona_id = ? WHERE id = ?', [personaId, sessionId]);
+    if (result.affectedRows === 0) {
+      await pool.execute('INSERT INTO sessions (id, persona_id, user_name, user_context, summary) VALUES (?, ?, ?, ?, ?)', [sessionId, personaId, '', '{}', '']);
+    }
   } catch (err) {
     console.error('[PersonaManager] Failed to set session persona:', err.message);
   }
@@ -300,7 +303,7 @@ async function getSessionPersona(sessionId) {
   } catch (err) {
     console.error('[PersonaManager] getSessionPersona error:', err.message);
   }
-  return getActivePersona();
+  return null;
 }
 
 async function setUserPersona(userId, personaId) {
@@ -320,7 +323,7 @@ async function getUserPersona(userId) {
   } catch (err) {
     console.error('[PersonaManager] getUserPersona error:', err.message);
   }
-  return getActivePersona();
+  return null;
 }
 
 function invalidateCache() {
@@ -329,6 +332,7 @@ function invalidateCache() {
 }
 
 module.exports = {
+  cache,
   loadPersonas,
   getPersona,
   getActivePersona,

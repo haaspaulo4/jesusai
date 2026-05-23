@@ -1,6 +1,8 @@
 const { pool } = require('../db');
 const integrations = require('../llm/integrationManager');
 const { getSetting } = require('../settings');
+const { invokeConclave } = require('./conclave');
+const { diagnoseRootCause } = require('./automation');
 
 const TOOL_REGISTRY = new Map();
 
@@ -48,6 +50,38 @@ function discoverToolsForPersona(personaId, personaNiche) {
 }
 
 async function loadRegistry() {
+  registerTool({
+    id: 'invoke_conclave',
+    category: 'agentic',
+    niche: 'business,dev,general',
+    name: 'Conclave de Agentes Especialistas',
+    description: 'Dispara uma orquestração em paralelo de sub-agentes especialistas (Analista, Desenvolvedor e QA) para resolver tarefas complexas e consolida seus pareceres.',
+    input: ['task', 'agents'],
+    output: ['opinions', 'decision'],
+    enabled: true,
+    priority: 15,
+    execute: async (params) => {
+      const task = params.task || '';
+      const agents = params.agents || ['Analyst', 'Dev', 'QA'];
+      return await invokeConclave(task, agents);
+    },
+  });
+
+  registerTool({
+    id: 'diagnose_root_cause',
+    category: 'automation',
+    niche: 'dev,utility,general',
+    name: 'Análise de Causa Raiz & Auto-Healing',
+    description: 'Analisa arquivos de log locais recentes para identificar a causa raiz de um erro e sugere correções (Auto-Healing) usando a inteligência artificial do Jarvis.',
+    input: ['logPath', 'recentLinesCount'],
+    output: ['success', 'logPath', 'linesAnalyzed', 'diagnosis', 'error'],
+    enabled: true,
+    priority: 14,
+    execute: async (params) => {
+      return await diagnoseRootCause(params);
+    },
+  });
+
   registerTool({
     id: 'taco_foods',
     category: 'nutrition',

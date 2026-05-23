@@ -540,7 +540,7 @@ async function generateEdgeTTSBuffer(text, options = {}) {
     ];
 
     const { stderr } = await execFileAsync('edge-tts', args, {
-      timeout: 30000,
+      timeout: 8000,
       maxBuffer: 10 * 1024 * 1024,
     });
 
@@ -577,20 +577,30 @@ async function generateMultivozesBuffer(text, options = {}) {
   const openaiVoice = Object.entries(MULTIVOZES_VOICE_MAP).find(([, v]) => v === voice);
   const voiceName = openaiVoice ? openaiVoice[0] : 'alloy';
 
-  const response = await fetch(`${MULTIVOZES_URL}/v1/audio/speech`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(MULTIVOZES_KEY ? { Authorization: `Bearer ${MULTIVOZES_KEY}` } : {}),
-    },
-    body: JSON.stringify({
-      model: 'tts-1',
-      voice: voiceName,
-      input: text,
-      response_format: 'mp3',
-      speed: 1.0,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  let response;
+  try {
+    response = await fetch(`${MULTIVOZES_URL}/v1/audio/speech`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(MULTIVOZES_KEY ? { Authorization: `Bearer ${MULTIVOZES_KEY}` } : {}),
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'tts-1',
+        voice: voiceName,
+        input: text,
+        response_format: 'mp3',
+        speed: 1.0,
+      }),
+    });
+  } catch (err) {
+    throw new Error(`Multivozes fetch failed or timed out: ${err.message}`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errText = await response.text();
@@ -615,22 +625,32 @@ async function generateKokoroBuffer(text, options = {}) {
   const finalVoice = openaiVoice || voice;
   const speed = options.speed || 1.0;
 
-  const response = await fetch(`${KOKORO_URL}/v1/audio/speech`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Connection': 'keep-alive',
-    },
-    body: JSON.stringify({
-      model: 'kokoro',
-      voice: finalVoice,
-      input: text,
-      lang,
-      language: langCode,
-      response_format: 'wav',
-      speed,
-    }),
-  });
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  let response;
+  try {
+    response = await fetch(`${KOKORO_URL}/v1/audio/speech`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Connection': 'keep-alive',
+      },
+      signal: controller.signal,
+      body: JSON.stringify({
+        model: 'kokoro',
+        voice: finalVoice,
+        input: text,
+        lang,
+        language: langCode,
+        response_format: 'wav',
+        speed,
+      }),
+    });
+  } catch (err) {
+    throw new Error(`Kokoro fetch failed or timed out: ${err.message}`);
+  } finally {
+    clearTimeout(timeoutId);
+  }
 
   if (!response.ok) {
     const errText = await response.text();
@@ -815,6 +835,7 @@ module.exports = {
   KOKORO_VOICE_MAP,
   KOKORO_EDGE_VOICE_MAP,
   LANG_VOICES,
+  SUPPORTED_TTS_LANGS,
   DEFAULT_VOICE,
   DEFAULT_RATE,
   DEFAULT_PITCH,

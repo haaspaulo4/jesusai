@@ -1,4 +1,4 @@
-﻿const integrations = require('../llm/integrationManager');
+const integrations = require('../llm/integrationManager');
 const { getToolDefinitions, executeTool, formatToolResultToMessage } = require('../llm/tools');
 const { executeTool: execExtTool, getToolDefinitions: getExtToolDefs, loadTools: loadExtTools } = require('../tools');
 const { extractContent } = require('../llm');
@@ -300,7 +300,7 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
     ? persona.knowledgeSources
     : null;
-  const noKnowledgeSearch = persona && persona.knowledgeSources !== null && persona.knowledgeSources.length === 0;
+  const noKnowledgeSearch = persona && Array.isArray(persona.knowledgeSources) && persona.knowledgeSources.length === 0;
 
   let cognitiveContext = '';
   let cognitiveState = null;
@@ -396,7 +396,9 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
     try {
       const { getSetting } = require('../settings');
       const commerceEnabled = await getSetting('commerce_enabled');
-      if (commerceEnabled !== 'false' && commerceEnabled !== '0') {
+      const nonCommercePersonas = ['jesus', 'jarvis', 'meta-persona', 'tutor-enem', 'tutor-idiomas', 'hipnoterapeuta_v2'];
+      const isCommercePersona = !nonCommercePersonas.includes(persona.id);
+      if (commerceEnabled !== 'false' && commerceEnabled !== '0' && isCommercePersona) {
         const storeName = await getSetting('brand_name') || '';
         const currency = await getSetting('store_currency_symbol') || 'R$';
         const paymentMethods = await getSetting('store_payment_methods') || 'pix,dinheiro,cartao_credito,cartao_debito';
@@ -535,9 +537,9 @@ Loja: ${storeName || 'nossa loja'} | Moeda: ${currency}`;
     ...(v.type ? { type: v.type } : {}),
   }));
 
-  const maxTokens = 1024;
+  const maxTokens = parseInt(await getSetting('max_tokens', '4096')) || 4096;
   const temperature = parseFloat(await getSetting('temperature', '0.7')) || 0.7;
-  const llmTimeout = parseInt(await getSetting('llm_timeout', '30000')) || 30000;
+  const llmTimeout = parseInt(await getSetting('llm_timeout', '60000')) || 60000;
 
   const isMetaPersona = persona.id === 'meta-persona';
   const isAdmin = await isUserAdmin(uid);
@@ -598,15 +600,23 @@ Loja: ${storeName || 'nossa loja'} | Moeda: ${currency}`;
       tools = tools.filter(t => !biblicalTools.includes(t.function?.name));
     }
 
-    const result = await integrations.callLLM(messages, {
-      userId: uid,
-      stream: false,
-      temperature,
-      numPredict: maxTokens,
-      retries: 2,
-      timeout: llmTimeout,
-      tools: tools,
-    });
+    let result;
+    try {
+      result = await integrations.callLLM(messages, {
+        userId: uid,
+        stream: false,
+        temperature,
+        numPredict: maxTokens,
+        retries: 2,
+        timeout: llmTimeout,
+        tools: tools,
+      });
+    } catch (llmErr) {
+      console.error(`[ChatEngine] LLM call failed: ${llmErr.message}`);
+      circuitBreaker.recordFailure();
+      toolRounds++;
+      continue;
+    }
     lastLLMResult = result;
 
     if (!result) {
@@ -2158,8 +2168,8 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
       const subject = emailParts[1]?.trim() || 'Sem assunto';
       const body = emailParts[2]?.trim() || emailParts[1]?.trim() || '';
       try {
-        const { sendEmail } = require('../email');
-        await sendEmail({ to, subject, html: body });
+        const { sendMail } = require('../email');
+        await sendMail(to, subject, body);
         return `📧 Email enviado para ${to}: "${subject}"`;
       } catch (err) { return `❌ Erro ao enviar: ${err.message}`; }
     }
@@ -2503,9 +2513,9 @@ async function handleChatCommand(text, userId, source, sessionId, personaIdParam
 
     case '/config': {
       if (!isAdmin) return '⛔ Apenas administradores.';
-      const { getSettings, getSetting } = require('../settings');
+      const { getAllSettings, getSetting } = require('../settings');
       if (!args) {
-        const settings = await getSettings();
+        const settings = await getAllSettings();
         const lines = Object.entries(settings).map(([k, v]) => `• ${k}: ${String(v).substring(0, 50)}`);
         return `⚙️ Configurações:\n${lines.join('\n')}`;
       }

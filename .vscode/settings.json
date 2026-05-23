@@ -1,0 +1,17 @@
+{
+  "terminal.integrated.profiles.windows": {
+    "Cmder": {
+      "path": [
+        "${env:windir}\\Sysnative\\cmd.exe",
+        "${env:windir}\\System32\\cmd.exe"
+      ],
+      "args": [
+        "/K",
+        "C:\\laragon\\bin\\cmder\\vendor\\bin\\vscode_init.cmd"
+      ],
+      "icon": "terminal-cmd"
+    }
+  },
+  "terminal.integrated.defaultProfile.windows": "Cmder",
+  "terminal.integrated.enablePersistentSessions": false
+}

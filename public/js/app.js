@@ -525,8 +525,14 @@ const app = createApp({
       try {
         const res = await api('/persona/switch', {
           method: 'POST',
-          body: JSON.stringify({ personaId: id, sessionId: sessionId.value || undefined, userId: currentUserId.value }),
+          body: JSON.stringify({ personaId: id, sessionId: sessionId.value || undefined }),
         });
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          console.error('[Persona] Switch failed:', errData.error || res.statusText);
+          alert(errData.error || 'Falha ao trocar persona');
+          return;
+        }
         const data = await res.json();
         currentPersonaId.value = id;
         localStorage.setItem('mp_persona', id);

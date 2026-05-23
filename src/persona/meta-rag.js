@@ -258,6 +258,10 @@ async function switchPersona(userId, sessionId, personaId) {
     } catch (err) {
       console.error('[MetaRAG] Failed to clear message history:', err.message);
     }
+    try {
+      const { caches } = require('../cache');
+      caches.sessions.delete(sessionId);
+    } catch {}
   }
   if (userId) {
     await personaManager.setUserPersona(userId, personaId);

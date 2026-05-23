@@ -1,0 +1,27 @@
+{
+  "name": "jesusai-pet",
+  "version": "1.0.0",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.2"
+  },
+  "devDependencies": {
+    "electron": "^33.0.0",
+    "electron-builder": "^25.0.0"
+  },
+  "build": {
+    "appId": "com.jesusai.pet",
+    "productName": "JesusAI Desktop Companion",
+    "win": {
+      "target": "portable"
+    },
+    "portable": {
+      "artifactName": "JesusAI-Pet.exe"
+    },
+    "files": ["main.js", "pet.html", "preload.js"]
+  }
+}

@@ -175,12 +175,12 @@ async function executeAutomation(auto, actionConfig, data) {
     case 'send_email': {
       if (actionConfig.email_to) {
         try {
-          const { sendEmail } = require('../email');
-          await sendEmail({
-            to: actionConfig.email_to,
-            subject: actionConfig.email_subject || `Event: ${auto.name}`,
-            html: actionConfig.email_body || JSON.stringify(data),
-          });
+          const { sendMail } = require('../email');
+          await sendMail(
+            actionConfig.email_to,
+            actionConfig.email_subject || `Event: ${auto.name}`,
+            actionConfig.email_body || JSON.stringify(data)
+          );
         } catch (err) {
           console.error(`[EventBus] Email error:`, err.message);
         }

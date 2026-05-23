@@ -213,18 +213,36 @@ router.put('/profile/:userId', authMiddleware, async (req, res) => {
 });
 
 router.get('/donate', (req, res) => {
-  const persona = personaManager.getActivePersona();
-  const lang = SUPPORTED_LANGS.includes(req.query.lang) ? req.query.lang : DEFAULT_LANG;
-  const donateVerse = persona.donateVerse?.[lang] || persona.donateVerse?.['pt-BR'] || '';
-  res.json({
-    pix: {
-      key: PIX_KEY,
-      type: PIX_TYPE,
-      name: `${persona.name} - Contribuição Voluntária`,
-    },
-    stripe: STRIPE_URL || null,
-    message: donateVerse,
-  });
+  try {
+    const persona = personaManager.getActivePersona();
+    const lang = SUPPORTED_LANGS.includes(req.query.lang) ? req.query.lang : DEFAULT_LANG;
+    
+    const personaName = persona?.name || 'MetaPersona.AI';
+    const donateVerse = (persona && persona.donateVerse)
+      ? (persona.donateVerse[lang] || persona.donateVerse['pt-BR'] || '')
+      : '';
+
+    res.json({
+      pix: {
+        key: PIX_KEY,
+        type: PIX_TYPE,
+        name: `${personaName} - Contribuição Voluntária`,
+      },
+      stripe: STRIPE_URL || null,
+      message: donateVerse,
+    });
+  } catch (err) {
+    console.error('[Donate API] Error:', err);
+    res.json({
+      pix: {
+        key: PIX_KEY,
+        type: PIX_TYPE,
+        name: 'MetaPersona.AI - Contribuição Voluntária',
+      },
+      stripe: STRIPE_URL || null,
+      message: '',
+    });
+  }
 });
 
 router.post('/feedback', authMiddleware, async (req, res) => {
@@ -463,7 +481,7 @@ router.get('/voices/:lang', (req, res) => {
 router.get('/personas', async (req, res) => {
   try {
     const personas = await metaRag.listAvailablePersonas();
-    res.json(personas);
+    res.json(personas.filter(p => p.isActive));
   } catch (err) {
     res.status(500).json({ error: 'Failed to list personas' });
   }
@@ -734,6 +752,209 @@ router.post('/blueprints/:id/clone', authMiddleware, async (req, res) => {
     res.json({ success: true, persona: { id: persona.id, name: persona.name } });
   } catch (err) {
     res.status(400).json({ error: err.message });
+  }
+});
+
+// ========== PET COMPANION SPECIAL OPEN ENDPOINTS ==========
+
+const petRateLimiter = new Map();
+const PET_RATE_LIMIT = { windowMs: 60000, maxRequests: 30 };
+function checkPetRateLimit(ip) {
+  const now = Date.now();
+  const entry = petRateLimiter.get(ip);
+  if (!entry || now - entry.start > PET_RATE_LIMIT.windowMs) {
+    petRateLimiter.set(ip, { start: now, count: 1 });
+    return true;
+  }
+  entry.count++;
+  if (entry.count > PET_RATE_LIMIT.maxRequests) return false;
+  return true;
+}
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of petRateLimiter) {
+    if (now - entry.start > PET_RATE_LIMIT.windowMs) petRateLimiter.delete(ip);
+  }
+}, 300000);
+
+router.get('/pet/status', async (req, res) => {
+  try {
+    const { sessionId } = req.query;
+    let persona;
+    if (sessionId) {
+      persona = await personaManager.getSessionPersona(sessionId);
+    } else {
+      persona = await personaManager.getActivePersona();
+    }
+
+    if (!persona) {
+      persona = await personaManager.getPersona('jesus');
+    }
+
+    const lang = req.query.lang || 'pt-BR';
+    const welcomeTitle = (persona.welcomeTitle && (persona.welcomeTitle[lang] || persona.welcomeTitle['pt-BR'] || persona.welcomeTitle)) || persona.name;
+    const welcomeBody = (persona.welcomeBody && (persona.welcomeBody[lang] || persona.welcomeBody['pt-BR'] || persona.welcomeBody)) || '';
+
+    // Also return available personas for the pet UI
+    const allPersonas = await personaManager.listPersonas();
+    const personasList = allPersonas
+      .filter(p => p.isActive && p.id !== 'meta-persona')
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        accentColor: p.accentColor || '#D4A843',
+        ttsVoice: p.ttsVoice || 'pm_alex',
+        avatarUrl: p.avatarUrl || `https://api.dicebear.com/9.x/adventurer/svg?seed=${p.id}`,
+      }));
+
+    res.json({
+      personaId: persona.id,
+      name: persona.name,
+      welcomeTitle: welcomeTitle,
+      welcomeBody: welcomeBody,
+      ttsVoice: persona.ttsVoice || 'pm_alex',
+      ttsLang: persona.ttsLang || 'pt-BR',
+      avatarUrl: persona.avatarUrl || `https://api.dicebear.com/9.x/adventurer/svg?seed=${persona.id}`,
+      accentColor: persona.accentColor || '#c084fc',
+      personas: personasList,
+    });
+  } catch (err) {
+    console.error('[Pet API] Status error:', err);
+    res.status(500).json({ error: 'Failed to retrieve pet status' });
+  }
+});
+
+router.get('/pet/personas', async (req, res) => {
+  try {
+    const allPersonas = await personaManager.listPersonas();
+    const list = allPersonas
+      .filter(p => p.isActive)
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        accentColor: p.accentColor || '#D4A843',
+        ttsVoice: p.ttsVoice || 'pm_alex',
+        ttsLang: p.ttsLang || 'pt-BR',
+        avatarUrl: p.avatarUrl || `https://api.dicebear.com/9.x/adventurer/svg?seed=${p.id}`,
+      }));
+    res.json({ personas: list });
+  } catch (err) {
+    console.error('[Pet API] Personas list error:', err);
+    res.status(500).json({ error: 'Failed to list personas' });
+  }
+});
+
+router.post('/pet/switch', async (req, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress;
+  if (!checkPetRateLimit(clientIp)) return res.status(429).json({ error: 'Rate limit exceeded' });
+  try {
+    const { personaId, sessionId } = req.body;
+    if (!personaId) return res.status(400).json({ error: 'personaId is required' });
+
+    let uid = 'pet_anon';
+    try {
+      const [rows] = await pool.execute('SELECT id FROM users WHERE role = ? ORDER BY created_at ASC LIMIT 1', ['admin']);
+      if (rows.length > 0) uid = rows[0].id;
+    } catch {}
+
+    const sid = sessionId || 'pet_session_' + uid;
+    const result = await metaRag.switchPersona(uid, sid, personaId);
+
+    const lang = req.body.lang || 'pt-BR';
+    const welcomeTitle = (result.welcomeTitle && (result.welcomeTitle[lang] || result.welcomeTitle['pt-BR'] || result.welcomeTitle)) || result.name;
+    const welcomeBody = (result.welcomeBody && (result.welcomeBody[lang] || result.welcomeBody['pt-BR'] || result.welcomeBody)) || '';
+
+    res.json({
+      success: true,
+      personaId: result.id,
+      name: result.name,
+      welcomeTitle,
+      welcomeBody,
+      ttsVoice: result.ttsVoice || 'pm_alex',
+      ttsLang: result.ttsLang || 'pt-BR',
+    });
+  } catch (err) {
+    console.error('[Pet API] Switch error:', err.message);
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.post('/pet/chat', async (req, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress;
+  if (!checkPetRateLimit(clientIp)) return res.status(429).json({ error: 'Rate limit exceeded' });
+  const { message, sessionId, language, personaId } = req.body;
+
+  if (typeof message !== 'string') {
+    return res.status(400).json({ error: 'Message must be a string' });
+  }
+
+  const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
+
+  let uid = 'pet_anon';
+  try {
+    const [rows] = await pool.execute('SELECT id FROM users WHERE role = ? ORDER BY created_at ASC LIMIT 1', ['admin']);
+    if (rows.length > 0) {
+      uid = rows[0].id;
+    }
+  } catch {}
+
+  const sid = sessionId || 'pet_session_' + uid;
+
+  try {
+    const result = await chatEngine.processMessage({
+      message: message || '',
+      sessionId: sid,
+      userId: uid,
+      language: lang,
+      isGroup: false,
+      source: 'pet',
+      personaId: personaId || undefined,
+    });
+
+    const response = {
+      response: result.response,
+      sessionId: result.sessionId,
+      sources: result.sources,
+      language: result.language,
+      personaId: result.personaId,
+      personaName: result.personaName,
+      ttsVoice: result.ttsVoice,
+      ttsLang: result.ttsLang,
+    };
+
+    res.json(response);
+  } catch (err) {
+    console.error('[Pet API] Chat error:', err.stack || err.message || err);
+    res.status(500).json({ error: 'Failed to generate response' });
+  }
+});
+
+router.post('/pet/tts', async (req, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress;
+  if (!checkPetRateLimit(clientIp)) return res.status(429).json({ error: 'Rate limit exceeded' });
+  const { text, lang, voice } = req.body;
+
+  if (!text || typeof text !== 'string') {
+    return res.status(400).json({ error: 'Text is required' });
+  }
+
+  const ttsLang = SUPPORTED_LANGS.includes(lang) ? lang : DEFAULT_LANG;
+  const maxTtsLength = 250;
+  const truncated = text.length > maxTtsLength ? text.substring(0, maxTtsLength) : text;
+
+  try {
+    const buf = await generateAudioBuffer(truncated, { lang: ttsLang, kokoroVoice: voice });
+    if (!buf || buf.length === 0) {
+      return res.status(500).json({ error: 'TTS generation failed' });
+    }
+
+    const contentType = getAudioContentType(buf);
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Length', buf.length);
+    res.send(buf);
+  } catch (err) {
+    console.error('[Pet API] TTS error:', err.message);
+    res.status(500).json({ error: 'TTS generation failed' });
   }
 });
 

@@ -2,6 +2,7 @@ const { pool } = require('../db');
 const { getSetting } = require('../settings');
 const personaManager = require('../persona/manager');
 const businessModule = require('../business');
+const integrations = require('../llm/integrationManager');
 
 require('dotenv').config();
 
@@ -255,7 +256,7 @@ Escreva um artigo prático e acionável com:
 
 Tom: profissional mas acessível, direto e acionável. Use linguagem do dia a dia.`;
   } else {
-    const isBiblicalSource = personaSources && personaSources.some(s => s && (s.includes('bible') || s.includes('biblia')));
+    const isBiblicalSource = searchSources && searchSources.some(s => s && (s.includes('bible') || s.includes('biblia')));
     if (isBiblicalSource) {
       prompt = `${blogPrompt}
 
@@ -292,26 +293,18 @@ Tom: profissional mas acessível, direto e inspirador. Use linguagem do dia a di
   }
 
   try {
-    const response = await fetch(`${OLLAMA_BASE_URL}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(OLLAMA_API_KEY ? { Authorization: `Bearer ${OLLAMA_API_KEY}` } : {}),
-      },
-      body: JSON.stringify({
-        model: CHAT_MODEL,
-        messages: [
-          { role: 'system', content: blogPrompt },
-          { role: 'user', content: prompt },
-        ],
-        stream: false,
-        options: { temperature: 0.8, num_predict: 4096 },
-      }),
+    const messages = [
+      { role: 'system', content: blogPrompt },
+      { role: 'user', content: prompt },
+    ];
+
+    console.log(`[Blog] 🤖 Solicitando geração de post para o LLM...`);
+    const llmRes = await integrations.callLLM(messages, { 
+      temperature: 0.8,
+      model: CHAT_MODEL
     });
 
-    if (!response.ok) throw new Error(`API error ${response.status}`);
-    const data = await response.json();
-    let content = data.message?.content?.trim() || '';
+    let content = llmRes.message?.content?.trim() || llmRes.content?.trim() || '';
     if (!content) {
       throw new Error('Empty response from LLM');
     }

@@ -17,7 +17,7 @@ async function processEmailJob(job) {
   const emailModule = require('../../email');
 
   try {
-    await emailModule.sendEmail(to, subject, body);
+    await emailModule.sendMail(to, subject, body);
     return { success: true, to };
   } catch (err) {
     console.error('[EmailProcessor] Failed:', err.message);

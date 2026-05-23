@@ -1,0 +1,949 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>JesusAI Companion Pet</title>
+<!-- Carrega Socket.IO para comunicação realtime com o backend do JesusAI -->
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<style>
+  :root {
+    --accent-color: #c084fc;
+    --accent-rgb: 192, 132, 252;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: transparent;
+    user-select: none;
+  }
+  #container {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+  }
+  #pet-wrapper {
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    width: 200px;
+    height: 200px;
+    z-index: 10;
+  }
+  canvas {
+    width: 200px;
+    height: 200px;
+    position: absolute;
+    top: 0; left: 0;
+    cursor: grab;
+  }
+  #mic-btn {
+    position: absolute;
+    bottom: 18px;
+    right: 18px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid rgba(var(--accent-rgb), 0.4);
+    background: rgba(20, 0, 40, 0.85);
+    cursor: pointer;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    backdrop-filter: blur(5px);
+  }
+  #mic-btn:hover {
+    border-color: rgba(var(--accent-rgb), 0.8);
+    box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.3);
+    transform: scale(1.1);
+  }
+  #mic-btn.active {
+    border-color: #0f0;
+    background: rgba(0, 255, 0, 0.15);
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+    animation: mic-pulse 1.5s ease-in-out infinite;
+  }
+  #mic-btn svg { width: 16px; height: 16px; }
+  @keyframes mic-pulse {
+    0%, 100% { box-shadow: 0 0 8px rgba(0,255,0,0.3); }
+    50% { box-shadow: 0 0 20px rgba(0,255,0,0.6); }
+  }
+
+  /* Novo botão de chat */
+  #chat-toggle-btn {
+    position: absolute;
+    bottom: 18px;
+    right: 56px;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 2px solid rgba(var(--accent-rgb), 0.4);
+    background: rgba(20, 0, 40, 0.85);
+    cursor: pointer;
+    z-index: 20;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s;
+    backdrop-filter: blur(5px);
+  }
+  #chat-toggle-btn:hover {
+    border-color: rgba(var(--accent-rgb), 0.8);
+    box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.3);
+    transform: scale(1.1);
+  }
+  #chat-toggle-btn.active {
+    border-color: #00e4ff;
+    background: rgba(0, 228, 255, 0.15);
+    box-shadow: 0 0 15px rgba(0, 228, 255, 0.4);
+  }
+  #chat-toggle-btn svg { width: 14px; height: 14px; }
+
+  #tooltip {
+    position: absolute;
+    bottom: 2px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(20, 0, 40, 0.92);
+    color: var(--accent-color);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 9px;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    border: 1px solid rgba(var(--accent-rgb), 0.4);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+    pointer-events: none;
+    z-index: 10;
+  }
+  #pet-wrapper:hover #tooltip { opacity: 1; }
+
+  /* Estilos do Chat Box Holográfico */
+  #chat-box {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 360px;
+    height: 410px;
+    background: rgba(15, 5, 25, 0.9);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(var(--accent-rgb), 0.35);
+    border-radius: 16px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(var(--accent-rgb), 0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    z-index: 5;
+    opacity: 0;
+    transform: scale(0.9) translateY(10px);
+    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    pointer-events: none;
+  }
+  #chat-box.open {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+    pointer-events: auto;
+  }
+  #chat-header {
+    padding: 12px 16px;
+    background: rgba(30, 10, 50, 0.6);
+    border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  #chat-header h3 {
+    color: var(--accent-color);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 8px rgba(var(--accent-rgb), 0.5);
+  }
+  #chat-messages {
+    flex: 1;
+    padding: 12px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(var(--accent-rgb), 0.3) transparent;
+  }
+  #chat-messages::-webkit-scrollbar {
+    width: 4px;
+  }
+  #chat-messages::-webkit-scrollbar-thumb {
+    background: rgba(var(--accent-rgb), 0.3);
+    border-radius: 2px;
+  }
+  .msg {
+    max-width: 80%;
+    padding: 8px 12px;
+    border-radius: 12px;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-size: 11.5px;
+    line-height: 1.4;
+    word-break: break-word;
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: rgba(147, 51, 234, 0.25);
+    color: #f3e8ff;
+    border: 1px solid rgba(147, 51, 234, 0.4);
+    border-bottom-right-radius: 2px;
+  }
+  .msg.jarvis {
+    align-self: flex-start;
+    background: rgba(30, 20, 50, 0.55);
+    color: #e9d5ff;
+    border: 1px solid rgba(var(--accent-rgb), 0.25);
+    border-bottom-left-radius: 2px;
+  }
+  #chat-input-area {
+    padding: 10px;
+    background: rgba(20, 5, 30, 0.8);
+    border-top: 1px solid rgba(var(--accent-rgb), 0.15);
+    display: flex;
+    gap: 6px;
+  }
+  #chat-input-area input {
+    flex: 1;
+    background: rgba(10, 2, 20, 0.6);
+    border: 1px solid rgba(var(--accent-rgb), 0.25);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #fff;
+    font-family: 'Segoe UI', sans-serif;
+    font-size: 11px;
+    outline: none;
+    transition: border-color 0.3s;
+  }
+  #chat-input-area input:focus {
+    border-color: rgba(var(--accent-rgb), 0.6);
+    box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.2);
+  }
+  #chat-input-area button {
+    background: var(--accent-color);
+    border: none;
+    border-radius: 8px;
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.3s, transform 0.2s;
+  }
+  #chat-input-area button:hover {
+    background: #d8b4fe;
+    transform: scale(1.05);
+  }
+  #chat-input-area button svg {
+    width: 14px;
+    height: 14px;
+    stroke: #120024;
+    stroke-width: 2;
+  }
+</style>
+</head>
+<body>
+<div id="container">
+  
+  <!-- Chat Box acoplado -->
+  <div id="chat-box">
+    <div id="chat-header">
+      <h3>COMPANION CLASSIC</h3>
+    </div>
+    <div id="chat-messages">
+      <div class="msg jarvis" id="chat-welcome-msg">Às suas ordens. Em que posso ajudar?</div>
+    </div>
+    <div id="chat-input-area">
+      <input type="text" id="chat-input" placeholder="Digite uma instrução..." autocomplete="off">
+      <button id="chat-send-btn" title="Enviar Mensagem">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+          <line x1="22" y1="2" x2="11" y2="13"></line>
+          <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Pet Wrapper (sempre visível no canto) -->
+  <div id="pet-wrapper">
+    <canvas id="zeus" width="400" height="400"></canvas>
+    
+    <!-- Botão microfone original -->
+    <button id="mic-btn" title="Ativar Companion (Voz + Cowork)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" stroke-linecap="round">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+    </button>
+
+    <!-- Novo botão para abrir chat -->
+    <button id="chat-toggle-btn" title="Abrir Chat Box">
+      <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+      </svg>
+    </button>
+
+    <div id="tooltip">Companion — Conectando...</div>
+  </div>
+</div>
+
+<script>
+const canvas = document.getElementById('zeus');
+const ctx = canvas.getContext('2d');
+const W = 400, H = 400;
+const CX = W / 2, CY = H / 2 - 10;
+
+// Estados cognitivos do Pet com cores baseadas nas emoções
+const STATES = {
+  idle:      { cloudColor: [60, 40, 80],  eyeColor: '#fff', mouthOpen: 0.3, pulseSpeed: 0.015 },
+  listening: { cloudColor: [40, 60, 90],  eyeColor: '#aff', mouthOpen: 0.5, pulseSpeed: 0.025 },
+  thinking:  { cloudColor: [80, 50, 20],  eyeColor: '#ffa', mouthOpen: 0.1, pulseSpeed: 0.04 },
+  speaking:  { cloudColor: [70, 30, 90],  eyeColor: '#fff', mouthOpen: 0.8, pulseSpeed: 0.035 },
+  // Estados emocionais adicionais
+  excited:   { cloudColor: [100, 30, 100], eyeColor: '#ffb', mouthOpen: 0.9, pulseSpeed: 0.05 },
+  frustrated:{ cloudColor: [110, 20, 20],  eyeColor: '#f77', mouthOpen: 0.2, pulseSpeed: 0.045 },
+  curious:   { cloudColor: [20, 90, 70],  eyeColor: '#dfd', mouthOpen: 0.4, pulseSpeed: 0.02 }
+};
+let currentState = 'idle';
+let t = 0;
+
+// Definição dos blocos de nuvens (Zeus Cloud Body)
+const puffs = [
+  { x: 0, y: -25, r: 65 },
+  { x: -50, y: -10, r: 55 },
+  { x: 50, y: -10, r: 55 },
+  { x: -65, y: 25, r: 50 },
+  { x: 65, y: 25, r: 50 },
+  { x: -40, y: 45, r: 45 },
+  { x: 40, y: 45, r: 45 },
+  { x: 0, y: 50, r: 50 },
+  { x: -25, y: -35, r: 45 },
+  { x: 25, y: -35, r: 45 },
+  { x: 0, y: 15, r: 60 }
+];
+
+let lightnings = [];
+let lightningTimer = 0;
+
+function createLightning() {
+  const side = Math.random() > 0.5 ? 1 : -1;
+  const startX = CX + side * (50 + Math.random() * 40);
+  const startY = CY + 40 + Math.random() * 20;
+  const segments = [];
+  let x = startX, y = startY;
+  const numSegs = 3 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < numSegs; i++) {
+    const nx = x + (Math.random() - 0.5) * 30;
+    const ny = y + 15 + Math.random() * 20;
+    segments.push({ x1: x, y1: y, x2: nx, y2: ny });
+    x = nx; y = ny;
+  }
+  return { segments, life: 1.0, maxLife: 1.0, color: Math.random() > 0.3 ? '#c084fc' : '#00e4ff' };
+}
+
+function drawCloud(pulse) {
+  const st = STATES[currentState] || STATES.idle;
+  const [cr, cg, cb] = st.cloudColor;
+
+  const glow = ctx.createRadialGradient(CX, CY + 10, 30, CX, CY + 10, 130);
+  glow.addColorStop(0, `rgba(${cr+40}, ${cg+20}, ${cb+60}, ${0.2 * pulse})`);
+  glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.save();
+
+  // Sombra sob a nuvem
+  ctx.beginPath();
+  ctx.ellipse(CX, CY + 85, 70, 12, 0, 0, Math.PI * 2);
+  ctx.fillStyle = `rgba(0, 0, 0, ${0.15 * pulse})`;
+  ctx.fill();
+
+  // Puffs de nuvem com wobble orgânico
+  for (const p of puffs) {
+    const wobbleX = Math.sin(t * 0.02 + p.x * 0.1) * 3;
+    const wobbleY = Math.cos(t * 0.025 + p.y * 0.1) * 2;
+    const wobbleR = Math.sin(t * 0.03 + p.r) * 3;
+
+    const px = CX + p.x + wobbleX;
+    const py = CY + p.y + wobbleY;
+    const pr = p.r + wobbleR;
+
+    const grad = ctx.createRadialGradient(px - pr * 0.2, py - pr * 0.3, 0, px, py, pr);
+    grad.addColorStop(0, `rgba(${cr+30}, ${cg+20}, ${cb+40}, ${0.95 * pulse})`);
+    grad.addColorStop(0.5, `rgba(${cr}, ${cg}, ${cb}, ${0.9 * pulse})`);
+    grad.addColorStop(1, `rgba(${Math.floor(cr*0.5)}, ${Math.floor(cg*0.4)}, ${Math.floor(cb*0.6)}, ${0.7 * pulse})`);
+
+    ctx.beginPath();
+    ctx.arc(px, py, pr, 0, Math.PI * 2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+  }
+
+  // Brilho interno
+  const highlight = ctx.createRadialGradient(CX - 20, CY - 30, 0, CX, CY - 10, 80);
+  highlight.addColorStop(0, `rgba(${cr+80}, ${cg+60}, ${cb+100}, ${0.15 * pulse})`);
+  highlight.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = highlight;
+  ctx.fillRect(CX - 100, CY - 80, 200, 100);
+
+  ctx.restore();
+}
+
+function drawFace(pulse) {
+  const st = STATES[currentState] || STATES.idle;
+  const eyeY = CY + 5;
+  const mouthY = CY + 35;
+
+  const blink = Math.sin(t * 0.05) > 0.97;
+  const eyeSquint = currentState === 'thinking' ? 0.5 : 1.0;
+
+  // Olhos
+  const eyeSpacing = 28;
+  const eyeW = 14;
+  const eyeH = blink ? 2 : 11 * eyeSquint;
+
+  // Olho Esquerdo
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(CX - eyeSpacing, eyeY, eyeW, eyeH, 0, 0, Math.PI * 2);
+  ctx.fillStyle = st.eyeColor;
+  ctx.shadowColor = st.eyeColor;
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.restore();
+
+  if (!blink) {
+    ctx.beginPath();
+    ctx.ellipse(CX - eyeSpacing + 2, eyeY + 1, 6, 5 * eyeSquint, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(CX - eyeSpacing - 1, eyeY - 2, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+  }
+
+  // Olho Direito
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(CX + eyeSpacing, eyeY, eyeW, eyeH, 0, 0, Math.PI * 2);
+  ctx.fillStyle = st.eyeColor;
+  ctx.shadowColor = st.eyeColor;
+  ctx.shadowBlur = 8;
+  ctx.fill();
+  ctx.restore();
+
+  if (!blink) {
+    ctx.beginPath();
+    ctx.ellipse(CX + eyeSpacing + 2, eyeY + 1, 6, 5 * eyeSquint, 0, 0, Math.PI * 2);
+    ctx.fillStyle = '#1a0a2e';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(CX + eyeSpacing - 1, eyeY - 2, 2.5, 0, Math.PI * 2);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+  }
+
+  // Sobrancelhas de Zeus
+  ctx.strokeStyle = `rgba(30, 10, 50, ${0.8 * pulse})`;
+  ctx.lineWidth = 3;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(CX - eyeSpacing - 16, eyeY - 16);
+  ctx.quadraticCurveTo(CX - eyeSpacing, eyeY - 20, CX - eyeSpacing + 10, eyeY - 14);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(CX + eyeSpacing + 16, eyeY - 16);
+  ctx.quadraticCurveTo(CX + eyeSpacing, eyeY - 20, CX + eyeSpacing - 10, eyeY - 14);
+  ctx.stroke();
+
+  // Boca
+  const mouthW = 30 + st.mouthOpen * 10;
+  const mouthH = 5 + st.mouthOpen * 18;
+  const mouthWobble = Math.sin(t * 0.04) * 2;
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.ellipse(CX, mouthY + mouthWobble, mouthW, mouthH, 0, 0, Math.PI * 2);
+  ctx.fillStyle = '#1a0a2e';
+  ctx.fill();
+
+  if (mouthH > 8) {
+    ctx.fillStyle = '#fff';
+    const teethCount = 6;
+    const teethW = (mouthW * 1.6) / teethCount;
+    for (let i = 0; i < teethCount; i++) {
+      const tx = CX - mouthW * 0.8 + i * teethW + teethW * 0.15;
+      const ty = mouthY + mouthWobble - mouthH * 0.7;
+      ctx.fillRect(tx, ty, teethW * 0.7, mouthH * 0.4);
+    }
+  }
+  ctx.restore();
+}
+
+function drawLightning() {
+  lightningTimer++;
+  const spawnRate = currentState === 'speaking' ? 8 : currentState === 'thinking' ? 12 : 25;
+  if (lightningTimer % spawnRate === 0) {
+    lightnings.push(createLightning());
+  }
+
+  for (let i = lightnings.length - 1; i >= 0; i--) {
+    const l = lightnings[i];
+    l.life -= 0.06;
+    if (l.life <= 0) { lightnings.splice(i, 1); continue; }
+
+    ctx.save();
+    ctx.globalAlpha = l.life;
+    ctx.strokeStyle = l.color;
+    ctx.shadowColor = l.color;
+    ctx.shadowBlur = 12;
+    ctx.lineWidth = 2 + l.life * 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    ctx.beginPath();
+    for (const s of l.segments) {
+      ctx.moveTo(s.x1, s.y1);
+      ctx.lineTo(s.x2, s.y2);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = '#fff';
+    ctx.lineWidth = 1;
+    ctx.globalAlpha = l.life * 0.5;
+    ctx.beginPath();
+    for (const s of l.segments) {
+      ctx.moveTo(s.x1, s.y1);
+      ctx.lineTo(s.x2, s.y2);
+    }
+    ctx.stroke();
+
+    ctx.restore();
+  }
+}
+
+// Centelhas elétricas
+const sparks = [];
+for (let i = 0; i < 12; i++) {
+  sparks.push({
+    angle: Math.random() * Math.PI * 2,
+    dist: 70 + Math.random() * 30,
+    speed: 0.01 + Math.random() * 0.02,
+    size: 1 + Math.random() * 2,
+    phase: Math.random() * Math.PI * 2,
+  });
+}
+
+function drawSparks(pulse) {
+  for (const s of sparks) {
+    s.angle += s.speed;
+    const wobble = Math.sin(t * 0.04 + s.phase) * 8;
+    const px = CX + Math.cos(s.angle) * (s.dist + wobble);
+    const py = CY + 15 + Math.sin(s.angle) * (s.dist * 0.6 + wobble);
+    const alpha = (0.3 + 0.6 * Math.sin(t * 0.05 + s.phase)) * pulse;
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(px, py, s.size, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(192, 132, 252, ${alpha})`;
+    ctx.shadowColor = '#c084fc';
+    ctx.shadowBlur = 6;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+function draw() {
+  t++;
+  const st = STATES[currentState] || STATES.idle;
+  const pulse = 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(t * st.pulseSpeed * Math.PI * 2));
+
+  ctx.clearRect(0, 0, W, H);
+
+  drawLightning();
+  drawSparks(pulse);
+  drawCloud(pulse);
+  drawFace(pulse);
+
+  requestAnimationFrame(draw);
+}
+
+draw();
+
+// === Estado de Persona Dinâmico ===
+let currentPersonaId = 'jesus';
+let currentPersonaName = 'Companion';
+let currentVoice = 'pm_alex';
+let currentLang = 'pt-BR';
+let currentWelcomeTitle = 'Companion Classic';
+let currentWelcomeBody = 'Às suas ordens. Em que posso ajudar?';
+let currentAccentColor = '#c084fc';
+
+// Helper para converter Hex para RGB para a variável --accent-rgb
+function hexToRgb(hex) {
+  const shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+  const fullHex = hex.replace(shorthandRegex, (m, r, g, b) => r + r + g + g + b + b);
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(fullHex);
+  return result ? {
+    r: parseInt(result[1], 16),
+    g: parseInt(result[2], 16),
+    b: parseInt(result[3], 16)
+  } : null;
+}
+
+function updateThemeColor(hexColor) {
+  const rgb = hexToRgb(hexColor);
+  if (rgb) {
+    document.documentElement.style.setProperty('--accent-color', hexColor);
+    document.documentElement.style.setProperty('--accent-rgb', `${rgb.r}, ${rgb.g}, ${rgb.b}`);
+  }
+}
+
+// === Status polling inicial via Bridge Electron ===
+const tooltip = document.getElementById('tooltip');
+
+async function pollStatus() {
+  try {
+    const res = await fetch('http://localhost:3000/api/pet/status');
+    if (res.ok) {
+      const data = await res.json();
+      currentPersonaId = data.personaId;
+      currentPersonaName = data.name;
+      currentVoice = data.ttsVoice;
+      currentLang = data.ttsLang === 'p' ? 'pt-BR' : (data.ttsLang === 'e' ? 'en-US' : (data.ttsLang === 's' ? 'es-ES' : 'pt-BR'));
+      currentWelcomeTitle = data.welcomeTitle;
+      currentWelcomeBody = data.welcomeBody;
+      currentAccentColor = data.accentColor || '#c084fc';
+
+      // Atualiza textos na interface
+      const headerTitle = document.querySelector('#chat-header h3');
+      if (headerTitle) {
+        headerTitle.textContent = `${currentPersonaName.toUpperCase()} CLASSIC CO-COMPANION`;
+      }
+      
+      const welcomeMsg = document.getElementById('chat-welcome-msg');
+      if (welcomeMsg && welcomeMsg.textContent === 'Às suas ordens. Em que posso ajudar?' && currentWelcomeBody) {
+        welcomeMsg.textContent = currentWelcomeBody;
+      }
+
+      const micBtn = document.getElementById('mic-btn');
+      if (micBtn) {
+        micBtn.setAttribute('title', `Ativar ${currentPersonaName} (Voz + Cowork)`);
+      }
+
+      const chatToggle = document.getElementById('chat-toggle-btn');
+      if (chatToggle) {
+        chatToggle.setAttribute('title', `Abrir Chat Box com ${currentPersonaName}`);
+      }
+
+      if (currentState === 'idle') {
+        tooltip.textContent = `${currentPersonaName} — Online`;
+      }
+
+      updateThemeColor(currentAccentColor);
+    } else {
+      if (window.jarvis) {
+        const result = await window.jarvis.getStatus();
+        if (result && result.online) {
+          tooltip.textContent = `${currentPersonaName} — Sincronia Local`;
+        } else {
+          currentState = 'idle';
+          tooltip.textContent = `${currentPersonaName} — Offline`;
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error fetching pet status:', err);
+    currentState = 'idle';
+    tooltip.textContent = `${currentPersonaName} — Offline`;
+  }
+}
+
+pollStatus();
+setInterval(pollStatus, 15000);
+
+// === CONEXÃO SOCKET.IO COM O SERVER DO JESUS.AI ===
+const socket = io('http://localhost:3000');
+
+socket.on('connect', () => {
+  console.log('[Socket] Conectado ao servidor do JesusAI');
+  tooltip.textContent = `${currentPersonaName} — Sincronia Realtime Ativa`;
+  pollStatus();
+});
+
+socket.on('disconnect', () => {
+  console.warn('[Socket] Desconectado');
+  currentState = 'idle';
+  tooltip.textContent = `${currentPersonaName} — Desconectado`;
+});
+
+// Ouvintes de eventos cognitivos ao vivo do Jesus.AI!
+socket.on('agent_thinking', (data) => {
+  currentState = 'thinking';
+  tooltip.textContent = `${currentPersonaName} — Processando...`;
+});
+
+socket.on('agent_speaking', (data) => {
+  currentState = 'speaking';
+  tooltip.textContent = `${currentPersonaName} — Falando...`;
+});
+
+socket.on('new_message', (data) => {
+  if (data.sender === 'bot') {
+    currentState = 'speaking';
+    setTimeout(() => { if (currentState === 'speaking') currentState = 'idle'; }, 3000);
+  }
+});
+
+// Eventos de Gamificação (XP e Badges) ao vivo!
+socket.on('xp_update', (data) => {
+  tooltip.textContent = `XP +${data.amount}! ${data.reason || ''}`;
+  currentState = 'excited';
+  setTimeout(() => { currentState = 'idle'; }, 4000);
+});
+
+socket.on('badge_earned', (data) => {
+  tooltip.textContent = `🏆 BADGE GANHA: ${data.name || 'Conquistador'}`;
+  currentState = 'excited';
+  lightnings.push(createLightning());
+  setTimeout(() => { currentState = 'idle'; }, 5000);
+});
+
+// Reação baseada na Análise Emocional (Cognitive State)
+socket.on('cognitive_state', (state) => {
+  const emotion = state?.emotion || 'neutral';
+  console.log(`[Cognitive State] Emoção detectada no pet: ${emotion}`);
+  
+  if (emotion === 'frustrated' || emotion === 'angry') {
+    currentState = 'frustrated';
+    tooltip.textContent = `${currentPersonaName} — Tensão detectada...`;
+  } else if (emotion === 'happy' || emotion === 'excited') {
+    currentState = 'excited';
+    tooltip.textContent = `${currentPersonaName} — Sinergia positiva!`;
+  } else if (emotion === 'curious') {
+    currentState = 'curious';
+    tooltip.textContent = `${currentPersonaName} — Investigando tema...`;
+  }
+  
+  setTimeout(() => { if (currentState === 'frustrated' || currentState === 'excited' || currentState === 'curious') currentState = 'idle'; }, 5000);
+});
+
+
+// === BOTÃO DO MIC — Toggle cowork local ===
+const micBtn = document.getElementById('mic-btn');
+let micActive = false;
+
+micBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+micBtn.addEventListener('click', async (e) => {
+  e.stopPropagation();
+  micActive = !micActive;
+  micBtn.classList.toggle('active', micActive);
+  micBtn.querySelector('svg').setAttribute('stroke', micActive ? '#0f0' : 'var(--accent-color)');
+  currentState = micActive ? 'listening' : 'idle';
+  tooltip.textContent = micActive ? `${currentPersonaName} — Escutando...` : `${currentPersonaName} — Online`;
+
+  try {
+    const endpoint = micActive ? '/api/cowork/start' : '/api/cowork/stop';
+    await fetch('http://localhost:3000' + endpoint, { method: 'POST' });
+  } catch(err) {
+    console.log('Erro ao disparar microfone:', err.message);
+  }
+});
+
+// === CONTROLE DO CHAT HOLOGRÁFICO ===
+const chatToggleBtn = document.getElementById('chat-toggle-btn');
+const chatBox = document.getElementById('chat-box');
+const chatInput = document.getElementById('chat-input');
+const chatSendBtn = document.getElementById('chat-send-btn');
+const chatMessages = document.getElementById('chat-messages');
+
+let chatOpen = false;
+let currentAudio = null;
+
+chatBox.addEventListener('mousedown', (e) => e.stopPropagation());
+chatToggleBtn.addEventListener('mousedown', (e) => e.stopPropagation());
+
+chatToggleBtn.addEventListener('click', (e) => {
+  e.stopPropagation();
+  chatOpen = !chatOpen;
+  chatToggleBtn.classList.toggle('active', chatOpen);
+  chatBox.classList.toggle('open', chatOpen);
+  
+  if (chatOpen) {
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    setTimeout(() => chatInput.focus(), 150);
+  }
+  
+  if (window.jarvis && typeof window.jarvis.toggleChat === 'function') {
+    window.jarvis.toggleChat(chatOpen);
+  }
+});
+
+chatSendBtn.addEventListener('click', sendChatMessage);
+chatInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    sendChatMessage();
+  }
+});
+
+async function sendChatMessage() {
+  const text = chatInput.value.trim();
+  if (!text) return;
+
+  if (currentAudio) {
+    currentAudio.pause();
+    currentAudio = null;
+  }
+
+  const userMsgDiv = document.createElement('div');
+  userMsgDiv.className = 'msg user';
+  userMsgDiv.textContent = text;
+  chatMessages.appendChild(userMsgDiv);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+
+  chatInput.value = '';
+
+  currentState = 'thinking';
+  tooltip.textContent = `${currentPersonaName} — Processando...`;
+
+  try {
+    const chatRes = await fetch('http://localhost:3000/api/pet/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        personaId: currentPersonaId,
+        language: currentLang
+      })
+    });
+
+    if (!chatRes.ok) {
+      throw new Error(`HTTP ${chatRes.status}`);
+    }
+
+    const chatData = await chatRes.json();
+    const responseText = chatData.response;
+
+    const jarvisMsgDiv = document.createElement('div');
+    jarvisMsgDiv.className = `msg jarvis`;
+    jarvisMsgDiv.textContent = responseText;
+    chatMessages.appendChild(jarvisMsgDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    const voice = chatData.ttsVoice || currentVoice;
+    const lang = chatData.ttsLang || chatData.language || currentLang;
+
+    currentState = 'speaking';
+    tooltip.textContent = `${currentPersonaName} — Falando...`;
+
+    const ttsRes = await fetch('http://localhost:3000/api/pet/tts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text: responseText,
+        voice: voice,
+        lang: lang
+      })
+    });
+
+    if (ttsRes.ok) {
+      const audioBlob = await ttsRes.blob();
+      const audioUrl = URL.createObjectURL(audioBlob);
+      const audio = new Audio(audioUrl);
+      currentAudio = audio;
+
+      audio.onplay = () => {
+        currentState = 'speaking';
+        tooltip.textContent = `${currentPersonaName} — Transmitindo áudio...`;
+      };
+
+      audio.onended = () => {
+        currentState = 'idle';
+        tooltip.textContent = `${currentPersonaName} — Pronto, Senhor.`;
+        currentAudio = null;
+      };
+
+      audio.onerror = () => {
+        currentState = 'idle';
+        tooltip.textContent = `${currentPersonaName} — Sincronia Realtime`;
+        currentAudio = null;
+      };
+
+      await audio.play();
+    } else {
+      console.warn('[Pet] Falha no TTS, degradando para resposta silenciosa');
+      currentState = 'idle';
+      tooltip.textContent = `${currentPersonaName} — Pronto, Senhor.`;
+    }
+
+  } catch (err) {
+    console.error('[Pet] Erro de rede ou chat:', err);
+    currentState = 'frustrated';
+    tooltip.textContent = `${currentPersonaName} — Erro de comunicação`;
+
+    const errDiv = document.createElement('div');
+    errDiv.className = 'msg jarvis';
+    errDiv.style.color = '#f87171';
+    errDiv.style.border = '1px solid rgba(248, 113, 113, 0.4)';
+    errDiv.textContent = `Desculpe, Senhor. Não consegui conectar com meus sistemas centrais.`;
+    chatMessages.appendChild(errDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+
+    setTimeout(() => {
+      if (currentState === 'frustrated') {
+        currentState = 'idle';
+        tooltip.textContent = `${currentPersonaName} — Online`;
+      }
+    }, 5000);
+  }
+}
+
+// === DRAG & DROP via Electron Bridge ===
+let isDragging = false;
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button === 0) {
+    isDragging = true;
+    canvas.style.cursor = 'grabbing';
+    if (window.jarvis) window.jarvis.startDrag(e.screenX, e.screenY);
+  }
+});
+document.addEventListener('mousemove', (e) => {
+  if (isDragging && window.jarvis) window.jarvis.onDrag(e.screenX, e.screenY);
+});
+document.addEventListener('mouseup', () => {
+  if (isDragging) {
+    isDragging = false;
+    canvas.style.cursor = 'grab';
+    if (window.jarvis) window.jarvis.stopDrag();
+  }
+});
+
+// Double click -> abre cockpit
+canvas.addEventListener('dblclick', () => {
+  if (window.jarvis) window.jarvis.openCockpit();
+});
+
+// Right click -> abre menu
+canvas.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  if (window.jarvis) window.jarvis.showMenu();
+});
+</script>
+</body>
+</html>
+

@@ -1,7 +1,7 @@
 const { searchVerses } = require('../knowledge/store');
 const { pool } = require('../db');
 const { getAllPosts, generatePost } = require('../blog');
-const { sendEmail } = require('../email');
+const { sendMail } = require('../email');
 const { getActivePersona } = require('../persona/config');
 const { getSetting } = require('../settings');
 const personaManager = require('../persona/manager');
@@ -887,7 +887,7 @@ async function executeTool(name, args, context = {}) {
         return { error: 'Apenas administradores podem enviar emails.' };
       }
       try {
-        await sendEmail({ to: args.to_email, subject: args.subject, html: args.body });
+        await sendMail(args.to_email, args.subject, args.body);
         return { success: true, message: `Email enviado para ${args.to_email}.` };
       } catch (err) {
         return { error: err.message };

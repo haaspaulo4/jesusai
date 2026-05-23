@@ -348,8 +348,8 @@ async function executeAutomationAction(actionType, actionConfig, sessionId, user
     }
     case 'send_email': {
       try {
-        const { sendEmail } = require('../email');
-        await sendEmail({ to: actionConfig.email_to, subject: actionConfig.subject || 'Notification', text: actionConfig.body || '' });
+        const { sendMail } = require('../email');
+        await sendMail(actionConfig.email_to, actionConfig.subject || 'Notification', actionConfig.body || '');
         return { sent: true, to: actionConfig.email_to };
       } catch (err) {
         return { sent: false, error: err.message };

@@ -314,6 +314,7 @@ class IntegrationManager {
   }
 
   async callLLM(messages, options = {}) {
+    if (!this.loaded) await this.load();
     const useGroq = process.env.GROQ_AS_PRIMARY === 'true';
     const serviceTypes = useGroq ? ['llm_groq', 'llm_claude', 'llm'] : ['llm', 'llm_claude', 'llm_groq'];
     let lastErr = null;
@@ -324,10 +325,10 @@ class IntegrationManager {
         return await this._callLLMWithService(messages, options, st);
       } catch (err) {
         lastErr = err;
-        console.warn(`[IntegrationManager] ${st} failed: ${err.message}`);
+        console.warn(`[IntegrationManager] ${st} failed: ${err ? err.message : err}`);
       }
     }
-    throw lastErr;
+    throw lastErr || new Error('No LLM integrations are available or active');
   }
 
   async _callLLMWithService(messages, options, serviceType) {
