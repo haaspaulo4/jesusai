@@ -346,20 +346,74 @@ class IntegrationManager {
       const isClaude = integ.baseUrl?.includes('aibee.cloud') || serviceType === 'llm_claude';
       const isAnthropic = isClaude || (integ.baseUrl?.includes('anthropic') || integ.baseUrl?.includes('anthropic.com'));
 
+      // Nuclear safety: deep clone + normalize everything (prevents 400 malformed JSON on Ollama and 413 on Groq)
+      let safeMessages = Array.isArray(messages) ? JSON.parse(JSON.stringify(messages)) : [];
+
+      // Ultra hard cap for meta / cognitive calls
+      if (safeMessages.length > 5) safeMessages = safeMessages.slice(-5);
+
+      // UNIVERSAL aggressive normalizer — force strings for content, arguments, tool results on EVERY provider
+      function normalizeMessagesForLLM(arr) {
+        return arr.map(msg => {
+          if (!msg || typeof msg !== 'object') return msg;
+
+          const m = { ...msg };
+
+          // Always stringify content if object (especially for role: tool or previous tool results)
+          if (m.content && typeof m.content === 'object') {
+            try { m.content = JSON.stringify(m.content); } catch { m.content = String(m.content); }
+          }
+
+          // tool_calls arguments must be string for Ollama / most providers
+          if (Array.isArray(m.tool_calls)) {
+            m.tool_calls = m.tool_calls.map(tc => {
+              if (tc && tc.function) {
+                if (tc.function.arguments && typeof tc.function.arguments === 'object') {
+                  try { tc.function.arguments = JSON.stringify(tc.function.arguments); } catch { tc.function.arguments = '{}'; }
+                }
+              }
+              return tc;
+            });
+          }
+
+          // For role 'tool', content must be string (Ollama chokes on objects)
+          if (m.role === 'tool' && typeof m.content !== 'string') {
+            try { m.content = JSON.stringify(m.content || {}); } catch { m.content = '{}'; }
+          }
+
+          // Recurse into any other objects that might sneak in
+          for (const k of Object.keys(m)) {
+            if (k !== 'content' && k !== 'tool_calls' && m[k] && typeof m[k] === 'object' && !Array.isArray(m[k])) {
+              try { m[k] = JSON.stringify(m[k]); } catch { m[k] = String(m[k]); }
+            }
+          }
+
+          return m;
+        });
+      }
+
+      safeMessages = normalizeMessagesForLLM(safeMessages);
+
+      // Final nuclear size guard — slice harder for stability
+      let jsonSize = JSON.stringify(safeMessages).length;
+      if (jsonSize > 22000) {
+        safeMessages = safeMessages.slice(-3);
+      }
+
       let body, endpoint, headers;
       if (isOllama) {
         endpoint = '/chat';
-        body = { model: options.model || integ.model, messages, stream, options: { temperature, num_predict: numPredict } };
+        body = { model: options.model || integ.model, messages: safeMessages, stream, options: { temperature, num_predict: numPredict } };
         headers = { 'Content-Type': 'application/json', ...(integ.key ? { Authorization: `Bearer ${integ.key}` } : {}) };
       } else if (isAnthropic) {
         endpoint = '/messages';
-        body = { model: options.model || integ.model, max_tokens: numPredict, messages };
+        body = { model: options.model || integ.model, max_tokens: numPredict, messages: safeMessages };
         if (temperature !== undefined && temperature !== null) body.temperature = temperature;
         if (tools?.length > 0) body.tools = tools;
         headers = { 'Content-Type': 'application/json', 'x-api-key': integ.key, 'anthropic-version': '2023-06-01' };
       } else {
         endpoint = '/chat/completions';
-        body = { model: options.model || integ.model, messages, temperature, max_tokens: numPredict, stream };
+        body = { model: options.model || integ.model, messages: safeMessages, temperature, max_tokens: numPredict, stream };
         if (tools?.length > 0) body.tools = tools;
         headers = { 'Content-Type': 'application/json', ...(integ.key ? { Authorization: `Bearer ${integ.key}` } : {}) };
       }
@@ -724,8 +778,22 @@ function normalizeLLMResponse(data) {
       if (inlineMatch) {
         try {
           toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
-          data.message.content = '';
+          data.message.content = data.message.content.replace(inlineMatch[0], '').trim();
         } catch {}
+      } else {
+        const xmlMatch = data.message.content.match(/<minimax:tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/minimax:tool_call>/i) ||
+                         data.message.content.match(/<tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/tool_call>/i);
+        if (xmlMatch) {
+          try {
+            const funcName = xmlMatch[1];
+            let funcArgsStr = xmlMatch[2].trim();
+            if (!funcArgsStr || !funcArgsStr.startsWith('{')) {
+              funcArgsStr = '{}';
+            }
+            toolCalls = [{ id: 'inline_0', function: { name: funcName, arguments: funcArgsStr }, type: 'function' }];
+            data.message.content = data.message.content.replace(xmlMatch[0], '').trim();
+          } catch {}
+        }
       }
     }
     if (toolCalls?.length > 0) {
@@ -742,8 +810,23 @@ function normalizeLLMResponse(data) {
       if (inlineMatch) {
         try {
           toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
-          msg.content = '';
+          msg.content = msg.content.replace(inlineMatch[0], '').trim();
         } catch {}
+      } else {
+        const xmlMatch = msg.content.match(/<minimax:tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/minimax:tool_call>/i) ||
+                         msg.content.match(/<tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/tool_call>/i);
+        if (xmlMatch) {
+          try {
+            const funcName = xmlMatch[1];
+            let funcArgsStr = xmlMatch[2].trim();
+            // If arguments is empty or not JSON, default to empty object
+            if (!funcArgsStr || !funcArgsStr.startsWith('{')) {
+              funcArgsStr = '{}';
+            }
+            toolCalls = [{ id: 'inline_0', function: { name: funcName, arguments: funcArgsStr }, type: 'function' }];
+            msg.content = msg.content.replace(xmlMatch[0], '').trim();
+          } catch {}
+        }
       }
     }
     return {

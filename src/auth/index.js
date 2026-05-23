@@ -173,6 +173,17 @@ async function updateUser(userId, updates) {
 }
 
 async function authMiddleware(req, res, next) {
+  // Localhost bypass for Cockpit development
+  const clientIp = req.ip || req.connection.remoteAddress;
+  if (clientIp === '127.0.0.1' || clientIp === '::1' || clientIp === '::ffff:127.0.0.1') {
+    const referer = req.headers.referer || '';
+    if (referer.includes('/cockpit/')) {
+      req.userId = 'local_admin';
+      req.userRole = 'admin';
+      return next();
+    }
+  }
+
   const auth = req.headers.authorization;
   if (!auth || !auth.startsWith('Bearer ')) {
     return res.status(401).json({ error: 'Não autorizado' });

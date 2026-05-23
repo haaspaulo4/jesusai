@@ -755,7 +755,7 @@ router.post('/blueprints/:id/clone', authMiddleware, async (req, res) => {
   }
 });
 
-// ========== PET COMPANION SPECIAL OPEN ENDPOINTS ==========
+  // ========== PET COMPANION SPECIAL OPEN ENDPOINTS (now powered by Meta Cognitive Engine) ==========
 
 const petRateLimiter = new Map();
 const PET_RATE_LIMIT = { windowMs: 60000, maxRequests: 30 };
@@ -793,11 +793,11 @@ router.get('/pet/status', async (req, res) => {
     let persona = await personaManager.getSessionPersona(sid);
 
     if (!persona) {
-      persona = await personaManager.getActivePersona();
+      persona = await personaManager.getUserPersona(uid);
     }
 
     if (!persona) {
-      persona = await personaManager.getPersona('jesus');
+      persona = await personaManager.getActivePersona();
     }
 
     const lang = req.query.lang || 'pt-BR';
@@ -807,7 +807,7 @@ router.get('/pet/status', async (req, res) => {
     // Also return available personas for the pet UI
     const allPersonas = await personaManager.listPersonas();
     const personasList = allPersonas
-      .filter(p => p.isActive && p.id !== 'meta-persona')
+      .filter(p => p.isActive)
       .map(p => ({
         id: p.id,
         name: p.name,
@@ -910,13 +910,27 @@ router.post('/pet/chat', async (req, res) => {
   const sid = sessionId || 'pet_session_' + uid;
 
   try {
+    // Support image input for vision — forward as object so engine vision-router can process it
+    let finalMessage = message || '';
+    const imagePayload = req.body.image || req.body.imageBase64 || req.body.file || null;
+
+    if (imagePayload) {
+      // Pass as object so the vision guard in engine.js (handleVisionIfNeeded) can detect and route it
+      finalMessage = {
+        text: finalMessage,
+        image: imagePayload,
+        imageBase64: req.body.imageBase64 || null
+      };
+    }
+
     const result = await chatEngine.processMessage({
-      message: message || '',
+      message: finalMessage,
       sessionId: sid,
       userId: uid,
       language: lang,
       isGroup: false,
       source: 'pet',
+      personaId: personaId || undefined, 
     });
 
     const response = {
@@ -924,11 +938,50 @@ router.post('/pet/chat', async (req, res) => {
       sessionId: result.sessionId,
       sources: result.sources,
       language: result.language,
-      personaId: result.personaInfo?.id,
-      personaName: result.personaInfo?.name,
+      personaId: result.personaId,
+      personaName: result.personaName,
       ttsVoice: result.ttsVoice,
       ttsLang: result.ttsLang,
     };
+
+    // Pre-generate Base64 TTS audio to eliminate delay entirely!
+    try {
+      const { generateAudioBuffer } = require('../tts');
+      const ttsVoice = result.ttsVoice || 'pm_alex';
+      const ttsLang = result.ttsLang || 'pt-BR';
+      
+      let cleanText = result.response
+        .replace(/<[^>]*>?/gm, '') // HTML tags
+        .replace(/\*\*(.*?)\*\*/g, '$1') // Bold
+        .replace(/\*(.*?)\*/g, '$1') // Italics
+        .replace(/__(.*?)__/g, '$1') // Underline
+        .replace(/_(.*?)_/g, '$1') // Italics
+        .replace(/~~(.*?)~~/g, '$1') // Strikethrough
+        .replace(/`{1,3}([^`]+)`{1,3}/g, '$1') // Code blocks
+        .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Links
+        .replace(/#+\s+(.*)/g, '$1') // Headers
+        .replace(/>\s+(.*)/g, '$1') // Quotes
+        .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{1F1E6}-\u{1F1FF}]/gu, '') // Emojis
+        .replace(/\n+/g, ' ') // Newlines to spaces
+        .replace(/\s{2,}/g, ' ') // Multiple spaces
+        .trim();
+
+      // If the message is short, pre-generate to provide instant audio playback!
+      // If it's long, we skip pre-generation to keep chat response instant, letting the frontend fetch audio asynchronously.
+      if (cleanText.length <= 350 && cleanText.length > 0) {
+        const audioBuf = await generateAudioBuffer(cleanText, { lang: ttsLang, kokoroVoice: ttsVoice });
+        if (audioBuf && audioBuf.length > 0) {
+          response.audioDataUrl = "data:" + (audioBuf.contentType || "audio/wav") + ";base64," + audioBuf.toString("base64");
+        }
+      }
+    } catch (ttsErr) {
+      console.error('[Pet API Chat] TTS pre-generation failed:', ttsErr.message);
+    }
+
+    // Include automation info if the Meta Brain executed any
+    if (result.automationExecuted) {
+      response.automationExecuted = result.automationExecuted;
+    }
 
     res.json(response);
   } catch (err) {
@@ -946,9 +999,41 @@ router.post('/pet/tts', async (req, res) => {
     return res.status(400).json({ error: 'Text is required' });
   }
 
+  // Sanitize Markdown, HTML tags, and Emojis
+  let cleanText = text
+    .replace(/<[^>]*>?/gm, '') // HTML tags
+    .replace(/\*\*(.*?)\*\*/g, '$1') // Bold
+    .replace(/\*(.*?)\*/g, '$1') // Italics
+    .replace(/__(.*?)__/g, '$1') // Underline
+    .replace(/_(.*?)_/g, '$1') // Italics
+    .replace(/~~(.*?)~~/g, '$1') // Strikethrough
+    .replace(/`{1,3}([^`]+)`{1,3}/g, '$1') // Code blocks
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Links
+    .replace(/#+\s+(.*)/g, '$1') // Headers
+    .replace(/>\s+(.*)/g, '$1') // Quotes
+    .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}\u{1F1E6}-\u{1F1FF}]/gu, '') // Emojis
+    .replace(/\n+/g, ' ') // Newlines to spaces
+    .replace(/\s{2,}/g, ' ') // Multiple spaces
+    .trim();
+
   const ttsLang = SUPPORTED_LANGS.includes(lang) ? lang : DEFAULT_LANG;
-  const maxTtsLength = 250;
-  const truncated = text.length > maxTtsLength ? text.substring(0, maxTtsLength) : text;
+  const maxTtsLength = 1200;
+  
+  // Smart truncation at sentence/word boundary
+  let truncated = cleanText;
+  if (cleanText.length > maxTtsLength) {
+    let cutoff = cleanText.lastIndexOf('.', maxTtsLength);
+    if (cutoff === -1) cutoff = cleanText.lastIndexOf('!', maxTtsLength);
+    if (cutoff === -1) cutoff = cleanText.lastIndexOf('?', maxTtsLength);
+    if (cutoff === -1) cutoff = cleanText.lastIndexOf(',', maxTtsLength);
+    if (cutoff === -1) cutoff = cleanText.lastIndexOf(' ', maxTtsLength);
+    
+    if (cutoff > 0) {
+      truncated = cleanText.substring(0, cutoff + 1).trim();
+    } else {
+      truncated = cleanText.substring(0, maxTtsLength);
+    }
+  }
 
   try {
     const buf = await generateAudioBuffer(truncated, { lang: ttsLang, kokoroVoice: voice });
@@ -963,6 +1048,33 @@ router.post('/pet/tts', async (req, res) => {
   } catch (err) {
     console.error('[Pet API] TTS error:', err.message);
     res.status(500).json({ error: 'TTS generation failed' });
+  }
+});
+
+router.post('/pet/stt', upload.single('audio'), async (req, res) => {
+  const clientIp = req.ip || req.connection.remoteAddress;
+  if (!checkPetRateLimit(clientIp)) return res.status(429).json({ error: 'Rate limit exceeded' });
+
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'Audio file is required' });
+    }
+
+    const mimetype = req.file.mimetype || 'audio/webm';
+    const ext = mimetype.split('/')[1] || 'webm';
+    const filename = `pet_audio.${ext}`;
+    const language = getSTTLang(req.body.language || 'pt-BR');
+
+    const text = await transcribeAudio(req.file.buffer, filename, language);
+
+    if (!text) {
+      return res.status(422).json({ error: 'Could not transcribe audio' });
+    }
+
+    res.json({ text });
+  } catch (err) {
+    console.error('[Pet API] STT error:', err.message);
+    res.status(500).json({ error: 'Transcription failed' });
   }
 });
 

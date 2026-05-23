@@ -5,12 +5,17 @@
 <title>JesusAI Companion Pet</title>
 <!-- Carrega Socket.IO para comunicação realtime com o backend do JesusAI -->
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
 <style>
   :root {
     --accent-color: #c084fc;
     --accent-rgb: 192, 132, 252;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
+  * {
+    box-sizing: border-box;
+  }
+  body {
+    margin: 0; padding: 0; box-sizing: border-box; }
   html, body {
     width: 100%;
     height: 100%;
@@ -170,6 +175,7 @@
     flex: 1;
     padding: 12px;
     overflow-y: auto;
+    overflow-x: hidden;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -302,285 +308,297 @@
 
 <script>
 const canvas = document.getElementById('zeus');
-const ctx = canvas.getContext('2d');
 const W = 400, H = 400;
-const CX = W / 2, CY = H / 2 - 10;
 
-// Estados cognitivos do Pet com cores baseadas nas emoções
-const STATES = {
-  idle:      { cloudColor: [60, 40, 80],  eyeColor: '#fff', mouthOpen: 0.3, pulseSpeed: 0.015 },
-  listening: { cloudColor: [40, 60, 90],  eyeColor: '#aff', mouthOpen: 0.5, pulseSpeed: 0.025 },
-  thinking:  { cloudColor: [80, 50, 20],  eyeColor: '#ffa', mouthOpen: 0.1, pulseSpeed: 0.04 },
-  speaking:  { cloudColor: [70, 30, 90],  eyeColor: '#fff', mouthOpen: 0.8, pulseSpeed: 0.035 },
-  // Estados emocionais adicionais
-  excited:   { cloudColor: [100, 30, 100], eyeColor: '#ffb', mouthOpen: 0.9, pulseSpeed: 0.05 },
-  frustrated:{ cloudColor: [110, 20, 20],  eyeColor: '#f77', mouthOpen: 0.2, pulseSpeed: 0.045 },
-  curious:   { cloudColor: [20, 90, 70],  eyeColor: '#dfd', mouthOpen: 0.4, pulseSpeed: 0.02 }
+// Initialize Three.js WebGL Renderer with Alpha (Transparency)
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
+camera.position.z = 8;
+
+const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+renderer.setSize(W, H, false);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+// Add Lights
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
+scene.add(ambientLight);
+
+const pointLight = new THREE.PointLight(0xffffff, 2.2, 15);
+pointLight.position.set(0, 0, 0);
+scene.add(pointLight);
+
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
+dirLight.position.set(5, 5, 5);
+scene.add(dirLight);
+
+// 3D States matching the companion's emotional/cognitive states
+const STATES_3D = {
+  idle:      { color: 0xc084fc, speed: 0.8, scale: 1.0, amplitude: 0.08, particleSpeed: 0.2 },
+  listening: { color: 0x00f2fe, speed: 2.2, scale: 1.15, amplitude: 0.18, particleSpeed: 0.7 },
+  thinking:  { color: 0xffd000, speed: 3.5, scale: 1.22, amplitude: 0.28, particleSpeed: 1.2 },
+  speaking:  { color: 0xfb7185, speed: 2.4, scale: 1.18, amplitude: 0.22, particleSpeed: 0.8 },
+  excited:   { color: 0xf43f5e, speed: 4.2, scale: 1.32, amplitude: 0.38, particleSpeed: 2.0 },
+  frustrated:{ color: 0xef4444, speed: 3.6, scale: 1.22, amplitude: 0.32, particleSpeed: 1.4 },
+  curious:   { color: 0x10b981, speed: 1.4, scale: 1.05, amplitude: 0.12, particleSpeed: 0.4 }
 };
+
 let currentState = 'idle';
-let t = 0;
 
-// Definição dos blocos de nuvens (Zeus Cloud Body)
-const puffs = [
-  { x: 0, y: -25, r: 65 },
-  { x: -50, y: -10, r: 55 },
-  { x: 50, y: -10, r: 55 },
-  { x: -65, y: 25, r: 50 },
-  { x: 65, y: 25, r: 50 },
-  { x: -40, y: 45, r: 45 },
-  { x: 40, y: 45, r: 45 },
-  { x: 0, y: 50, r: 50 },
-  { x: -25, y: -35, r: 45 },
-  { x: 25, y: -35, r: 45 },
-  { x: 0, y: 15, r: 60 }
-];
+// Create 3D Meshes representing the Cognitive Energy Core (neural sphere)
+const coreGroup = new THREE.Group();
+scene.add(coreGroup);
 
-let lightnings = [];
-let lightningTimer = 0;
+// Curated Glassmorphic / Glossy glowing Brain Material (MeshPhongMaterial with high shininess)
+const coreMaterial = new THREE.MeshPhongMaterial({
+  color: 0xc084fc,
+  emissive: 0x3b0764,
+  shininess: 120,
+  specular: 0xffffff,
+  transparent: true,
+  opacity: 0.72,
+  side: THREE.DoubleSide,
+  flatShading: false
+});
 
-function createLightning() {
-  const side = Math.random() > 0.5 ? 1 : -1;
-  const startX = CX + side * (50 + Math.random() * 40);
-  const startY = CY + 40 + Math.random() * 20;
-  const segments = [];
-  let x = startX, y = startY;
-  const numSegs = 3 + Math.floor(Math.random() * 4);
-  for (let i = 0; i < numSegs; i++) {
-    const nx = x + (Math.random() - 0.5) * 30;
-    const ny = y + 15 + Math.random() * 20;
-    segments.push({ x1: x, y1: y, x2: nx, y2: ny });
-    x = nx; y = ny;
-  }
-  return { segments, life: 1.0, maxLife: 1.0, color: Math.random() > 0.3 ? '#c084fc' : '#00e4ff' };
-}
+// Holographic cyber cortex wireframe material
+const wireMaterial = new THREE.MeshBasicMaterial({
+  color: 0xc084fc,
+  wireframe: true,
+  transparent: true,
+  opacity: 0.45
+});
 
-function drawCloud(pulse) {
-  const st = STATES[currentState] || STATES.idle;
-  const [cr, cg, cb] = st.cloudColor;
-
-  const glow = ctx.createRadialGradient(CX, CY + 10, 30, CX, CY + 10, 130);
-  glow.addColorStop(0, `rgba(${cr+40}, ${cg+20}, ${cb+60}, ${0.2 * pulse})`);
-  glow.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = glow;
-  ctx.fillRect(0, 0, W, H);
-
-  ctx.save();
-
-  // Sombra sob a nuvem
-  ctx.beginPath();
-  ctx.ellipse(CX, CY + 85, 70, 12, 0, 0, Math.PI * 2);
-  ctx.fillStyle = `rgba(0, 0, 0, ${0.15 * pulse})`;
-  ctx.fill();
-
-  // Puffs de nuvem com wobble orgânico
-  for (const p of puffs) {
-    const wobbleX = Math.sin(t * 0.02 + p.x * 0.1) * 3;
-    const wobbleY = Math.cos(t * 0.025 + p.y * 0.1) * 2;
-    const wobbleR = Math.sin(t * 0.03 + p.r) * 3;
-
-    const px = CX + p.x + wobbleX;
-    const py = CY + p.y + wobbleY;
-    const pr = p.r + wobbleR;
-
-    const grad = ctx.createRadialGradient(px - pr * 0.2, py - pr * 0.3, 0, px, py, pr);
-    grad.addColorStop(0, `rgba(${cr+30}, ${cg+20}, ${cb+40}, ${0.95 * pulse})`);
-    grad.addColorStop(0.5, `rgba(${cr}, ${cg}, ${cb}, ${0.9 * pulse})`);
-    grad.addColorStop(1, `rgba(${Math.floor(cr*0.5)}, ${Math.floor(cg*0.4)}, ${Math.floor(cb*0.6)}, ${0.7 * pulse})`);
-
-    ctx.beginPath();
-    ctx.arc(px, py, pr, 0, Math.PI * 2);
-    ctx.fillStyle = grad;
-    ctx.fill();
-  }
-
-  // Brilho interno
-  const highlight = ctx.createRadialGradient(CX - 20, CY - 30, 0, CX, CY - 10, 80);
-  highlight.addColorStop(0, `rgba(${cr+80}, ${cg+60}, ${cb+100}, ${0.15 * pulse})`);
-  highlight.addColorStop(1, 'rgba(0,0,0,0)');
-  ctx.fillStyle = highlight;
-  ctx.fillRect(CX - 100, CY - 80, 200, 100);
-
-  ctx.restore();
-}
-
-function drawFace(pulse) {
-  const st = STATES[currentState] || STATES.idle;
-  const eyeY = CY + 5;
-  const mouthY = CY + 35;
-
-  const blink = Math.sin(t * 0.05) > 0.97;
-  const eyeSquint = currentState === 'thinking' ? 0.5 : 1.0;
-
-  // Olhos
-  const eyeSpacing = 28;
-  const eyeW = 14;
-  const eyeH = blink ? 2 : 11 * eyeSquint;
-
-  // Olho Esquerdo
-  ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(CX - eyeSpacing, eyeY, eyeW, eyeH, 0, 0, Math.PI * 2);
-  ctx.fillStyle = st.eyeColor;
-  ctx.shadowColor = st.eyeColor;
-  ctx.shadowBlur = 8;
-  ctx.fill();
-  ctx.restore();
-
-  if (!blink) {
-    ctx.beginPath();
-    ctx.ellipse(CX - eyeSpacing + 2, eyeY + 1, 6, 5 * eyeSquint, 0, 0, Math.PI * 2);
-    ctx.fillStyle = '#1a0a2e';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(CX - eyeSpacing - 1, eyeY - 2, 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
-  }
-
-  // Olho Direito
-  ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(CX + eyeSpacing, eyeY, eyeW, eyeH, 0, 0, Math.PI * 2);
-  ctx.fillStyle = st.eyeColor;
-  ctx.shadowColor = st.eyeColor;
-  ctx.shadowBlur = 8;
-  ctx.fill();
-  ctx.restore();
-
-  if (!blink) {
-    ctx.beginPath();
-    ctx.ellipse(CX + eyeSpacing + 2, eyeY + 1, 6, 5 * eyeSquint, 0, 0, Math.PI * 2);
-    ctx.fillStyle = '#1a0a2e';
-    ctx.fill();
-    ctx.beginPath();
-    ctx.arc(CX + eyeSpacing - 1, eyeY - 2, 2.5, 0, Math.PI * 2);
-    ctx.fillStyle = '#fff';
-    ctx.fill();
-  }
-
-  // Sobrancelhas de Zeus
-  ctx.strokeStyle = `rgba(30, 10, 50, ${0.8 * pulse})`;
-  ctx.lineWidth = 3;
-  ctx.lineCap = 'round';
-  ctx.beginPath();
-  ctx.moveTo(CX - eyeSpacing - 16, eyeY - 16);
-  ctx.quadraticCurveTo(CX - eyeSpacing, eyeY - 20, CX - eyeSpacing + 10, eyeY - 14);
-  ctx.stroke();
-  ctx.beginPath();
-  ctx.moveTo(CX + eyeSpacing + 16, eyeY - 16);
-  ctx.quadraticCurveTo(CX + eyeSpacing, eyeY - 20, CX + eyeSpacing - 10, eyeY - 14);
-  ctx.stroke();
-
-  // Boca
-  const mouthW = 30 + st.mouthOpen * 10;
-  const mouthH = 5 + st.mouthOpen * 18;
-  const mouthWobble = Math.sin(t * 0.04) * 2;
-
-  ctx.save();
-  ctx.beginPath();
-  ctx.ellipse(CX, mouthY + mouthWobble, mouthW, mouthH, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#1a0a2e';
-  ctx.fill();
-
-  if (mouthH > 8) {
-    ctx.fillStyle = '#fff';
-    const teethCount = 6;
-    const teethW = (mouthW * 1.6) / teethCount;
-    for (let i = 0; i < teethCount; i++) {
-      const tx = CX - mouthW * 0.8 + i * teethW + teethW * 0.15;
-      const ty = mouthY + mouthWobble - mouthH * 0.7;
-      ctx.fillRect(tx, ty, teethW * 0.7, mouthH * 0.4);
+// Helper function to procedurally generate a highly detailed and realistic brain hemisphere geometry
+function createHemiGeometry() {
+  const geom = new THREE.SphereGeometry(1.0, 48, 48);
+  const pos = geom.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    
+    // Elongate along Z (front-back), scale down on X and Y slightly to make it hemisphere-shaped
+    v.z *= 1.35;
+    v.x *= 0.85;
+    v.y *= 0.95;
+    
+    // Brain lobes shaping:
+    // Frontal lobe is slightly larger/bulbous, occipital is slightly narrower
+    if (v.z < 0) {
+      // Occipital lobe (back of brain)
+      v.x *= 0.9;
+      v.y *= 0.85;
+    } else {
+      // Frontal lobe (front of brain)
+      v.y *= 1.05;
     }
+    
+    // Procedural brain wrinkles (gyri and sulci)
+    // Multiscale trigonometric noise to generate brain fold geometry
+    const wrinkle = Math.sin(v.x * 6.5) * Math.cos(v.y * 6.5) * Math.sin(v.z * 6.5) * 0.12 +
+                    Math.sin(v.x * 12.0) * Math.cos(v.y * 12.0) * Math.sin(v.z * 12.0) * 0.04 +
+                    Math.cos(v.z * 4.0) * 0.05;
+                     
+    v.addScaledVector(v.clone().normalize(), wrinkle);
+    pos.setXYZ(i, v.x, v.y, v.z);
   }
-  ctx.restore();
+  geom.computeVertexNormals();
+  return geom;
 }
 
-function drawLightning() {
-  lightningTimer++;
-  const spawnRate = currentState === 'speaking' ? 8 : currentState === 'thinking' ? 12 : 25;
-  if (lightningTimer % spawnRate === 0) {
-    lightnings.push(createLightning());
+// Generate the high-definition hemisphere geometry
+const hemiGeom = createHemiGeometry();
+
+// Left Hemisphere
+const leftHemi = new THREE.Mesh(hemiGeom, coreMaterial);
+leftHemi.position.x = -0.32;
+coreGroup.add(leftHemi);
+
+// Right Hemisphere
+const rightHemi = new THREE.Mesh(hemiGeom, coreMaterial);
+rightHemi.position.x = 0.32;
+coreGroup.add(rightHemi);
+
+// Helper function to generate a tight-wrinkled cerebellum geometry (biological folia)
+function createCerebellumGeometry() {
+  const geom = new THREE.SphereGeometry(0.45, 32, 32);
+  const pos = geom.attributes.position;
+  const v = new THREE.Vector3();
+  for (let i = 0; i < pos.count; i++) {
+    v.fromBufferAttribute(pos, i);
+    v.z *= 0.8; // Flatten Z slightly
+    const wrinkle = Math.sin(v.x * 15.0) * Math.cos(v.y * 15.0) * Math.sin(v.z * 15.0) * 0.04;
+    v.addScaledVector(v.clone().normalize(), wrinkle);
+    pos.setXYZ(i, v.x, v.y, v.z);
   }
-
-  for (let i = lightnings.length - 1; i >= 0; i--) {
-    const l = lightnings[i];
-    l.life -= 0.06;
-    if (l.life <= 0) { lightnings.splice(i, 1); continue; }
-
-    ctx.save();
-    ctx.globalAlpha = l.life;
-    ctx.strokeStyle = l.color;
-    ctx.shadowColor = l.color;
-    ctx.shadowBlur = 12;
-    ctx.lineWidth = 2 + l.life * 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-
-    ctx.beginPath();
-    for (const s of l.segments) {
-      ctx.moveTo(s.x1, s.y1);
-      ctx.lineTo(s.x2, s.y2);
-    }
-    ctx.stroke();
-
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 1;
-    ctx.globalAlpha = l.life * 0.5;
-    ctx.beginPath();
-    for (const s of l.segments) {
-      ctx.moveTo(s.x1, s.y1);
-      ctx.lineTo(s.x2, s.y2);
-    }
-    ctx.stroke();
-
-    ctx.restore();
-  }
+  geom.computeVertexNormals();
+  return geom;
 }
 
-// Centelhas elétricas
-const sparks = [];
-for (let i = 0; i < 12; i++) {
-  sparks.push({
-    angle: Math.random() * Math.PI * 2,
-    dist: 70 + Math.random() * 30,
-    speed: 0.01 + Math.random() * 0.02,
-    size: 1 + Math.random() * 2,
-    phase: Math.random() * Math.PI * 2,
+// Cerebellum Left & Right (rear bottom parts of the brain)
+const cerebGeom = createCerebellumGeometry();
+const leftCereb = new THREE.Mesh(cerebGeom, coreMaterial);
+leftCereb.position.set(-0.25, -0.62, -0.45);
+coreGroup.add(leftCereb);
+
+const rightCereb = new THREE.Mesh(cerebGeom, coreMaterial);
+rightCereb.position.set(0.25, -0.62, -0.45);
+coreGroup.add(rightCereb);
+
+// Brain Stem (connecting bottom)
+const stemGeom = new THREE.CylinderGeometry(0.18, 0.12, 0.7, 16, 16);
+// Bend stem slightly backwards dynamically
+const stemPos = stemGeom.attributes.position;
+const sv = new THREE.Vector3();
+for (let i = 0; i < stemPos.count; i++) {
+  sv.fromBufferAttribute(stemPos, i);
+  sv.z += (sv.y - 0.35) * 0.15;
+  stemPos.setXYZ(i, sv.x, sv.y, sv.z);
+}
+stemGeom.computeVertexNormals();
+const stem = new THREE.Mesh(stemGeom, coreMaterial);
+stem.position.set(0, -0.85, -0.2);
+coreGroup.add(stem);
+
+// Glowing outer digital wireframe "cortex cage"
+const leftHemiWire = new THREE.Mesh(hemiGeom, wireMaterial);
+leftHemiWire.position.x = -0.32;
+leftHemiWire.scale.setScalar(1.05);
+coreGroup.add(leftHemiWire);
+
+const rightHemiWire = new THREE.Mesh(hemiGeom, wireMaterial);
+rightHemiWire.position.x = 0.32;
+rightHemiWire.scale.setScalar(1.05);
+coreGroup.add(rightHemiWire);
+
+// Glowing Orbital Hologram Rings (Neural Pathways)
+const ringMaterial = new THREE.MeshBasicMaterial({
+  color: 0xc084fc,
+  side: THREE.DoubleSide,
+  transparent: true,
+  opacity: 0.22,
+  wireframe: true
+});
+
+const rings = [];
+const ringGeom = new THREE.TorusGeometry(2.3, 0.015, 8, 48); // Thinner and slightly larger for elegance
+
+const ring1 = new THREE.Mesh(ringGeom, ringMaterial);
+ring1.rotation.x = Math.PI / 4;
+scene.add(ring1);
+rings.push(ring1);
+
+const ring2 = new THREE.Mesh(ringGeom, ringMaterial);
+ring2.rotation.y = Math.PI / 4;
+scene.add(ring2);
+rings.push(ring2);
+
+// Surrounding Holographic Particle Swarm (Firing Synapses)
+const particleGeom = new THREE.BufferGeometry();
+const particleCount = 100; // Increased count for richer synaptic representation
+const particlePositions = new Float32Array(particleCount * 3);
+const particleSpeeds = [];
+
+for (let i = 0; i < particleCount; i++) {
+  // Generate random particles nestled around the brain hemispheres
+  const isLeft = Math.random() > 0.5;
+  const rx = (isLeft ? -0.32 : 0.32) + (Math.random() - 0.5) * 1.5;
+  const ry = (Math.random() - 0.5) * 1.6 - 0.2;
+  const rz = (Math.random() - 0.5) * 1.8;
+  
+  particlePositions[i*3] = rx;
+  particlePositions[i*3+1] = ry;
+  particlePositions[i*3+2] = rz;
+  
+  particleSpeeds.push({
+    baseX: rx,
+    baseY: ry,
+    baseZ: rz,
+    rangeX: 0.25 + Math.random() * 0.2,
+    rangeY: 0.25 + Math.random() * 0.2,
+    rangeZ: 0.25 + Math.random() * 0.2,
+    speedFactor: 0.8 + Math.random() * 0.6
   });
 }
 
-function drawSparks(pulse) {
-  for (const s of sparks) {
-    s.angle += s.speed;
-    const wobble = Math.sin(t * 0.04 + s.phase) * 8;
-    const px = CX + Math.cos(s.angle) * (s.dist + wobble);
-    const py = CY + 15 + Math.sin(s.angle) * (s.dist * 0.6 + wobble);
-    const alpha = (0.3 + 0.6 * Math.sin(t * 0.05 + s.phase)) * pulse;
+particleGeom.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
+const particleMaterial = new THREE.PointsMaterial({
+  color: 0xc084fc,
+  size: 0.07,
+  transparent: true,
+  opacity: 0.65,
+  sizeAttenuation: true
+});
+const particles = new THREE.Points(particleGeom, particleMaterial);
+scene.add(particles);
 
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(px, py, s.size, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(192, 132, 252, ${alpha})`;
-    ctx.shadowColor = '#c084fc';
-    ctx.shadowBlur = 6;
-    ctx.fill();
-    ctx.restore();
-  }
-}
+// Dynamic lerping variables for smooth animation transitions
+let currentSpeed = STATES_3D.idle.speed;
+let currentScale = STATES_3D.idle.scale;
+let currentAmplitude = STATES_3D.idle.amplitude;
+let currentColor = new THREE.Color(STATES_3D.idle.color);
+
+const clock = new THREE.Clock();
 
 function draw() {
-  t++;
-  const st = STATES[currentState] || STATES.idle;
-  const pulse = 0.7 + 0.3 * (0.5 + 0.5 * Math.sin(t * st.pulseSpeed * Math.PI * 2));
-
-  ctx.clearRect(0, 0, W, H);
-
-  drawLightning();
-  drawSparks(pulse);
-  drawCloud(pulse);
-  drawFace(pulse);
-
   requestAnimationFrame(draw);
+  
+  const elapsed = clock.getElapsedTime();
+  
+  // Dynamic smooth lerp transitions
+  const target = STATES_3D[currentState] || STATES_3D.idle;
+  currentSpeed += (target.speed - currentSpeed) * 0.08;
+  currentScale += (target.scale - currentScale) * 0.08;
+  currentAmplitude += (target.amplitude - currentAmplitude) * 0.08;
+  
+  currentColor.lerp(new THREE.Color(target.color), 0.08);
+  
+  // Apply visual parameters
+  coreMaterial.color.copy(currentColor);
+  coreMaterial.emissive.copy(currentColor).multiplyScalar(0.35);
+  wireMaterial.color.copy(currentColor);
+  ringMaterial.color.copy(currentColor);
+  particleMaterial.color.copy(currentColor);
+  pointLight.color.copy(currentColor);
+  
+  // Animate brain wireframes with a glowing thought pulse (cyber cortex cage)
+  const wirePulse = 1.04 + Math.sin(elapsed * currentSpeed * 2.5) * 0.015 * currentAmplitude;
+  leftHemiWire.scale.setScalar(wirePulse);
+  rightHemiWire.scale.setScalar(wirePulse);
+  
+  leftHemiWire.rotation.y = elapsed * 0.05 * currentSpeed;
+  rightHemiWire.rotation.y = -elapsed * 0.05 * currentSpeed;
+  
+  // Rotate energy groups (Brain)
+  coreGroup.rotation.y = elapsed * currentSpeed * 0.22;
+  coreGroup.rotation.x = elapsed * currentSpeed * 0.1;
+  
+  // Organic cognitive breathing animation of the core brain hemispheres
+  const breathScale = 1.0 + Math.sin(elapsed * currentSpeed * 2.0) * 0.035 * currentAmplitude;
+  coreGroup.scale.setScalar(currentScale * breathScale);
+  
+  // Rotate orbital neural rings
+  ring1.rotation.x = elapsed * currentSpeed * 0.18;
+  ring1.rotation.y = elapsed * currentSpeed * 0.28;
+  ring2.rotation.y = -elapsed * currentSpeed * 0.22;
+  ring2.rotation.z = elapsed * currentSpeed * 0.12;
+  
+  // Orbit/Pulse particles (Firing Synapses)
+  const partAttr = particleGeom.attributes.position;
+  const pSpeedFactor = target.particleSpeed;
+  const time = elapsed * 4.0 * pSpeedFactor;
+  
+  for (let i = 0; i < particleCount; i++) {
+    const s = particleSpeeds[i];
+    const offsetX = Math.sin(time * s.speedFactor + i) * s.rangeX * 0.25;
+    const offsetY = Math.cos(time * 0.8 * s.speedFactor + i) * s.rangeY * 0.25;
+    const offsetZ = Math.sin(time * 1.2 * s.speedFactor + i) * s.rangeZ * 0.25;
+    
+    partAttr.setXYZ(i, s.baseX + offsetX, s.baseY + offsetY, s.baseZ + offsetZ);
+  }
+  partAttr.needsUpdate = true;
+  particles.rotation.y = elapsed * 0.06;
+  
+  renderer.render(scene, camera);
 }
 
 draw();
@@ -744,6 +762,7 @@ socket.on('cognitive_state', (state) => {
 });
 
 
+
 // === BOTÃO DO MIC — STT & Audio Recording ===
 const micBtn = document.getElementById('mic-btn');
 let micActive = false;
@@ -775,7 +794,7 @@ micBtn.addEventListener('click', async (e) => {
         formData.append('audio', audioBlob, 'pet_voice.webm');
         
         try {
-          const res = await fetch('http://localhost:3000/api/stt', {
+          const res = await fetch('http://localhost:3000/api/pet/stt', {
             method: 'POST',
             body: formData
           });
@@ -920,26 +939,9 @@ async function sendChatMessage() {
       }
     }
 
-    const voice = chatData.ttsVoice || currentVoice;
-    const lang = chatData.ttsLang || chatData.language || currentLang;
-
-    currentState = 'speaking';
-    tooltip.textContent = `${currentPersonaName} — Falando...`;
-
-    const ttsRes = await fetch('http://localhost:3000/api/pet/tts', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text: responseText,
-        voice: voice,
-        lang: lang
-      })
-    });
-
-    if (ttsRes.ok) {
-      const audioBlob = await ttsRes.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
+    // Play pre-generated Base64 audio instantly to eliminate delay!
+    if (chatData.audioDataUrl) {
+      const audio = new Audio(chatData.audioDataUrl);
       currentAudio = audio;
 
       audio.onplay = () => {
@@ -961,9 +963,56 @@ async function sendChatMessage() {
 
       await audio.play();
     } else {
-      console.warn('[Pet] Falha no TTS, degradando para resposta silenciosa');
-      currentState = 'idle';
-      tooltip.textContent = `${currentPersonaName} — Pronto, Senhor.`;
+      // Fallback: second request network roundtrip if not pre-generated
+      const voice = chatData.ttsVoice || currentVoice;
+      const lang = chatData.ttsLang || chatData.language || currentLang;
+
+      currentState = 'thinking';
+      tooltip.textContent = `${currentPersonaName} — Sintetizando voz...`;
+
+      try {
+        const ttsRes = await fetch('http://localhost:3000/api/pet/tts', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            text: responseText,
+            voice: voice,
+            lang: lang
+          })
+        });
+
+        if (ttsRes.ok) {
+          const audioBlob = await ttsRes.blob();
+          const audioUrl = URL.createObjectURL(audioBlob);
+          const audio = new Audio(audioUrl);
+          currentAudio = audio;
+
+          audio.onplay = () => {
+            currentState = 'speaking';
+            tooltip.textContent = `${currentPersonaName} — Transmitindo áudio...`;
+          };
+
+          audio.onended = () => {
+            currentState = 'idle';
+            tooltip.textContent = `${currentPersonaName} — Pronto, Senhor.`;
+            currentAudio = null;
+          };
+
+          audio.onerror = () => {
+            currentState = 'idle';
+            tooltip.textContent = `${currentPersonaName} — Sincronia Realtime`;
+            currentAudio = null;
+          };
+
+          await audio.play();
+        } else {
+          throw new Error('TTS fetch returned non-200');
+        }
+      } catch (err) {
+        console.warn('[Pet] Falha no TTS, degradando para resposta silenciosa:', err.message);
+        currentState = 'idle';
+        tooltip.textContent = `${currentPersonaName} — Pronto, Senhor.`;
+      }
     }
 
   } catch (err) {

@@ -801,6 +801,21 @@ CREATE TABLE IF NOT EXISTS persona_lifecycle_log (
 `;
 
 async function initDatabase() {
+  // Guarantee the database exists before pool executes anything
+  const dbName = process.env.DB_NAME || 'metapersona_ai';
+  try {
+    const tempConn = await mysql.createConnection({
+      host: process.env.DB_HOST || 'localhost',
+      port: parseInt(process.env.DB_PORT || '3306'),
+      user: process.env.DB_USER || 'root',
+      password: process.env.DB_PASSWORD || '',
+    });
+    await tempConn.execute(`CREATE DATABASE IF NOT EXISTS \`${dbName}\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci`);
+    await tempConn.end();
+  } catch (err) {
+    console.warn('[DB] Pre-creating database warning (might be fine if it already exists or MySQL is stopped):', err.message);
+  }
+
   const statements = SCHEMA.split(';').map(s => s.trim()).filter(s => s.length > 0);
   for (const stmt of statements) {
     await pool.execute(stmt);

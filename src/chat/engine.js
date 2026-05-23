@@ -33,6 +33,12 @@ const { pool } = require('../db');
 const agentModule = require('../agent');
 const smartFollowUp = require('../onboarding/followup');
 
+// Meta-Persona Cognitive Engine (3 cérebros + Synapse integration)
+const metaCognitiveEngine = require('../meta/cognitive-engine');
+
+// Natural Language Command Intent Detector (no need for '/')
+const { detectCommandIntent } = require('../intent/command-intent');
+
 const MAX_TOOL_ROUNDS = 5;
 const TOTAL_TOOL_TIMEOUT_MS = 60000; // 60s max for entire tool loop
 const PER_TOOL_TIMEOUT_MS = 10000; // 10s max per individual tool execution
@@ -149,7 +155,7 @@ async function getPersonaForContext(personaId, sessionId, userId) {
     const userPersona = await personaManager.getUserPersona(userId);
     if (userPersona) return userPersona;
   }
-  return getActivePersona();
+  return personaManager.getActivePersona();
 }
 
 const crypto = require('crypto');
@@ -296,6 +302,19 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   }
 
   const persona = await getPersonaForContext(personaId, sid, uid);
+
+  // Vision routing: if there's an image, process it with vision tools first (never send raw image to text-only LLM)
+  if (message && (typeof message === 'object' && (message.image || message.imageBase64 || message.file) || (typeof message === 'string' && /\.(png|jpg|jpeg|webp|gif)$/i.test(message)))) {
+    try {
+      const { handleVisionIfNeeded } = require('../meta/vision-router');
+      const v = await handleVisionIfNeeded(message, { userId: uid, sessionId: sid, personaId: persona?.id });
+      message = v.text || '[Imagem processada via visão]';
+      // If vision produced good description, we can store it for later tools
+    } catch (e) {
+      message = '[O usuário enviou uma imagem, mas não foi possível processar no momento. Descreva o que você quer que eu faça.]';
+    }
+  }
+
   const numVerses = persona?.id ? (parseInt(await getSetting('search_verses_count', '8')) || 8) : 2;
   const personaSources = persona && persona.knowledgeSources && persona.knowledgeSources.length > 0
     ? persona.knowledgeSources
@@ -477,6 +496,10 @@ Loja: ${storeName || 'nossa loja'} | Moeda: ${currency}`;
     } catch (err) { /* commerce context optional */ }
 
     let systemPrompt = buildSystemPrompt(persona, lang, contextStr, memoryStr, profileStr, displayName, isGroup, persona.knowledgeSources, businessStr);
+    if (source === 'pet') {
+      systemPrompt += '\n\n[REGRA DE COMPANION PET]: Você está falando através de um mini-widget Companion Pet flutuante na área de trabalho do usuário. Suas respostas devem ser de tamanho médio, DIRETAS e CONCISAS (máximo de 3 a 5 frases curtas, até 500-600 caracteres). Evite explicações excessivamente longas e listas gigantes no chat.' +
+                      '\n[REGRA DE HABILIDADES/APRESENTAÇÃO]: Se o usuário perguntar quem é você, o que você faz, ou quais são suas habilidades/como pode ajudar, você DEVE listar primeiro as ferramentas práticas e administrativas de assistente (como gerenciar tarefas, compromissos na agenda, contatos/CRM, metas, automações ou executar skills personalizadas) de forma muito direta e concisa. DEIXE qualquer saudação espiritual, teológica ou identificação profunda da persona (como Jesus de Nazaré) resumida em pouquíssimas palavras DE FORMA CALOROSA APENAS NO ENCERRAMENTO (no final da mensagem). Foco na utilidade prática primeiro!';
+    }
     if (extraContext) {
       systemPrompt += '\n\n' + extraContext;
     }
@@ -557,6 +580,91 @@ Loja: ${storeName || 'nossa loja'} | Moeda: ${currency}`;
     } catch (err) {
       console.error('[ChatEngine] Planner error:', err.message);
     }
+  }
+
+  // ============================================================
+  // META-PERSONA: NATURAL LANGUAGE INTENT + COGNITIVE ENGINE
+  // ============================================================
+  if (isMetaPersona) {
+    try {
+      // 1. First, try to understand natural language intent (no '/' needed)
+      const intent = await detectCommandIntent(message);
+
+      if (intent.command && intent.confidence >= 0.72) {
+        console.log(`[MetaBrain] Natural intent detected: ${intent.command} (confidence: ${intent.confidence})`);
+
+        // Execute the exact same command logic that the / system uses
+        const cmdResult = await handleChatCommand(`${intent.command} ${intent.args}`.trim(), uid, source || 'web', sid, personaId);
+
+        if (typeof cmdResult === 'string') {
+          fullResponse = cmdResult;
+        } else if (cmdResult && cmdResult.response) {
+          fullResponse = cmdResult.response;
+        } else {
+          fullResponse = `Comando ${intent.command} executado.`;
+        }
+
+        // Skip the heavy cognitive path — we handled it directly via natural language
+        // Still log it nicely for the cockpit
+        console.log(`[MetaBrain] Executed via natural intent: ${intent.command}`);
+      } else {
+        // 2. No strong command intent → use the full 3 brains + Synapse cognitive engine
+        const metaResult = await metaCognitiveEngine.thinkAsMeta({
+          message,
+          sessionId: sid,
+          userId: uid,
+          persona,
+          lang,
+          extraContext: `Persona: ${persona.name}. Contexto de sistema disponível.`
+        });
+
+        fullResponse = metaResult.response || 'Processamento cognitivo concluído sem resposta textual.';
+
+        console.log(`[MetaBrain] Mode: ${metaResult.mode} | Reasoning: ${metaResult.reasoning || 'N/A'}`);
+
+        if (metaResult.trace || metaResult.automationExecuted) {
+          thoughtsModule.logThought?.({
+            session_id: sid,
+            user_id: uid,
+            persona_id: persona.id,
+            message_input: message.substring(0, 500),
+            message_output: fullResponse.substring(0, 500),
+            tools_used: ['cognitive_engine', 'conclave', 'synapse', ...(metaResult.automationExecuted ? metaResult.automationExecuted.map(a => a.type) : [])],
+            context_injected: { synapse: true, conclave: metaResult.mode === 'deep' },
+            reasoning: metaResult.reasoning,
+            decision: metaResult.mode,
+            response_time_ms: 0
+          }).catch(() => {});
+        }
+      }
+    } catch (metaErr) {
+      console.error('[MetaBrain] Intent + Cognitive engine error, falling back to normal path:', metaErr.message);
+      // fallthrough to normal tool loop
+    }
+  }
+
+  // Short-circuit for Meta-Persona: if cognitive engine or natural intent already produced a response, return immediately (no double LLM calls)
+  if (isMetaPersona && fullResponse && fullResponse.length > 5) {
+    // Still run light automation check if needed, but skip heavy tool loop
+    try {
+      const triggered = await agentModule.checkAndRunAutomations(sid, uid, message);
+      if (triggered.length > 0) {
+        const msgAuto = triggered.find(t => t.action_type === 'message' && t.result?.sent);
+        if (msgAuto) fullResponse = msgAuto.result.message;
+      }
+    } catch {}
+    const metaResultObj = {
+      response: fullResponse,
+      sessionId: sid,
+      sources: [],
+      language: lang,
+      personaId: persona.id,
+      personaName: persona.name,
+      ttsVoice: persona.ttsVoice,
+      ttsLang: persona.ttsLang,
+      cognitive: true
+    };
+    return metaResultObj;
   }
 
   while (toolRounds < MAX_TOOL_ROUNDS) {

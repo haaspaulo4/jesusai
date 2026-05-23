@@ -540,7 +540,7 @@ async function generateEdgeTTSBuffer(text, options = {}) {
     ];
 
     const { stderr } = await execFileAsync('edge-tts', args, {
-      timeout: 8000,
+      timeout: 30000,
       maxBuffer: 10 * 1024 * 1024,
     });
 
@@ -578,7 +578,7 @@ async function generateMultivozesBuffer(text, options = {}) {
   const voiceName = openaiVoice ? openaiVoice[0] : 'alloy';
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const timeoutId = setTimeout(() => controller.abort(), 30000);
   let response;
   try {
     response = await fetch(`${MULTIVOZES_URL}/v1/audio/speech`, {
@@ -626,7 +626,7 @@ async function generateKokoroBuffer(text, options = {}) {
   const speed = options.speed || 1.0;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), 5000);
+  const timeoutId = setTimeout(() => controller.abort(), 60000);
   let response;
   try {
     response = await fetch(`${KOKORO_URL}/v1/audio/speech`, {
@@ -661,6 +661,85 @@ async function generateKokoroBuffer(text, options = {}) {
   return Buffer.from(arrayBuffer);
 }
 
+function mergeWavBuffers(buffers) {
+  if (!buffers || buffers.length === 0) return null;
+  if (buffers.length === 1) return buffers[0];
+
+  const firstBuf = buffers[0];
+  if (firstBuf.length < 44 || firstBuf.toString('ascii', 0, 4) !== 'RIFF' || firstBuf.toString('ascii', 8, 12) !== 'WAVE') {
+    return Buffer.concat(buffers);
+  }
+
+  // Find the 'data' chunk in the first buffer
+  let dataOffset = -1;
+  for (let i = 12; i < firstBuf.length - 8; i++) {
+    if (firstBuf.toString('ascii', i, i + 4) === 'data') {
+      dataOffset = i;
+      break;
+    }
+  }
+
+  if (dataOffset === -1) {
+    dataOffset = 44;
+  } else {
+    dataOffset += 8; // Skip 'data' (4 bytes) and ChunkSize (4 bytes)
+  }
+
+  // Calculate total PCM data size
+  let totalPCMSize = firstBuf.length - dataOffset;
+  
+  // For subsequent buffers, search for the 'data' chunk offset
+  const subsequentOffsets = [];
+  for (let i = 1; i < buffers.length; i++) {
+    const buf = buffers[i];
+    let offset = -1;
+    for (let j = 12; j < buf.length - 8; j++) {
+      if (buf.toString('ascii', j, j + 4) === 'data') {
+        offset = j;
+        break;
+      }
+    }
+    if (offset === -1) {
+      offset = 44;
+    } else {
+      offset += 8;
+    }
+    subsequentOffsets.push(offset);
+    if (buf.length > offset) {
+      totalPCMSize += (buf.length - offset);
+    }
+  }
+
+  // Create merged buffer
+  const merged = Buffer.alloc(dataOffset + totalPCMSize);
+
+  // Copy header from first buffer
+  firstBuf.copy(merged, 0, 0, dataOffset);
+
+  // Copy PCM data from first buffer
+  let writeOffset = dataOffset;
+  firstBuf.copy(merged, writeOffset, dataOffset);
+  writeOffset += (firstBuf.length - dataOffset);
+
+  // Copy PCM data from subsequent buffers
+  for (let i = 1; i < buffers.length; i++) {
+    const buf = buffers[i];
+    const readOffset = subsequentOffsets[i - 1];
+    if (buf.length > readOffset) {
+      buf.copy(merged, writeOffset, readOffset);
+      writeOffset += (buf.length - readOffset);
+    }
+  }
+
+  // Update total file size (bytes 4-7): total size - 8 bytes
+  merged.writeUInt32LE(dataOffset + totalPCMSize - 8, 4);
+
+  // Update data subchunk size (bytes dataOffset-4 to dataOffset-1): totalPCMSize
+  merged.writeUInt32LE(totalPCMSize, dataOffset - 4);
+
+  return merged;
+}
+
 async function generateAudioBuffer(text, options = {}) {
   const lang = options.lang || 'pt-BR';
   const ttsLang = SUPPORTED_TTS_LANGS.includes(lang) ? lang : 'pt-BR';
@@ -677,7 +756,7 @@ async function generateAudioBuffer(text, options = {}) {
     contentType = 'audio/mp3';
   }
 
-  const maxChunk = MAX_EDGE_TTS_CHUNK;
+  const maxChunk = engine === 'kokoro' ? MAX_KOKORO_CHUNK : MAX_EDGE_TTS_CHUNK;
 
   if (cleanText.length <= maxChunk) {
     try {
@@ -764,8 +843,14 @@ async function generateAudioBuffer(text, options = {}) {
     return result;
   }
 
-  const result = Buffer.concat(buffers);
-  result.contentType = fellBack ? 'audio/mp3' : contentType;
+  const finalContentType = fellBack ? 'audio/mp3' : contentType;
+  let result;
+  if (finalContentType === 'audio/wav') {
+    result = mergeWavBuffers(buffers);
+  } else {
+    result = Buffer.concat(buffers);
+  }
+  result.contentType = finalContentType;
   return result;
 }
 

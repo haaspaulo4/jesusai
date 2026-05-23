@@ -8,22 +8,47 @@ const integrations = require('../llm/integrationManager');
  * @param {Array<string>} agents Lista de agentes (Ex: ['Analyst', 'Dev', 'QA'])
  * @returns {Promise<Object>} Resultado consolidado das análises
  */
-async function invokeConclave(task, agents = ['Analyst', 'Dev', 'QA']) {
+async function invokeConclave(task, agents = ['Analyst', 'Dev', 'QA'], options = {}) {
+  const { synapseContext = null, extraInstructions = '' } = options;
+
   console.log(`[Conclave] ⚖️ Iniciando conclave de agentes para a tarefa: "${task.substring(0, 80)}..."`);
-  
-  // Definição estática dos papéis cognitivos
+
+  // Rich context injection from Synapse (L0-L7)
+  let contextBlock = '';
+  if (synapseContext) {
+    if (typeof synapseContext === 'string') {
+      contextBlock = `\n\n=== CONTEXTO ESTRUTURADO DO SISTEMA (SYNAPSE) ===\n${synapseContext}\n`;
+    } else if (typeof synapseContext === 'object') {
+      contextBlock = `\n\n=== CONTEXTO ESTRUTURADO DO SISTEMA (SYNAPSE LAYERS) ===\n`;
+      if (synapseContext.l0) contextBlock += `\n[L0 - Constitution]\n${JSON.stringify(synapseContext.l0)}\n`;
+      if (synapseContext.l1) contextBlock += `\n[L1 - Global Context]\n${JSON.stringify(synapseContext.l1)}\n`;
+      if (synapseContext.l2) contextBlock += `\n[L2 - Agent Memory]\n${JSON.stringify(synapseContext.l2)}\n`;
+      if (synapseContext.currentState) contextBlock += `\n[Current System State]\n${JSON.stringify(synapseContext.currentState)}\n`;
+      if (synapseContext.relevantLayers) contextBlock += `\n[Relevant Layers for this task]\n${JSON.stringify(synapseContext.relevantLayers)}\n`;
+    }
+  }
+
+  const fullTask = `${task}${contextBlock}${extraInstructions ? '\n\n' + extraInstructions : ''}`;
+
+  // Definição estática dos papéis cognitivos (enriched with Meta authority)
   const rolePrompts = {
     Analyst: {
       roleName: 'Analyst (Analista de Sistemas & Negócios)',
-      system: 'Você é um Analista de Sistemas & Negócios extremamente minucioso e sênior. Sua especialidade é destrinchar requisitos, arquitetura de sistemas, dependências, potenciais impactos colaterais e viabilidade de implementação. Analise a tarefa fornecida pelo usuário, aponte os pré-requisitos, estruture os fluxos de dados lógicos e forneça um plano analítico de alta performance.'
+      system: `Você é um Analista de Sistemas & Negócios extremamente minucioso e sênior. Sua especialidade é destrinchar requisitos, arquitetura de sistemas, dependências, potenciais impactos colaterais e viabilidade de implementação. Analise a tarefa, aponte os pré-requisitos, estruture os fluxos e forneça um plano analítico de alta performance.
+
+Você tem acesso ao contexto Synapse completo do sistema (L0 Constituição até L7 Star Commands). Use-o para tomar decisões alinhadas com a identidade, regras e estado atual do sistema.`
     },
     Dev: {
       roleName: 'Dev (Engenheiro de Software & Automações)',
-      system: 'Você é um Engenheiro de Software Fullstack & Specialist em Automações Windows/Linux. Sua especialidade é fornecer algoritmos elegantes, códigos-fonte robustos, scripts de integração e caminhos físicos perfeitos. Proponha a implementação técnica detalhada em código para a tarefa fornecida pelo usuário.'
+      system: `Você é um Engenheiro de Software Fullstack & Specialist em Automações Windows/Linux. Sua especialidade é fornecer algoritmos elegantes, códigos-fonte robustos, scripts de integração e caminhos físicos perfeitos. Proponha a implementação técnica detalhada em código.
+
+Use o contexto Synapse para entender o estado atual do sistema, automações existentes, e propor soluções que se integrem perfeitamente ao ecossistema.`
     },
     QA: {
       roleName: 'QA & Security Auditor (Garantia de Qualidade & Auditor de Segurança)',
-      system: 'Você é um Analista de QA, Auditor de Segurança e Defensor de Confiabilidade de Sistemas (SRE). Sua especialidade é caçar bugs, prever falhas em ambientes de produção (VPS Linux, Windows), casos de borda críticos que quebram o código do Desenvolvedor e propor correções preventivas (patches) para garantir segurança e robustez absoluta.'
+      system: `Você é um Analista de QA, Auditor de Segurança e Defensor de Confiabilidade de Sistemas (SRE). Sua especialidade é caçar bugs, prever falhas em produção, casos de borda críticos e propor correções preventivas.
+
+Use o contexto Synapse para validar contra as regras de constituição (L0), estado atual e possíveis riscos de segurança/estabilidade.`
     }
   };
 
@@ -34,7 +59,7 @@ async function invokeConclave(task, agents = ['Analyst', 'Dev', 'QA']) {
     try {
       const messages = [
         { role: 'system', content: roleDef.system },
-        { role: 'user', content: `Analise a seguinte tarefa e entregue o seu parecer especializado:\n\nTAREFA:\n${task}` }
+        { role: 'user', content: `Analise a seguinte tarefa e entregue o seu parecer especializado:\n\nTAREFA:\n${fullTask}` }
       ];
 
       console.log(`[Conclave] ⚙️ Despachando agente em paralelo: ${roleDef.roleName}...`);
@@ -66,7 +91,7 @@ async function invokeConclave(task, agents = ['Analyst', 'Dev', 'QA']) {
     },
     { 
       role: 'user', 
-      content: `Tarefa Original:\n${task}\n\nPareceres dos Agentes Especialistas:\n\n${successfulOpinions.map(o => `### AGENTE: ${o.roleName}\n\n${o.opinion}`).join('\n\n')}\n\nConsolide estes pareceres em uma recomendação tática corporativa soberana e infalível.` 
+      content: `Tarefa Original:\n${task}\n\nCONTEXTO SYNAPSE FORNECIDO AOS AGENTES:\n${contextBlock || 'Nenhum contexto estruturado adicional.'}\n\nPareceres dos Agentes Especialistas:\n\n${successfulOpinions.map(o => `### AGENTE: ${o.roleName}\n\n${o.opinion}`).join('\n\n')}\n\nConsolide estes pareceres em uma recomendação tática corporativa soberana e infalível, respeitando o contexto do sistema.` 
     }
   ];
 
@@ -84,7 +109,9 @@ async function invokeConclave(task, agents = ['Analyst', 'Dev', 'QA']) {
     success: true,
     task,
     opinions: results,
-    decision
+    decision,
+    synapseContextUsed: !!synapseContext,
+    contextSummary: synapseContext ? (typeof synapseContext === 'object' ? Object.keys(synapseContext) : 'string context') : null
   };
 }
 

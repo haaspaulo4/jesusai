@@ -562,6 +562,8 @@ async function seedDefaultBlueprints(bm) {
         tts_lang: 'p',
         priority: 0,
       });
+      console.log(`JesusAI Backend - Version 1.0 - Port ${PORT}`);
+      console.log('Servidor iniciado com sucesso após correções!');
       console.log('  Meta-persona registered');
     }
 

@@ -79,7 +79,7 @@ function createWindow() {
   });
 }
 
-// Auto-generate preload.js
+// Auto-generate preload.js if content changed (prevents watch/reload loops)
 const preloadContent = `
 const { contextBridge, ipcRenderer } = require('electron');
 contextBridge.exposeInMainWorld('jarvis', {
@@ -94,7 +94,10 @@ contextBridge.exposeInMainWorld('jarvis', {
   toggleChat: (isOpen) => ipcRenderer.send('toggle-chat', isOpen),
 });
 `;
-fs.writeFileSync(path.join(__dirname, 'preload.js'), preloadContent, 'utf-8');
+const preloadPath = path.join(__dirname, 'preload.js');
+if (!fs.existsSync(preloadPath) || fs.readFileSync(preloadPath, 'utf-8') !== preloadContent) {
+  fs.writeFileSync(preloadPath, preloadContent, 'utf-8');
+}
 
 let clampShift = { x: 0, y: 0 };
 
@@ -161,6 +164,7 @@ ipcMain.on('drag-start', (e, screenX, screenY) => {
   if (!mainWindow) return;
   const [winX, winY] = mainWindow.getPosition();
   dragOffset = { x: screenX - winX, y: screenY - winY };
+  clampShift = { x: 0, y: 0 }; // Reset shift to prevent jumping on close
 });
 
 ipcMain.on('drag-move', (e, screenX, screenY) => {

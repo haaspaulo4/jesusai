@@ -351,7 +351,7 @@ async function generateQuizFromPersona(personaId, topic, questionCount = 5) {
   const persona = await personaManager.getPersona(personaId);
   if (!persona) throw new Error('Persona not found');
 
-  const { callLLM } = require('../llm/integrationManager');
+  const integrationManager = require('../llm/integrationManager');
   const prompt = `You are a quiz generator for the persona "${persona.name}". Create a quiz about "${topic}" with ${questionCount} questions.
   
 Each question must be a JSON object with:
@@ -365,7 +365,7 @@ Each question must be a JSON object with:
 
 Return ONLY a JSON array of questions, no markdown, no explanation outside the JSON.`;
 
-  const response = await callLLM(prompt, { temperature: 0.8 });
+  const response = await integrationManager.callLLM(prompt, { temperature: 0.8 });
   let questions;
   try {
     const cleaned = response.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();

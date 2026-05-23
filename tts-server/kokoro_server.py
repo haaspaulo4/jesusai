@@ -3,7 +3,7 @@ import io
 import time
 import argparse
 import numpy as np
-import soundfile as sf
+import struct
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -86,21 +86,45 @@ def resolve_lang_code(lang, language_str=''):
 
 
 def audio_to_wav_fast(audio_data, sample_rate=24000):
-    buf = io.BytesIO()
-    sf.write(buf, audio_data, sample_rate, format='WAV', subtype='PCM_16')
-    buf.seek(0)
-    return buf.read()
+    audio_data = np.asarray(audio_data, dtype=np.float32)
+    audio_data = np.clip(audio_data, -1.0, 1.0)
+    pcm_data = (audio_data * 32767.0).astype(np.int16)
+    
+    num_channels = 1
+    bits_per_sample = 16
+    byte_rate = sample_rate * num_channels * (bits_per_sample // 8)
+    block_align = num_channels * (bits_per_sample // 8)
+    data_bytes = pcm_data.tobytes()
+    data_len = len(data_bytes)
+    
+    header = struct.pack(
+        '<4sI4s4sIHHIIHH4sI',
+        b'RIFF',
+        36 + data_len,
+        b'WAVE',
+        b'fmt ',
+        16,
+        1,
+        num_channels,
+        sample_rate,
+        byte_rate,
+        block_align,
+        bits_per_sample,
+        b'data',
+        data_len
+    )
+    return header + data_bytes
 
 
 def audio_to_mp3_fast(audio_data, sample_rate=24000):
-    buf = io.BytesIO()
-    sf.write(buf, audio_data, sample_rate, format='MP3')
-    buf.seek(0)
-    return buf.read()
+    raise HTTPException(
+        status_code=500,
+        detail="MP3 format is not supported without 'soundfile' library. Please request 'wav' format."
+    )
 
 
 @app.post('/v1/audio/speech')
-async def synthesize(req: TTSRequest):
+def synthesize(req: TTSRequest):
     if not req.input or not req.input.strip():
         raise HTTPException(status_code=400, detail='input is required')
 
