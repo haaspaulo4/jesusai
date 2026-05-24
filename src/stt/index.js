@@ -245,6 +245,23 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
     return null;
   }
 
+  // Pre-process: normalize audio to WAV 16kHz mono for better Whisper accuracy
+  let processedBuffer = audioBuffer;
+  try {
+    const { normalizeAudio, isFfmpegAvailable } = require('../media/ffmpeg');
+    const ffmpegOk = await isFfmpegAvailable();
+    if (ffmpegOk) {
+      const ext = (filename.split('.').pop() || 'ogg').toLowerCase();
+      const supportedExts = ['wav', 'mp3', 'ogg', 'opus', 'flac', 'm4a', 'webm', 'mp4', 'mpeg', 'mpga'];
+      if (supportedExts.includes(ext)) {
+        processedBuffer = await normalizeAudio(audioBuffer, ext, { sampleRate: 16000, channels: 1, format: 'wav' });
+        filename = 'audio.wav';
+      }
+    }
+  } catch (err) {
+    console.warn('[STT] Audio normalization failed, using original:', err.message);
+  }
+
   filename = sanitizeFilename(filename);
   const lang = normalizeLang(language);
 
@@ -256,7 +273,7 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
 
   const integrations = require('../llm/integrationManager');
   try {
-    const text = await integrations.callSTT(audioBuffer, filename, language);
+    const text = await integrations.callSTT(processedBuffer, filename, language);
     if (text) return postProcessTranscript(text, lang);
   } catch (err) {
     console.error('[STT] IntegrationManager STT failed:', err.message);
@@ -264,7 +281,7 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
 
   if (WHISPER_CPP_PATH && WHISPER_MODEL_PATH) {
     try {
-      const text = await transcribeWithWhisperCpp(audioBuffer, filename, language);
+      const text = await transcribeWithWhisperCpp(processedBuffer, filename, language);
       if (text) {
         console.log('[STT] whisper.cpp transcription successful');
         return postProcessTranscript(text, lang);
@@ -277,7 +294,7 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
   const localUrl = WHISPER_SERVER_URL || LOCAL_WHISPER_URL;
   if (localUrl) {
     try {
-      const text = await transcribeWithLocalWhisperServer(audioBuffer, filename, language);
+      const text = await transcribeWithLocalWhisperServer(processedBuffer, filename, language);
       if (text) {
         console.log('[STT] Local Whisper server transcription successful');
         return postProcessTranscript(text, lang);
@@ -289,7 +306,7 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
 
   if (process.env.GROQ_API_KEY) {
     try {
-      const text = await transcribeWithGroq(audioBuffer, filename, language);
+      const text = await transcribeWithGroq(processedBuffer, filename, language);
       if (text) return postProcessTranscript(text, lang);
     } catch (err) {
       console.error('[STT] Groq failed:', err.message);
@@ -298,7 +315,7 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
 
   if (process.env.OPENAI_API_KEY) {
     try {
-      const text = await transcribeWithOpenAI(audioBuffer, filename, language);
+      const text = await transcribeWithOpenAI(processedBuffer, filename, language);
       if (text) return postProcessTranscript(text, lang);
     } catch (err) {
       console.error('[STT] OpenAI failed:', err.message);

@@ -846,9 +846,29 @@ async function generateAudioBuffer(text, options = {}) {
   const finalContentType = fellBack ? 'audio/mp3' : contentType;
   let result;
   if (finalContentType === 'audio/wav') {
-    result = mergeWavBuffers(buffers);
+    try {
+      const { concatAudio } = require('../media/ffmpeg');
+      const concatenated = await concatAudio(buffers, 'wav', 'wav');
+      if (concatenated && concatenated.length > 0) {
+        result = concatenated;
+      } else {
+        result = mergeWavBuffers(buffers);
+      }
+    } catch {
+      result = mergeWavBuffers(buffers);
+    }
   } else {
-    result = Buffer.concat(buffers);
+    try {
+      const { concatAudio } = require('../media/ffmpeg');
+      const concatenated = await concatAudio(buffers, 'mp3', 'mp3');
+      if (concatenated && concatenated.length > 0) {
+        result = concatenated;
+      } else {
+        result = Buffer.concat(buffers);
+      }
+    } catch {
+      result = Buffer.concat(buffers);
+    }
   }
   result.contentType = finalContentType;
   return result;

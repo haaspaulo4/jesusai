@@ -37,30 +37,12 @@ const { execFile } = require('child_process');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
+const { convertToOggOpus } = require('../media/ffmpeg');
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY;
 const CHAT_MODEL = process.env.CHAT_MODEL || 'glm-5.1';
 const TELEGRAM_AUDIO = process.env.TELEGRAM_AUDIO !== 'false';
-
-async function convertToOggOpus(wavBuffer) {
-  const tmpDir = os.tmpdir();
-  const wavPath = path.join(tmpDir, `tg_tts_${Date.now()}.wav`);
-  const oggPath = path.join(tmpDir, `tg_tts_${Date.now()}.ogg`);
-  try {
-    fs.writeFileSync(wavPath, wavBuffer);
-    await new Promise((resolve, reject) => {
-      execFile('ffmpeg', ['-y', '-i', wavPath, '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', oggPath], { timeout: 15000 }, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-    return fs.readFileSync(oggPath);
-  } finally {
-    try { fs.unlinkSync(wavPath); } catch {}
-    try { fs.unlinkSync(oggPath); } catch {}
-  }
-}
 
 function escapeMarkdown(text) {
   if (!text) return '';

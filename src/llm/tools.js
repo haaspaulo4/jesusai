@@ -1238,6 +1238,74 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'convert_audio',
+      description: 'Convert audio between formats (wav, mp3, ogg, flac, m4a). Uses ffmpeg for high-quality transcoding.',
+      parameters: {
+        type: 'object',
+        properties: {
+          input_path: { type: 'string', description: 'Path to the input audio file in the workspace' },
+          output_format: { type: 'string', enum: ['wav', 'mp3', 'ogg', 'flac', 'm4a'], description: 'Target format (default: ogg)' },
+          bitrate: { type: 'string', description: 'Audio bitrate (e.g. "48k", "128k", "192k", default: "48k" for ogg, "128k" for mp3)' },
+          sample_rate: { type: 'integer', description: 'Sample rate in Hz (e.g. 16000, 22050, 44100, 48000)' },
+          workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+        },
+        required: ['input_path', 'output_format'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'merge_audio',
+      description: 'Concatenate multiple audio files into one. Supports mixing WAV, MP3, OGG files into a single output.',
+      parameters: {
+        type: 'object',
+        properties: {
+          input_paths: { type: 'array', items: { type: 'string' }, description: 'Array of file paths to concatenate (in order)' },
+          output_format: { type: 'string', enum: ['wav', 'mp3', 'ogg', 'flac'], description: 'Output format (default: ogg)' },
+          workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+        },
+        required: ['input_paths', 'output_format'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'trim_audio',
+      description: 'Trim audio to a specific time range. Extract a segment from an audio file by start time and duration.',
+      parameters: {
+        type: 'object',
+        properties: {
+          input_path: { type: 'string', description: 'Path to the audio file in the workspace' },
+          start_time: { type: 'number', description: 'Start time in seconds (default: 0)' },
+          duration: { type: 'number', description: 'Duration in seconds to extract' },
+          output_format: { type: 'string', enum: ['wav', 'mp3', 'ogg'], description: 'Output format (default: ogg)' },
+          workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+        },
+        required: ['input_path', 'start_time', 'duration'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'extract_audio',
+      description: 'Extract audio track from a video file (MP4, AVI, MKV, etc). Outputs as MP3, WAV, or OGG.',
+      parameters: {
+        type: 'object',
+        properties: {
+          input_path: { type: 'string', description: 'Path to the video file in the workspace' },
+          output_format: { type: 'string', enum: ['mp3', 'wav', 'ogg'], description: 'Output audio format (default: mp3)' },
+          workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+        },
+        required: ['input_path'],
+      },
+    },
+  },
 ];
 
 async function executeTool(name, args, context = {}) {
@@ -2658,8 +2726,10 @@ async function executeTool(name, args, context = {}) {
 
     // ─── Web Search & Fetch ─────────────────────────────────────────────────
     case 'web_search': {
-      const { executeTool: execTool } = require('../tools');
-      const result = await execTool('web_search', {
+      const { getTool: getRegTool, executeTool: regExec } = require('../tools/registry');
+      const tool = getRegTool('web_search');
+      if (!tool) return { error: 'web_search tool not available' };
+      const result = await tool.execute({
         query: args.query,
         language: args.language || context.lang || 'pt-BR',
         num_results: args.num_results || 10,
@@ -2668,8 +2738,10 @@ async function executeTool(name, args, context = {}) {
     }
 
     case 'web_fetch': {
-      const { executeTool: execTool } = require('../tools');
-      const result = await execTool('web_fetch', {
+      const { getTool: getRegTool2 } = require('../tools/registry');
+      const tool2 = getRegTool2('web_fetch');
+      if (!tool2) return { error: 'web_fetch tool not available' };
+      const result = await tool2.execute({
         url: args.url,
         max_length: args.max_length || 8000,
       });
@@ -2917,6 +2989,95 @@ async function executeTool(name, args, context = {}) {
           return { success: true, agent_id: `agent_${Date.now()}`, task: args.task, agent_type: args.agent_type || 'general', priority: args.priority || 'medium', message: 'Subagent task created (no DB table, using memory track).' };
         }
         return { error: `Erro ao spawnar subagente: ${err.message}` };
+      }
+    }
+
+    // ─── Audio/Media Tools ────────────────────────────────────────────────────
+    case 'convert_audio': {
+      try {
+        const { convertAudio, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'wav').toLowerCase();
+        const outputFormat = args.output_format || 'ogg';
+        const options = {};
+        if (args.bitrate) options.bitrate = args.bitrate;
+        if (args.sample_rate) options.sampleRate = parseInt(args.sample_rate);
+        const outputBuffer = await convertAudio(fileResult.content, outputFormat, { inputFormat, ...options });
+        const outputPath = args.input_path.replace(/\.[^.]+$/, '.' + outputFormat);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, format: outputFormat, size: outputBuffer.length };
+      } catch (err) {
+        return { error: `Erro ao converter áudio: ${err.message}` };
+      }
+    }
+
+    case 'merge_audio': {
+      try {
+        const { concatAudio, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        if (!args.input_paths || args.input_paths.length < 2) return { error: 'Pelo menos 2 arquivos são necessários.' };
+        const wsManager = require('../tools/workspace-manager');
+        const buffers = [];
+        let inputFormat = 'wav';
+        for (const p of args.input_paths) {
+          const fileResult = await wsManager.readFile(args.workspace_id || 'default', p);
+          if (!fileResult.success) return { error: `Arquivo não encontrado: ${p}` };
+          inputFormat = (p.split('.').pop() || 'wav').toLowerCase();
+          buffers.push(fileResult.content);
+        }
+        const outputFormat = args.output_format || 'ogg';
+        const outputBuffer = await concatAudio(buffers, inputFormat, outputFormat);
+        if (!outputBuffer) return { error: 'Erro ao concatenar áudios.' };
+        const outputPath = `merged_${Date.now()}.${outputFormat}`;
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, output: outputPath, format: outputFormat, size: outputBuffer.length, inputs: args.input_paths.length };
+      } catch (err) {
+        return { error: `Erro ao mesclar áudios: ${err.message}` };
+      }
+    }
+
+    case 'trim_audio': {
+      try {
+        const { trimAudio, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'wav').toLowerCase();
+        const outputFormat = args.output_format || 'ogg';
+        const startTime = parseFloat(args.start_time) || 0;
+        const duration = parseFloat(args.duration) || 30;
+        const outputBuffer = await trimAudio(fileResult.content, startTime, duration, inputFormat, outputFormat);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, `_trim.${outputFormat}`);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, start_time: startTime, duration, format: outputFormat, size: outputBuffer.length };
+      } catch (err) {
+        return { error: `Erro ao cortar áudio: ${err.message}` };
+      }
+    }
+
+    case 'extract_audio': {
+      try {
+        const { extractAudio, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'mp4').toLowerCase();
+        const outputFormat = args.output_format || 'mp3';
+        const outputBuffer = await extractAudio(fileResult.content, inputFormat, outputFormat);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, '.' + outputFormat);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, format: outputFormat, size: outputBuffer.length };
+      } catch (err) {
+        return { error: `Erro ao extrair áudio: ${err.message}` };
       }
     }
 
