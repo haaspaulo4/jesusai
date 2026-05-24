@@ -155,6 +155,8 @@ function makeTelegramHandler(options = {}) {
         personaId: instancePersonaId || undefined,
       });
 
+      console.log(`[TG:${botName}] processMessage result: response=${(result.response || '').substring(0, 80)}, ttsVoice=${result.ttsVoice}, ttsLang=${result.ttsLang}, TELEGRAM_AUDIO=${TELEGRAM_AUDIO}`);
+
       let reply = result.response;
 
       if (isGroup && userName) {
