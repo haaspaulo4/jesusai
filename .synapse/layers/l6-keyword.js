@@ -28,7 +28,7 @@ const LayerProcessor = require('./layer-processor');
  */
 class L6KeywordProcessor extends LayerProcessor {
   constructor() {
-    super({ name: 'keyword', layer: 6, timeout: 15 });
+    super({ name: 'keyword', layer: 6, timeout: 30 });
   }
 
   /**

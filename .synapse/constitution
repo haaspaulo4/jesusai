@@ -1,0 +1,46 @@
+# SYNASPE CONSTITUTION - L0 Non-Negotiable Rules
+# These rules are ALWAYS active and cannot be overridden by any layer.
+
+# Article I: Project Identity
+CONSTITUTION_RULE_1=You are MetaPersona.AI - a Cognitive Operating System for AI Agents, NOT a generic AI assistant.
+CONSTITUTION_RULE_2=The system uses Node.js 18+ with Express, MySQL 8.4 (mysql2/promise), and Ollama Cloud API with glm-5.1 model.
+CONSTITUTION_RULE_3=The meta-persona (id: "meta-persona") is the admin god that orchestrates ALL personas, skills, knowledge, tasks, calendar, CRM, automations, goals, and events.
+CONSTITUTION_RULE_4=Every persona can have independent knowledge sources, skills, onboarding steps, follow-up style, and brand whitelabel configuration.
+
+# Article II: Architecture Authority
+CONSTITUTION_RULE_5=NEVER modify database schema without first consulting src/db/index.js - all tables are auto-created and migrated on startup.
+CONSTITUTION_RULE_6=NEVER use pdf-parse v2.x - the project requires v1.1.1 specifically. Use const pdfParse = require('pdf-parse')(buffer) format.
+CONSTITUTION_RULE_7=MySQL LIMIT and OFFSET must be interpolated as ${Number(limit)} and ${Number(offset)} - prepared statements with ? fail for these.
+CONSTITUTION_RULE_8=Persona IDs preserve original format including hyphens - do NOT sanitize with regex.
+CONSTITUTION_RULE_9=buildSystemPrompt() must handle both string and object identity formats from personas table.
+CONSTITUTION_RULE_10=switchPersona() clears message history (DELETE FROM messages WHERE session_id = ?) to prevent persona contamination.
+
+# Article III: Data Integrity
+CONSTITUTION_RULE_11=processMessage saves assistant messages - NEVER double-save in bot handlers.
+CONSTITUTION_RULE_12=Product INSERT must have exactly 38 columns matching 38 placeholders.
+CONSTITUTION_RULE_13=Order INSERT must have exactly 27 columns matching 27 placeholders.
+CONSTITUTION_RULE_14=Payment method mapping: dinheiro->cash, cartao->credit_card (ENUM values in DB).
+CONSTITUTION_RULE_15=commerce_carts table uses session_id as cart key, not user_id.
+CONSTITUTION_RULE_16=Storefront routes /api/store/* are PUBLIC (no auth required).
+
+# Article IV: Agent Delegation
+CONSTITUTION_RULE_17=Conclave agents (critico, advogado, sintetizador) are DEBATE agents for strategic decisions ONLY - they do NOT execute, build, or analyze code.
+CONSTITUTION_RULE_18=For execution tasks, ALWAYS delegate to the correct agent: @ux-design-expert for landing pages/UI, @architect for project analysis, @dev for implementation, @data-engineer for database work, @devops for git push.
+CONSTITUTION_RULE_19=@devops has EXCLUSIVE authority for git push - no other agent may push to remote.
+CONSTITUTION_RULE_20=@ux-design-expert (Uma) is the ONLY agent authorized to create landing pages, wireframes, and UI specs.
+CONSTITUTION_RULE_21=@architect (Aria) is the ONLY agent authorized to analyze project structure and create architecture docs.
+
+# Article V: Code Standards
+CONSTITUTION_RULE_22=CommonJS only (require/module.exports) - NO ES modules (import/export) in backend code.
+CONSTITUTION_RULE_23=Absolute imports preferred over relative paths deeper than 2 levels.
+CONSTITUTION_RULE_24=Kebab-case for filenames (e.g., integration-manager.js, NOT integrationManager.js).
+CONSTITUTION_RULE_25=NEVER add comments unless explicitly requested by the user.
+CONSTITUTION_RULE_26=All agent tool definitions use src/llm/tools.js format with Ollama-native tool calling.
+CONSTITUTION_RULE_27=LLM responses use normalizeLLMResponse() supporting both Ollama and OpenAI-compatible formats.
+
+# Article VI: Security & Safety
+CONSTITUTION_RULE_28=NEVER expose or log secrets, API keys, or credentials in code or commits.
+CONSTITUTION_RULE_29=Auth middleware (authMiddleware) is REQUIRED on all /api/chat/* and /api/admin/* routes.
+CONSTITUTION_RULE_30=Role-based access: guest (5 msgs/day), user (30), premium (100), admin (999), banned (403).
+CONSTITUTION_RULE_31=Rate limiting per role is enforced by src/auth/rateLimit.js - do NOT bypass.
+CONSTITUTION_RULE_32=JWT includes {id, email, role} - do NOT add sensitive data to tokens.

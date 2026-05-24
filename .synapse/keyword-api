@@ -1,0 +1,8 @@
+# SYNASPE KEYWORD: API - L6 Recall Rules
+KEYWORD_API_RULE_1=Public routes: /api/chat/*, /api/store/*, /api/auth/*, /api/blog/*, /api/chat/blueprints/* - no auth required.
+KEYWORD_API_RULE_2=Admin routes: /api/admin/* - requires auth + admin role via authMiddleware + roleMiddleware('admin').
+KEYWORD_API_RULE_3=Web chat REQUIRES auth (authMiddleware). No anonymous access.
+KEYWORD_API_RULE_4=Bot users (WhatsApp/Telegram) auto-created with wa_*/tg_* IDs via ensureUser().
+KEYWORD_API_RULE_5=Account linking: Web user generates 6-digit code (15min expiry) via POST /api/auth/link-code. Bot sends /vincular CODE.
+KEYWORD_API_RULE_6=Rate limits per role: guest 5/day, user 30/day, premium 100/day, admin 999/day. Banned gets 403 immediately.
+KEYWORD_API_RULE_7=JWT includes {id, email, role}. Do NOT add sensitive data to tokens.

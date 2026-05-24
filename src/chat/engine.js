@@ -302,6 +302,8 @@ async function processMessage({ message, sessionId, userId, language, isGroup, s
   }
 
   const persona = await getPersonaForContext(personaId, sid, uid);
+  const isMetaPersona = persona.id === 'meta-persona';
+  const isAdmin = await isUserAdmin(uid);
 
   // Vision routing: if there's an image, process it with vision tools first (never send raw image to text-only LLM)
   if (message && (typeof message === 'object' && (message.image || message.imageBase64 || message.file) || (typeof message === 'string' && /\.(png|jpg|jpeg|webp|gif)$/i.test(message)))) {
@@ -507,6 +509,20 @@ Loja: ${storeName || 'nossa loja'} | Moeda: ${currency}`;
     console.log(`[ChatEngine] persona=${persona.id}, sources=${personaSources ? personaSources.join(',') : (noKnowledgeSearch ? 'none' : 'bible')}, contextLen=${contextStr.length}, promptStart=${systemPrompt.substring(0, 120)}`);
 
     const toolsEnabled = await getSetting('tools_enabled', 'true') === 'true';
+
+    if (toolsEnabled) {
+      const langIsPt2 = !lang || lang === 'pt-BR';
+      systemPrompt += langIsPt2
+        ? '\n\nLANDING PAGES: Você pode criar landing pages (páginas de vendas/captura) usando a ferramenta create_landing_page. Quando o usuário pedir para criar uma página, landing page, homepage, página de vendas ou página de captura, use essa ferramenta. Parâmetros obrigatórios: title. Opcionais: subtitle, cta_text, cta_url, features (array com icon/title/description), testimonials, primary_color, secondary_color, accent_color, brand_name, brand_tagline, logo_url, include_pricing, pricing_plans, footer_text, filename, language, persona_id. Você também pode usar list_landing_pages para listar páginas já criadas.'
+        : '\n\nLANDING PAGES: You can create landing pages (sales/capture pages) using the create_landing_page tool. When the user asks to create a page, landing page, homepage, sales page or capture page, use this tool. Required params: title. Optional: subtitle, cta_text, cta_url, features (array with icon/title/description), testimonials, primary_color, secondary_color, accent_color, brand_name, brand_tagline, logo_url, include_pricing, pricing_plans, footer_text, filename, language, persona_id. You can also use list_landing_pages to list existing pages.';
+
+      if (isMetaPersona || isAdmin) {
+        systemPrompt += langIsPt2
+          ? '\n\nOPENCODE TASKS: Você pode delegar tarefas de código e desenvolvimento para o OpenCode usando a ferramenta execute_opencode_task. Isso permite criar arquivos, gerar código, editar configurações e executar tarefas complexas de desenvolvimento diretamente no workspace. Use quando: criar landing pages complexas, gerar código, editar arquivos, ou qualquer tarefa que exija acesso ao sistema de arquivos. Parâmetros: task (descrição detalhada), working_dir (opcional), timeout_seconds (opcional, default 120).'
+          : '\n\nOPENCODE TASKS: You can delegate code and development tasks to OpenCode using the execute_opencode_task tool. This allows creating files, generating code, editing configs, and executing complex development tasks directly in the workspace. Use when: creating complex landing pages, generating code, editing files, or any task requiring filesystem access. Parameters: task (detailed description), working_dir (optional), timeout_seconds (optional, default 120).';
+      }
+    }
+
     const historyLimit = Math.min(parseInt(await getSetting('history_limit', '10')) || 10, 50);
     const history = await getHistoryForLLM(sid, historyLimit);
 
@@ -564,8 +580,6 @@ Loja: ${storeName || 'nossa loja'} | Moeda: ${currency}`;
   const temperature = parseFloat(await getSetting('temperature', '0.7')) || 0.7;
   const llmTimeout = parseInt(await getSetting('llm_timeout', '60000')) || 60000;
 
-  const isMetaPersona = persona.id === 'meta-persona';
-  const isAdmin = await isUserAdmin(uid);
   let executionPlan = null;
 
   if (isMetaPersona || isAdmin) {
@@ -688,7 +702,7 @@ Loja: ${storeName || 'nossa loja'} | Moeda: ${currency}`;
     const llmTools = getToolDefinitions();
     const extTools = getExtToolDefs ? getExtToolDefs() : [];
     const allTools = [...llmTools, ...extTools];
-    const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools', 'manage_quizzes', 'b2b_prospect', 'cnpj_lookup', 'lead_scoring', 'site_scraper', 'google_places_search'];
+    const metaPersonaOnlyTools = ['create_persona', 'list_personas', 'create_skill', 'invoke_skill', 'list_skills', 'add_knowledge_source', 'manage_tasks', 'manage_calendar', 'manage_contacts', 'manage_automations', 'manage_goals', 'manage_conversation_stages', 'manage_org_memory', 'manage_xp', 'manage_progress', 'get_cognitive_state', 'human_override', 'get_suggestions', 'get_dashboard', 'get_history', 'update_settings', 'manage_users', 'send_email_to_user', 'manage_blueprints', 'use_external_tool', 'list_external_tools', 'manage_quizzes', 'b2b_prospect', 'cnpj_lookup', 'lead_scoring', 'site_scraper', 'google_places_search', 'execute_opencode_task', 'invoke_skill_opencode', 'execute_command'];
 
     let tools;
   const hasContextVerses = relevantVerses && relevantVerses.length > 0;

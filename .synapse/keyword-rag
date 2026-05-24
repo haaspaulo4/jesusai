@@ -1,0 +1,12 @@
+# SYNASPE KEYWORD: RAG Knowledge - L6 Recall Rules
+# Triggered by: conhecimento, knowledge, RAG, embedding, vector, TF-IDF, search, busca, ingest, index
+
+KEYWORD_RAG_RULE_1=MetaPersona.AI uses Hybrid TF-IDF + Vector Embeddings search (nomic-embed-text, 768d).
+KEYWORD_RAG_RULE_2=Hybrid scoring: VECTOR_WEIGHT (0.7) * vector_score + TFIDF_WEIGHT (0.3) * tfidf_score.
+KEYWORD_RAG_RULE_3=Fallback: If vector search fails, falls back to TF-IDF only (seamless degradation).
+KEYWORD_RAG_RULE_4=Knowledge sources: Bible verses (JSON), PDF, DOCX, Images/OCR, Audio/STT, Plain text, Markdown, JSON data, API endpoints.
+KEYWORD_RAG_RULE_5=Ingestion: npm run ingest -> reads all configured sources -> TF-IDF index + vector embeddings.
+KEYWORD_RAG_RULE_6=Migration: npm run migrate-vectors -> indexes all knowledge sources into embeddings table.
+KEYWORD_RAG_RULE_7=Per-persona: personas.knowledge_sources selects which sources to search. searchMultiSource() splits topK evenly.
+KEYWORD_RAG_RULE_8=Admin: /api/admin/knowledge/reindex (POST), /api/admin/knowledge (GET stats), /api/admin/knowledge/upload (POST file).
+KEYWORD_RAG_RULE_9=Fulltext search: FlexSearch in-memory across personas, contacts, goals, org memory, tasks, skills.

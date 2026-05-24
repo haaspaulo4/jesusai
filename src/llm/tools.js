@@ -235,6 +235,52 @@ const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'execute_opencode_task',
+      description: 'Delega uma tarefa para o OpenCode/Copilot executar no workspace. Use para criar arquivos, gerar código, criar landing pages, editar configurações, ou qualquer tarefa de desenvolvimento. O OpenCode executa a tarefa e retorna o resultado.',
+      parameters: {
+        type: 'object',
+        properties: {
+          task: { type: 'string', description: 'Descrição detalhada da tarefa para o OpenCode executar (ex: "Crie uma landing page para uma loja de roupas chamada Fashion Store com hero section, features e CTA")' },
+          working_dir: { type: 'string', description: 'Diretório de trabalho (default: raiz do projeto)' },
+          timeout_seconds: { type: 'number', description: 'Timeout em segundos (default: 120, max: 300)' },
+        },
+        required: ['task'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'execute_command',
+      description: 'Executa um comando direto no terminal do sistema operacional (apenas administradores). Use com cautela extrema para tarefas de infraestrutura simples (ex: mkdir, ls, rm se necessário).',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'Comando do terminal a ser executado' },
+          cwd: { type: 'string', description: 'Diretório de trabalho para o comando (opcional)' }
+        },
+        required: ['command']
+      }
+    }
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'invoke_skill_opencode',
+      description: 'Invoca uma skill do tipo opencode/task que executa via OpenCode CLI no workspace. Use quando uma skill precisa criar arquivos, gerar código, ou executar tarefas de desenvolvimento.',
+      parameters: {
+        type: 'object',
+        properties: {
+          skill_id: { type: 'string', description: 'ID da skill do tipo opencode ou task' },
+          input: { type: 'string', description: 'Texto de entrada para a skill' },
+        },
+        required: ['skill_id', 'input'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'add_knowledge_source',
       description: 'Registra uma nova fonte de conhecimento para uma persona. As fontes podem ser textos, URLs, ou descrições de conteúdo.',
       parameters: {
@@ -588,6 +634,51 @@ const TOOL_DEFINITIONS = [
   {
     type: 'function',
     function: {
+      name: 'create_landing_page',
+      description: 'Cria uma landing page HTML completa e salva no servidor. Retorna a URL e o caminho do arquivo. Use quando o usuário pedir para criar uma landing page, página de vendas, homepage, ou página de captura.',
+      parameters: {
+        type: 'object',
+        properties: {
+          title: { type: 'string', description: 'Título principal (hero) da landing page' },
+          subtitle: { type: 'string', description: 'Subtítulo ou descrição curta abaixo do título' },
+          cta_text: { type: 'string', description: 'Texto do botão CTA principal (ex: "Começar Agora", "Saiba Mais")' },
+          cta_url: { type: 'string', description: 'URL do botão CTA (ex: "#contato", "/register", "https://...")' },
+          features: { type: 'array', items: { type: 'object', properties: { icon: { type: 'string', description: 'Emoji ou ícone (ex: "🚀", "💡", "✅")' }, title: { type: 'string', description: 'Título da feature' }, description: { type: 'string', description: 'Descrição da feature' } }, required: ['icon', 'title', 'description'] }, description: 'Lista de features/benefícios (3-6 itens)' },
+          testimonials: { type: 'array', items: { type: 'object', properties: { name: { type: 'string', description: 'Nome do cliente' }, text: { type: 'string', description: 'Texto do depoimento' }, role: { type: 'string', description: 'Cargo ou papel do cliente' } }, required: ['name', 'text'] }, description: 'Lista de depoimentos (0-3 itens)' },
+          primary_color: { type: 'string', description: 'Cor principal hex (default: #1a1a2e)' },
+          secondary_color: { type: 'string', description: 'Cor secundária hex (default: #16213e)' },
+          accent_color: { type: 'string', description: 'Cor de destaque hex (default: #e94560)' },
+          brand_name: { type: 'string', description: 'Nome da marca/empresa' },
+          brand_tagline: { type: 'string', description: 'Slogan da marca' },
+          logo_url: { type: 'string', description: 'URL do logo (opcional)' },
+          include_pricing: { type: 'boolean', description: 'Incluir seção de preços (default: false)' },
+          pricing_plans: { type: 'array', items: { type: 'object', properties: { name: { type: 'string', description: 'Nome do plano' }, price: { type: 'string', description: 'Preço (ex: "R$ 97/mês", "Grátis")' }, features: { type: 'array', items: { type: 'string' }, description: 'Lista de features do plano' }, popular: { type: 'boolean', description: 'Se é o plano mais popular' } }, required: ['name', 'price'] }, description: 'Planos de preços (se include_pricing=true)' },
+          footer_text: { type: 'string', description: 'Texto do footer (copyright)' },
+          filename: { type: 'string', description: 'Nome do arquivo HTML (sem .html, ex: "landing-produtos"). Default: auto-gerado' },
+          language: { type: 'string', enum: ['pt-BR', 'en-US', 'es-ES'], description: 'Idioma da página (default: pt-BR)' },
+          persona_id: { type: 'string', description: 'ID da persona (para pegar configurações de marca)' },
+        },
+        required: ['title'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_landing_pages',
+      description: 'Lista todas as landing pages criadas. Retorna array com id, título, filename, URL e data de criação.',
+      parameters: {
+        type: 'object',
+        properties: {
+          persona_id: { type: 'string', description: 'Filtrar por persona (opcional)' },
+          limit: { type: 'integer', description: 'Número máximo de resultados (default: 20)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
       name: 'manage_business_config',
       description: 'Gerencia configuração de negócio da persona: horários, serviços, produtos, FAQ, preços, equipe, endereço, redes sociais, políticas, agendamento. Use para configurar informações operacionais do negócio.',
       parameters: {
@@ -712,6 +803,201 @@ const TOOL_DEFINITIONS = [
           url: { type: 'string', description: 'URL do site para scraping (ex: "https://empresa.com.br")' },
         },
         required: ['url'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_init',
+      description: 'Inicializa o workspace da persona: cria estrutura de diretórios (projects, assets, snippets, exports, temp) e metadata. Use quando a persona precisar de um espaço de trabalho para criar e gerenciar arquivos.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default", ou persona_id)' },
+          name: { type: 'string', description: 'Nome do workspace (opcional)' },
+          owner_id: { type: 'string', description: 'ID do dono do workspace (opcional)' },
+          persona_id: { type: 'string', description: 'ID da persona associada (opcional)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_list',
+      description: 'Lista arquivos e diretórios do workspace. Use para explorar o conteúdo do workspace da persona.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+          path: { type: 'string', description: 'Caminho relativo dentro do workspace (opcional, padrão: raiz)' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_project_create',
+      description: 'Cria um novo projeto no workspace com template. Tipos: landing-page, website, app, api, automation, script. Use quando a persona precisa criar um projeto de código.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+          name: { type: 'string', description: 'Nome do projeto' },
+          type: { type: 'string', enum: ['landing-page', 'website', 'app', 'api', 'automation', 'script'], description: 'Tipo do projeto/template' },
+          description: { type: 'string', description: 'Descrição do projeto (opcional)' },
+        },
+        required: ['name', 'type'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_project_list',
+      description: 'Lista todos os projetos do workspace com metadata.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_project_get',
+      description: 'Obtém detalhes e árvore de arquivos de um projeto específico.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+          name: { type: 'string', description: 'Nome do projeto' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_project_delete',
+      description: 'Deleta um projeto inteiro do workspace. Apenas admins.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+          name: { type: 'string', description: 'Nome do projeto a deletar' },
+        },
+        required: ['name'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_file_read',
+      description: 'Lê o conteúdo de um arquivo no workspace. Use para inspecionar código, configs, etc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+          path: { type: 'string', description: 'Caminho relativo do arquivo no workspace' },
+        },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_file_write',
+      description: 'Escreve/cria um arquivo no workspace. Cria diretórios pais automaticamente. Use para salvar código, configs, HTML, etc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+          path: { type: 'string', description: 'Caminho relativo do arquivo no workspace' },
+          content: { type: 'string', description: 'Conteúdo do arquivo' },
+        },
+        required: ['path', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_file_delete',
+      description: 'Deleta um arquivo do workspace.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+          path: { type: 'string', description: 'Caminho relativo do arquivo a deletar' },
+        },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_file_move',
+      description: 'Move/renomeia um arquivo ou diretório no workspace.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+          old_path: { type: 'string', description: 'Caminho atual do arquivo' },
+          new_path: { type: 'string', description: 'Novo caminho do arquivo' },
+        },
+        required: ['old_path', 'new_path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_file_search',
+      description: 'Busca arquivos no workspace por padrão de nome (regex).',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+          pattern: { type: 'string', description: 'Padrão de busca (regex, ex: "\\.html$", "index\\..*")' },
+          limit: { type: 'integer', description: 'Número máximo de resultados (padrão: 50)' },
+        },
+        required: ['pattern'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_stats',
+      description: 'Retorna estatísticas do workspace: total de arquivos, tamanho, projetos, última modificação.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+        },
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'workspace_clean',
+      description: 'Limpa arquivos temporários e exports antigos do workspace. Apenas admins.',
+      parameters: {
+        type: 'object',
+        properties: {
+          workspace_id: { type: 'string', description: 'ID do workspace (padrão: "default")' },
+          older_than_days: { type: 'integer', description: 'Remover arquivos mais velhos que N dias (padrão: 30)' },
+        },
       },
     },
   },
@@ -993,6 +1279,88 @@ async function executeTool(name, args, context = {}) {
         };
       } catch (err) {
         return { error: `Erro ao listar skills: ${err.message}` };
+      }
+    }
+
+    case 'execute_command': {
+      if (!context.isAdmin) {
+        return { error: 'Apenas administradores podem executar comandos diretamente.' };
+      }
+      try {
+        const { execSync } = require('child_process');
+        const cmd = args.command;
+        if (!cmd) return { error: 'Nenhum comando fornecido.' };
+        
+        const cwd = args.cwd || process.cwd();
+        const output = execSync(cmd, { cwd, encoding: 'utf8', timeout: 30000 });
+        return { success: true, output };
+      } catch (err) {
+        return { success: false, error: err.message, output: err.stdout || err.stderr || '' };
+      }
+    }
+
+    case 'execute_opencode_task': {
+      try {
+        const { executeOpenCodeTask } = require('../skills/opencode');
+        const task = args.task;
+        if (!task || task.trim().length < 5) {
+          return { error: 'Task description too short. Provide a detailed description of what to do.' };
+        }
+        const timeout = Math.min(parseInt(args.timeout_seconds) || 120, 300) * 1000;
+        const result = await executeOpenCodeTask(task, {
+          workingDir: args.working_dir || undefined,
+          timeout,
+          personaId: context.personaId,
+          userId: context.userId,
+          sessionId: context.sessionId,
+        });
+        if (result.success) {
+          return {
+            success: true,
+            output: result.output.substring(0, 6000),
+            elapsed_ms: result.elapsed,
+            prompt: result.prompt,
+            message: result.killed ? 'Task completed (timed out, partial result)' : 'Task completed successfully',
+          };
+        } else {
+          return {
+            success: false,
+            error: result.error || `OpenCode task failed with exit code ${result.exitCode}`,
+            output: (result.output || '').substring(0, 3000),
+            errorOutput: (result.errorOutput || '').substring(0, 1000),
+            elapsed_ms: result.elapsed,
+          };
+        }
+      } catch (err) {
+        return { error: `Error executing OpenCode task: ${err.message}` };
+      }
+    }
+
+    case 'invoke_skill_opencode': {
+      try {
+        const { invokeSkillOpenCode } = require('../skills/opencode');
+        const result = await invokeSkillOpenCode(args.skill_id, args.input, context);
+        if (result.success) {
+          return {
+            success: true,
+            skillId: result.skillId,
+            skillName: result.skillName,
+            type: result.type,
+            output: result.output.substring(0, 6000),
+            elapsed_ms: result.elapsed,
+          };
+        } else {
+          return {
+            success: false,
+            skillId: result.skillId,
+            skillName: result.skillName,
+            error: 'OpenCode skill execution failed',
+            output: (result.output || '').substring(0, 3000),
+            elapsed_ms: result.elapsed,
+          };
+        }
+      } catch (err) {
+        return { error: `Error invoking OpenCode skill: ${err.message}` };
       }
     }
 
@@ -1654,6 +2022,231 @@ async function executeTool(name, args, context = {}) {
       return { templates, sizes };
     }
 
+    case 'create_landing_page': {
+      const fs = require('fs');
+      const path = require('path');
+      try {
+        const landingPagesDir = path.join(process.cwd(), 'public', 'landing');
+        if (!fs.existsSync(landingPagesDir)) {
+          fs.mkdirSync(landingPagesDir, { recursive: true });
+        }
+
+        const personaId = args.persona_id || context.personaId || 'default';
+        let brandName = args.brand_name || '';
+        let brandTagline = args.brand_tagline || '';
+        let primaryColor = args.primary_color || '#1a1a2e';
+        let secondaryColor = args.secondary_color || '#16213e';
+        let accentColor = args.accent_color || '#e94560';
+        let logoUrl = args.logo_url || '';
+
+        if (personaId && personaId !== 'default') {
+          try {
+            const persona = await personaManager.getPersona(personaId);
+            if (persona) {
+              brandName = brandName || persona.name || '';
+              if (persona.identity && typeof persona.identity === 'object') {
+                const id = persona.identity['pt-BR'] || persona.identity['en-US'] || persona.identity;
+                if (typeof id === 'string') brandTagline = brandTagline || id.substring(0, 80);
+              }
+            }
+          } catch {}
+        }
+
+        try {
+          const bName = await getSetting('brand_name');
+          const bTagline = await getSetting('brand_tagline');
+          const bLogo = await getSetting('brand_logo_url');
+          const bPrimary = await getSetting('brand_primary_color');
+          const bSecondary = await getSetting('brand_secondary_color');
+          brandName = brandName || bName || '';
+          brandTagline = brandTagline || bTagline || '';
+          logoUrl = logoUrl || bLogo || '';
+          primaryColor = primaryColor !== '#1a1a2e' ? primaryColor : (bPrimary || '#1a1a2e');
+          secondaryColor = secondaryColor !== '#16213e' ? secondaryColor : (bSecondary || '#16213e');
+        } catch {}
+
+        const lang = args.language || 'pt-BR';
+        const title = args.title || 'Landing Page';
+        const subtitle = args.subtitle || '';
+        const ctaText = args.cta_text || (lang === 'pt-BR' ? 'Começar Agora' : 'Get Started');
+        const ctaUrl = args.cta_url || '#contato';
+        const features = args.features || [
+          { icon: '🚀', title: lang === 'pt-BR' ? 'Rápido' : 'Fast', description: lang === 'pt-BR' ? 'Resultados rápidos e eficientes' : 'Fast and efficient results' },
+          { icon: '💡', title: lang === 'pt-BR' ? 'Inteligente' : 'Smart', description: lang === 'pt-BR' ? 'Tecnologia de ponta para você' : 'Cutting-edge technology for you' },
+          { icon: '✅', title: lang === 'pt-BR' ? 'Confiável' : 'Reliable', description: lang === 'pt-BR' ? 'Segurança e qualidade garantidas' : 'Guaranteed security and quality' },
+        ];
+        const testimonials = args.testimonials || [];
+        const includePricing = args.include_pricing || false;
+        const pricingPlans = args.pricing_plans || [];
+        const footerText = args.footer_text || `© ${new Date().getFullYear()} ${brandName || title}. ${lang === 'pt-BR' ? 'Todos os direitos reservados.' : 'All rights reserved.'}`;
+
+        const filename = (args.filename || 'landing-' + Date.now()).replace(/[^a-zA-Z0-9_-]/g, '-').toLowerCase();
+        const htmlPath = path.join(landingPagesDir, `${filename}.html`);
+
+        const featuresHtml = features.map(f => `
+            <div class="feature-card bg-white rounded-xl shadow-lg p-6 text-center hover:shadow-2xl transition-shadow duration-300">
+              <div class="text-4xl mb-4">${f.icon}</div>
+              <h3 class="text-xl font-bold text-gray-800 mb-2">${f.title}</h3>
+              <p class="text-gray-600">${f.description}</p>
+            </div>`).join('\n');
+
+        const testimonialsHtml = testimonials.length > 0 ? `
+          <section class="py-16 px-4 bg-gray-50">
+            <div class="max-w-6xl mx-auto">
+              <h2 class="text-3xl font-bold text-center mb-12" style="color: ${primaryColor}">${lang === 'pt-BR' ? 'O que nossos clientes dizem' : 'What our clients say'}</h2>
+              <div class="grid grid-cols-1 md:grid-cols-${testimonials.length} gap-8">
+                ${testimonials.map(t => `
+                <div class="bg-white rounded-xl shadow-lg p-6">
+                  <p class="text-gray-600 italic mb-4">"${t.text}"</p>
+                  <div class="font-bold text-gray-800">${t.name}</div>
+                  ${t.role ? `<div class="text-sm text-gray-500">${t.role}</div>` : ''}
+                </div>`).join('\n')}
+              </div>
+            </div>
+          </section>` : '';
+
+        const pricingHtml = includePricing && pricingPlans.length > 0 ? `
+          <section class="py-16 px-4">
+            <div class="max-w-6xl mx-auto">
+              <h2 class="text-3xl font-bold text-center mb-12" style="color: ${primaryColor}">${lang === 'pt-BR' ? 'Planos e Preços' : 'Plans & Pricing'}</h2>
+              <div class="grid grid-cols-1 md:grid-cols-${pricingPlans.length} gap-8">
+                ${pricingPlans.map(p => `
+                <div class="bg-white rounded-xl shadow-lg p-8 text-center ${p.popular ? 'ring-2 transform scale-105' : ''}" ${p.popular ? `style="ring-color: ${accentColor}"` : ''}>
+                  ${p.popular ? `<div class="text-white text-sm font-bold py-1 px-4 rounded-full mb-4 inline-block" style="background: ${accentColor}">${lang === 'pt-BR' ? 'Mais Popular' : 'Most Popular'}</div><br>` : ''}
+                  <h3 class="text-2xl font-bold text-gray-800 mb-4">${p.name}</h3>
+                  <div class="text-4xl font-bold mb-6" style="color: ${primaryColor}">${p.price}</div>
+                  <ul class="text-gray-600 mb-8 space-y-2">
+                    ${(p.features || []).map(f => `<li>✓ ${f}</li>`).join('\n')}
+                  </ul>
+                  <a href="${ctaUrl}" class="inline-block px-8 py-3 rounded-full text-white font-bold transition-transform hover:scale-105" style="background: ${accentColor}">${ctaText}</a>
+                </div>`).join('\n')}
+              </div>
+            </div>
+          </section>` : '';
+
+        const html = `<!DOCTYPE html>
+<html lang="${lang}">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${title}${brandName ? ' | ' + brandName : ''}</title>
+  <meta name="description" content="${subtitle || title}">
+  <script src="https://cdn.tailwindcss.com"><\/script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'sans-serif'] },
+          colors: { brand: { primary: '${primaryColor}', secondary: '${secondaryColor}', accent: '${accentColor}' } }
+        }
+      }
+    }
+  <\/script>
+  <style>
+    body { font-family: 'Inter', sans-serif; }
+    .gradient-bg { background: linear-gradient(135deg, ${primaryColor} 0%, ${secondaryColor} 100%); }
+    .hero-pattern { background-image: radial-gradient(circle at 20% 50%, rgba(255,255,255,0.1) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.08) 0%, transparent 40%); }
+  </style>
+</head>
+<body class="bg-white text-gray-800">
+  <!-- Hero Section -->
+  <nav class="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-sm shadow-sm">
+    <div class="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        ${logoUrl ? `<img src="${logoUrl}" alt="${brandName}" class="h-8">` : `<div class="text-2xl font-bold" style="color: ${primaryColor}">${brandName || title}</div>`}
+      </div>
+      <div class="hidden md:flex items-center gap-6">
+        <a href="#features" class="text-gray-600 hover:text-gray-800 transition">${lang === 'pt-BR' ? 'Recursos' : 'Features'}</a>
+        ${testimonials.length > 0 ? `<a href="#testimonials" class="text-gray-600 hover:text-gray-800 transition">${lang === 'pt-BR' ? 'Depoimentos' : 'Testimonials'}</a>` : ''}
+        ${includePricing ? `<a href="#pricing" class="text-gray-600 hover:text-gray-800 transition">${lang === 'pt-BR' ? 'Preços' : 'Pricing'}</a>` : ''}
+        <a href="${ctaUrl}" class="px-6 py-2 rounded-full text-white font-semibold transition hover:opacity-90" style="background: ${accentColor}">${ctaText}</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="gradient-bg hero-pattern min-h-screen flex items-center pt-16">
+    <div class="max-w-6xl mx-auto px-4 py-20 text-center text-white">
+      ${brandTagline ? `<p class="text-lg md:text-xl opacity-90 mb-4 font-light">${brandTagline}</p>` : ''}
+      <h1 class="text-4xl md:text-6xl font-extrabold mb-6 leading-tight">${title}</h1>
+      ${subtitle ? `<p class="text-xl md:text-2xl mb-10 opacity-90 max-w-3xl mx-auto font-light">${subtitle}</p>` : ''}
+      <div class="flex flex-col sm:flex-row gap-4 justify-center items-center">
+        <a href="${ctaUrl}" class="px-10 py-4 rounded-full text-lg font-bold transition hover:scale-105 shadow-lg" style="background: ${accentColor}; color: white;">${ctaText}</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section -->
+  <section id="features" class="py-20 px-4">
+    <div class="max-w-6xl mx-auto">
+      <h2 class="text-3xl md:text-4xl font-bold text-center mb-12" style="color: ${primaryColor}">${lang === 'pt-BR' ? 'Por que escolher?' : 'Why choose us?'}</h2>
+      <div class="grid grid-cols-1 md:grid-cols-${features.length > 3 ? '3' : features.length} gap-8">
+        ${featuresHtml}
+      </div>
+    </div>
+  </section>
+
+  ${testimonialsHtml}
+
+  ${pricingHtml}
+
+  <!-- CTA Section -->
+  <section class="py-20 px-4 gradient-bg text-white text-center">
+    <div class="max-w-4xl mx-auto">
+      <h2 class="text-3xl md:text-4xl font-bold mb-6">${lang === 'pt-BR' ? 'Pronto para começar?' : 'Ready to get started?'}</h2>
+      <p class="text-xl mb-10 opacity-90">${lang === 'pt-BR' ? 'Junte-se a milhares de clientes satisfeitos.' : 'Join thousands of satisfied customers.'}</p>
+      <a href="${ctaUrl}" class="inline-block px-12 py-4 rounded-full text-lg font-bold transition hover:scale-105 shadow-xl" style="background: ${accentColor}; color: white;">${ctaText}</a>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="py-10 px-4" style="background: ${primaryColor}; color: rgba(255,255,255,0.8);">
+    <div class="max-w-6xl mx-auto text-center">
+      ${brandName ? `<div class="text-2xl font-bold text-white mb-2">${brandName}</div>` : ''}
+      <p class="text-sm">${footerText}</p>
+    </div>
+  </footer>
+</body>
+</html>`;
+
+        fs.writeFileSync(htmlPath, html, 'utf-8');
+        const relativePath = `/landing/${filename}.html`;
+        const fullUrl = `${process.env.SERVER_URL || 'http://localhost:3000'}${relativePath}`;
+
+        await pool.execute(
+          'INSERT INTO creatives (id, persona_id, owner_id, type, template_id, data, html_path, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, NOW())',
+          [`lp_${Date.now()}`, personaId, context.userId || 'system', 'landing_page', 'landing_page', JSON.stringify({ title, subtitle, brandName, filename, language: lang }), htmlPath]
+        );
+
+        return {
+          success: true,
+          filename: `${filename}.html`,
+          path: relativePath,
+          url: fullUrl,
+          message: `Landing page "${title}" criada com sucesso! Disponível em: ${fullUrl}`,
+        };
+      } catch (err) {
+        return { error: `Erro ao criar landing page: ${err.message}` };
+      }
+    }
+
+    case 'list_landing_pages': {
+      const fs = require('fs');
+      const path = require('path');
+      const limit = args.limit || 20;
+      const landingDir = path.join(process.cwd(), 'public', 'landing');
+      if (!fs.existsSync(landingDir)) return { pages: [], total: 0 };
+      const files = fs.readdirSync(landingDir).filter(f => f.endsWith('.html')).slice(0, limit);
+      const pages = files.map(f => ({
+        filename: f,
+        url: `${process.env.SERVER_URL || 'http://localhost:3000'}/landing/${f}`,
+        title: f.replace(/-/g, ' ').replace('.html', ''),
+      }));
+      return { pages, total: files.length };
+    }
+
     case 'manage_business_config': {
       const businessModule = require('../business');
       const action = args.action;
@@ -1839,6 +2432,156 @@ async function executeTool(name, args, context = {}) {
       const { executeTool: execTool } = require('../tools');
       const result = await execTool('google_places', { query: args.query, location: args.location });
       return result;
+    }
+
+    // ─── Workspace Tools ─────────────────────────────────────────────────
+    case 'workspace_init': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.initWorkspace(args.workspace_id || 'default', {
+          name: args.name,
+          owner_id: args.owner_id || context.userId,
+          persona_id: args.persona_id || context.personaId,
+        });
+        return { success: true, workspace: result, message: `Workspace "${result.id}" inicializado com sucesso!` };
+      } catch (err) {
+        return { error: `Erro ao inicializar workspace: ${err.message}` };
+      }
+    }
+
+    case 'workspace_list': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.listWorkspace(args.workspace_id || 'default', args.path || '');
+        return result;
+      } catch (err) {
+        return { error: `Erro ao listar workspace: ${err.message}` };
+      }
+    }
+
+    case 'workspace_project_create': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.createProject(args.workspace_id || 'default', {
+          name: args.name,
+          type: args.type,
+          description: args.description,
+        });
+        return result;
+      } catch (err) {
+        return { error: `Erro ao criar projeto: ${err.message}` };
+      }
+    }
+
+    case 'workspace_project_list': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.listProjects(args.workspace_id || 'default');
+        return result;
+      } catch (err) {
+        return { error: `Erro ao listar projetos: ${err.message}` };
+      }
+    }
+
+    case 'workspace_project_get': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.getProject(args.workspace_id || 'default', args.name);
+        return result;
+      } catch (err) {
+        return { error: `Erro ao obter projeto: ${err.message}` };
+      }
+    }
+
+    case 'workspace_project_delete': {
+      if (!context.isAdmin && !context.isMetaPersona) {
+        return { error: 'Apenas administradores podem deletar projetos.' };
+      }
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.deleteProject(args.workspace_id || 'default', args.name);
+        return result;
+      } catch (err) {
+        return { error: `Erro ao deletar projeto: ${err.message}` };
+      }
+    }
+
+    case 'workspace_file_read': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.readFile(args.workspace_id || 'default', args.path);
+        return result;
+      } catch (err) {
+        return { error: `Erro ao ler arquivo: ${err.message}` };
+      }
+    }
+
+    case 'workspace_file_write': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.writeFile(args.workspace_id || 'default', args.path, args.content);
+        return result;
+      } catch (err) {
+        return { error: `Erro ao escrever arquivo: ${err.message}` };
+      }
+    }
+
+    case 'workspace_file_delete': {
+      if (!context.isAdmin && !context.isMetaPersona) {
+        return { error: 'Apenas administradores podem deletar arquivos.' };
+      }
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.deleteFile(args.workspace_id || 'default', args.path);
+        return result;
+      } catch (err) {
+        return { error: `Erro ao deletar arquivo: ${err.message}` };
+      }
+    }
+
+    case 'workspace_file_move': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.moveFile(args.workspace_id || 'default', args.old_path, args.new_path);
+        return result;
+      } catch (err) {
+        return { error: `Erro ao mover arquivo: ${err.message}` };
+      }
+    }
+
+    case 'workspace_file_search': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.searchFiles(args.workspace_id || 'default', args.pattern, { limit: args.limit || 50 });
+        return result;
+      } catch (err) {
+        return { error: `Erro ao buscar arquivos: ${err.message}` };
+      }
+    }
+
+    case 'workspace_stats': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.getWorkspaceStats(args.workspace_id || 'default');
+        return result;
+      } catch (err) {
+        return { error: `Erro ao obter estatísticas: ${err.message}` };
+      }
+    }
+
+    case 'workspace_clean': {
+      if (!context.isAdmin && !context.isMetaPersona) {
+        return { error: 'Apenas administradores podem limpar o workspace.' };
+      }
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.cleanWorkspace(args.workspace_id || 'default', {
+          olderThanDays: args.older_than_days || 30,
+        });
+        return result;
+      } catch (err) {
+        return { error: `Erro ao limpar workspace: ${err.message}` };
+      }
     }
 
     default: {

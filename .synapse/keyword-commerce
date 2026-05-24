@@ -1,0 +1,12 @@
+# SYNASPE KEYWORD: Commerce - L6 Recall Rules
+# Triggered by: loja, store, comercio, product, produto, carrinho, cart, pedido, order, checkout, delivery, entrega
+
+KEYWORD_COMMERCE_RULE_1=MetaPersona.AI has a full Commerce System with WhatsApp store flow (loja-hlb pattern).
+KEYWORD_COMMERCE_RULE_2=Commerce flow: catalog_search -> commerce_add_to_cart -> commerce_cart_summary -> commerce_set_address -> commerce_set_payment -> commerce_apply_coupon -> commerce_finalize_order.
+KEYWORD_COMMERCE_RULE_3=Commerce persona (loja-hlb) has commerce-only identity with NO religious content and knowledge_sources: [].
+KEYWORD_COMMERCE_RULE_4=Store settings: brand_name, delivery zones, currency, payment methods from /api/store/brand and settings.
+KEYWORD_COMMERCE_RULE_5=Products belong to personas via persona_id. catalog_search filters by context.personaId.
+KEYWORD_COMMERCE_RULE_6=Delivery zones: Centro (free), Bairro (R$5), Rural (R$7), Premium (R$10). Free above R$90 (configurable).
+KEYWORD_COMMERCE_RULE_7=Loyalty system: points, cashback, stamp_card, tier programs. Auto-earns on order finalize.
+KEYWORD_COMMERCE_RULE_8=ERP tables: products, product_variants, product_categories, orders, order_items, deliveries, financial_transactions, payment_links, suppliers, site_sections, coupon_codes, commerce_carts.
+KEYWORD_COMMERCE_RULE_9=Storefront routes /api/store/* are PUBLIC (no auth required). Admin ERP routes /api/erp/* require auth + admin role.

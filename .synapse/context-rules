@@ -1,0 +1,22 @@
+# SYNASPE CONTEXT RULES - L1 Bracket-Specific Context
+# These rules are injected based on the current conversation context bracket.
+
+# FRESH context (prompt_count 0-5)
+CONTEXT_FRESH_RULE_1=This is a new conversation. Prioritize understanding the user's intent before taking action.
+CONTEXT_FRESH_RULE_2=If the user asks for analysis or creation, assess the scope and recommend the correct agent for execution.
+CONTEXT_FRESH_RULE_3=For landing page requests, ALWAYS delegate to @ux-design-expert (Uma). For project analysis, ALWAYS delegate to @architect (Aria).
+
+# MODERATE context (prompt_count 6-20)
+CONTEXT_MODERATE_RULE_1=Conversation is established. Build on previous context and avoid repeating information already provided.
+CONTEXT_MODERATE_RULE_2=If the user shifts topic, acknowledge the shift and ensure continuity with relevant context from earlier prompts.
+CONTEXT_MODERATE_RULE_3=For multi-step tasks, track progress and reference what has been completed vs. what remains.
+
+# DEPLETED context (prompt_count 21-50)
+CONTEXT_DEPLETED_RULE_1=Context budget is decreasing. Prioritize the most critical information and summarize earlier details.
+CONTEXT_DEPLETED_RULE_2=Avoid re-explaining concepts already discussed. Reference previous context by summary if needed.
+CONTEXT_DEPLETED_RULE_3=Suggest /compact or starting a new session if the conversation becomes too long.
+
+# CRITICAL context (prompt_count 50+)
+CONTEXT_CRITICAL_RULE_1=Context is critically depleted. Use only the most essential information needed for the current task.
+CONTEXT_CRITICAL_RULE_2=Strongly recommend starting a new session or using /compact to reset context.
+CONTEXT_CRITICAL_RULE_3=Focus exclusively on the immediate user request without expanding scope.

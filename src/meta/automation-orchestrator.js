@@ -149,7 +149,7 @@ async function orchestrate(decisionText, originalMessage, context = {}) {
   }
 
   // === DELEGATE CREATIVE / CODING TASKS TO REAL CLAUDE MULTI-AGENT SYSTEM (.claude/) ===
-  const shouldDelegateToClaude = combined.match(/landingpage|landing page|crie.*\.html|crie.*arquivo|escreva.*html|area de trabalho|workspace|crie.*landing|arquitetura|full feature|site completo|surpreenda/);
+  const shouldDelegateToClaude = !context?.skipDelegation && combined.match(/landingpage|landing page|crie.*\.html|crie.*arquivo|escreva.*html|area de trabalho|workspace|crie.*landing|arquitetura|full feature|site completo|surpreenda/);
 
   if (shouldDelegateToClaude) {
     try {

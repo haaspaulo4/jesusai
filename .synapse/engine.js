@@ -173,12 +173,13 @@ class PipelineMetrics {
 const PIPELINE_TIMEOUT_MS = 100;
 
 /**
- * NOG-18: Default active layers (L0-L2 only).
- * L3-L7 produced 0 rules in NOG-17 audit — disabled for performance.
- * Set SYNAPSE_LEGACY_MODE=true to re-enable full 8-layer processing.
+ * Active layers configuration.
+ * All 8 layers are now active with configured domain files.
+ * Legacy mode (SYNAPSE_LEGACY_MODE=true) enables bracket-based filtering.
+ * Set SYNAPSE_LEGACY_MODE=false to use only L0-L2 (minimal mode).
  */
-const DEFAULT_ACTIVE_LAYERS = [0, 1, 2];
-const LEGACY_MODE = process.env.SYNAPSE_LEGACY_MODE === 'true';
+const DEFAULT_ACTIVE_LAYERS = [0, 1, 2, 3, 4, 5, 6, 7];
+const LEGACY_MODE = process.env.SYNAPSE_LEGACY_MODE !== 'false';
 
 /**
  * Orchestrates the 8-layer SYNAPSE context injection pipeline.

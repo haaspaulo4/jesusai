@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, Menu, shell, screen } = require('electron');
+﻿const { app, BrowserWindow, ipcMain, Menu, shell, screen } = require('electron');
 const path = require('path');
 const http = require('http');
 const fs = require('fs');
@@ -10,19 +10,14 @@ let chatOpen = false;
 // Fix cache lock: use a dedicated userData path for the pet app
 app.setPath('userData', path.join(app.getPath('appData'), 'JesusAI-Pet'));
 app.commandLine.appendSwitch('disable-http-cache'); // Prevent "Unable to move the cache" error
+app.commandLine.appendSwitch('disable-gpu-cache-size', '0'); // Prevent GPU cache creation errors
+app.commandLine.appendSwitch('disable-software-rasterizer'); // Use software rendering to avoid GPU cache issues
 
-// Single instance lock
-const gotLock = app.requestSingleInstanceLock();
-if (!gotLock) {
-  app.quit();
-} else {
-  app.on('second-instance', () => {
-    if (mainWindow) {
-      mainWindow.show();
-      mainWindow.focus();
-    }
-  });
-}
+// Single instance lock — skip during development (dev-all.js auto-restart causes conflicts)
+// In production, uncomment the lock logic below:
+// const gotLock = app.requestSingleInstanceLock();
+// if (!gotLock) { app.quit(); }
+// app.on('second-instance', () => { if (mainWindow) { mainWindow.show(); mainWindow.focus(); } });
 
 function fetchJSON(url) {
   return new Promise((resolve) => {

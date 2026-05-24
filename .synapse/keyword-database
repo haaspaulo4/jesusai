@@ -1,0 +1,9 @@
+# SYNASPE KEYWORD: Database - L6 Recall Rules
+KEYWORD_DATABASE_RULE_1=All 41+ tables auto-created and migrated on startup via src/db/index.js.
+KEYWORD_DATABASE_RULE_2=MySQL LIMIT and OFFSET must be interpolated as ${Number(limit)} and ${Number(offset)}. Prepared statements with ? FAIL for these.
+KEYWORD_DATABASE_RULE_3=Product INSERT must have exactly 38 columns matching 38 placeholders.
+KEYWORD_DATABASE_RULE_4=Order INSERT must have exactly 27 columns matching 27 placeholders.
+KEYWORD_DATABASE_RULE_5=Payment method ENUM values: cash, pix, credit_card, debit_card, bank_transfer, boleto. Mapping: dinheiro->cash, cartao->credit_card.
+KEYWORD_DATABASE_RULE_6=commerce_carts uses session_id as cart key, not user_id.
+KEYWORD_DATABASE_RULE_7=Persona IDs preserve original format including hyphens. Do NOT sanitize with regex.
+KEYWORD_DATABASE_RULE_8=Agent module CRUD uses VARCHAR primary keys with format: prefix_timestamp_random.

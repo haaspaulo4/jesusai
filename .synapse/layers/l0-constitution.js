@@ -24,7 +24,7 @@ const LayerProcessor = require('./layer-processor');
  */
 class L0ConstitutionProcessor extends LayerProcessor {
   constructor() {
-    super({ name: 'constitution', layer: 0, timeout: 5 });
+    super({ name: 'constitution', layer: 0, timeout: 20 });
   }
 
   /**

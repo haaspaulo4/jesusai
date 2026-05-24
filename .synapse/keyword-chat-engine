@@ -1,0 +1,7 @@
+# SYNASPE KEYWORD: Chat Engine - L6 Recall Rules
+KEYWORD_CHAT_ENGINE_RULE_1=Chat engine flow: User message -> Rate limit -> Onboarding -> Persona resolve -> Chat command? -> Extract context + Search knowledge -> Build system prompt -> LLM call -> Tool calls loop (max 5) -> Normalize -> Save -> Auto follow-up.
+KEYWORD_CHAT_ENGINE_RULE_2=processMessage saves assistant messages. NEVER double-save in bot handlers.
+KEYWORD_CHAT_ENGINE_RULE_3=switchPersona() clears message history (DELETE FROM messages WHERE session_id = ?) to prevent persona contamination.
+KEYWORD_CHAT_ENGINE_RULE_4=buildSystemPrompt() handles both string and object identity formats from personas table.
+KEYWORD_CHAT_ENGINE_RULE_5=normalizeLLMResponse() handles Ollama native format and OpenAI-compatible format, plus inline tool call detection.
+KEYWORD_CHAT_ENGINE_RULE_6=Commerce system prompt injects SALES-FOCUSED block when commerce_enabled is not disabled.

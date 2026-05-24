@@ -1,0 +1,156 @@
+# SYNASPE MANIFEST - MetaPersona.AI
+# Full 8-layer context injection pipeline configuration
+# Format: KEY=VALUE (CARL-compatible)
+
+# Global settings
+DEVMODE=false
+GLOBAL_EXCLUDE=test,debug,internal,honeypot
+
+# ---------------------------------------------------------------------------
+# L0 - Constitution (non-negotiable rules, ALWAYS_ON)
+# ---------------------------------------------------------------------------
+CONSTITUTION_STATE=active
+CONSTITUTION_ALWAYS_ON=true
+CONSTITUTION_NON_NEGOTIABLE=true
+
+# ---------------------------------------------------------------------------
+# L1 - Global (universal project rules)
+# ---------------------------------------------------------------------------
+GLOBAL_STATE=active
+GLOBAL_ALWAYS_ON=true
+GLOBAL_RECALL=projeto,meta-persona,sistema,codigo,api,chat,agent,persona,RAG,LLM
+
+# CONTEXT_RULES - bracket-specific context rules
+CONTEXT_RULES_STATE=active
+CONTEXT_RULES_ALWAYS_ON=true
+
+# ---------------------------------------------------------------------------
+# L2 - Agent-scoped rules (triggered by active agent)
+# ---------------------------------------------------------------------------
+AGENT_AIOS_MASTER_STATE=active
+AGENT_AIOS_MASTER_AGENT_TRIGGER=aios-master
+AGENT_AIOS_MASTER_RECALL=orion,master,orchestrator,framework,create,workflow,plan
+
+AGENT_ARCHITECT_STATE=active
+AGENT_ARCHITECT_AGENT_TRIGGER=architect
+AGENT_ARCHITECT_RECALL=architecture,system,design,backend,frontend,fullstack,refactor,analise,analyze
+
+AGENT_DEV_STATE=active
+AGENT_DEV_AGENT_TRIGGER=dev
+AGENT_DEV_RECALL=develop,implement,code,fix,bug,feature,build,deploy
+
+AGENT_UX_DESIGN_EXPERT_STATE=active
+AGENT_UX_DESIGN_EXPERT_AGENT_TRIGGER=ux-design-expert
+AGENT_UX_DESIGN_EXPERT_RECALL=design,ui,ux,interface,landing,page,visual,style,css,frontend,wireframe
+
+AGENT_DEVOPS_STATE=active
+AGENT_DEVOPS_AGENT_TRIGGER=devops
+AGENT_DEVOPS_RECALL=deploy,ci,cd,pipeline,git,push,docker,infra,release
+
+AGENT_QA_STATE=active
+AGENT_QA_AGENT_TRIGGER=qa
+AGENT_QA_RECALL=test,quality,review,lint,check,verify,validate
+
+AGENT_PM_STATE=active
+AGENT_PM_AGENT_TRIGGER=pm
+AGENT_PM_RECALL=product,roadmap,prd,epic,story,requirement,backlog
+
+AGENT_PO_STATE=active
+AGENT_PO_AGENT_TRIGGER=po
+AGENT_PO_RECALL=product-owner,prioritize,acceptance,criteria,validation
+
+AGENT_SM_STATE=active
+AGENT_SM_AGENT_TRIGGER=sm
+AGENT_SM_RECALL=scrum,sprint,ceremony,standup,retrospective,velocity
+
+AGENT_ANALYST_STATE=active
+AGENT_ANALYST_AGENT_TRIGGER=analyst
+AGENT_ANALYST_RECALL=market,research,competitor,analysis,business,data,insight
+
+AGENT_DATA_ENGINEER_STATE=active
+AGENT_DATA_ENGINEER_AGENT_TRIGGER=data-engineer
+AGENT_DATA_ENGINEER_RECALL=database,schema,migration,sql,nosql,index,query
+
+AGENT_SQUAD_CREATOR_STATE=active
+AGENT_SQUAD_CREATOR_AGENT_TRIGGER=squad-creator
+AGENT_SQUAD_CREATOR_RECALL=squad,team,assemble,create-squad,validate
+
+AGENT_CONCLAVE_CRITICO_STATE=active
+AGENT_CONCLAVE_CRITICO_AGENT_TRIGGER=conclave-critico
+AGENT_CONCLAVE_CRITICO_RECALL=critica,critico,review,auditoria,risk,gap
+
+AGENT_CONCLAVE_ADVOGADO_STATE=active
+AGENT_CONCLAVE_ADVOGADO_AGENT_TRIGGER=conclave-advogado
+AGENT_CONCLAVE_ADVOGADO_RECALL=advogado,devil,advocate,worst-case,vulnerability
+
+AGENT_CONCLAVE_SINTETIZADOR_STATE=active
+AGENT_CONCLAVE_SINTETIZADOR_AGENT_TRIGGER=conclave-sintetizador
+AGENT_CONCLAVE_SINTETIZADOR_RECALL=sintetizador,synthesize,decision,merge,consensus
+
+# ---------------------------------------------------------------------------
+# L3 - Workflow rules (triggered by active workflow)
+# ---------------------------------------------------------------------------
+WORKFLOW_SDC_STATE=active
+WORKFLOW_SDC_WORKFLOW_TRIGGER=sdc
+WORKFLOW_SDC_RECALL=spec,develop,confirm,story,sdc
+
+WORKFLOW_QA_LOOP_STATE=active
+WORKFLOW_QA_LOOP_WORKFLOW_TRIGGER=qa-loop
+WORKFLOW_QA_LOOP_RECALL=qa,review,fix,loop,test-quality
+
+WORKFLOW_SPEC_PIPELINE_STATE=active
+WORKFLOW_SPEC_PIPELINE_WORKFLOW_TRIGGER=spec-pipeline
+WORKFLOW_SPEC_PIPELINE_RECALL=spec,pipeline,document,approve
+
+WORKFLOW_BROWNFIELD_STATE=active
+WORKFLOW_BROWNFIELD_WORKFLOW_TRIGGER=brownfield
+WORKFLOW_BROWNFIELD_RECALL=brownfield,legacy,discovery,existing,refactor
+
+WORKFLOW_LANDING_PAGE_STATE=active
+WORKFLOW_LANDING_PAGE_WORKFLOW_TRIGGER=landing-page
+WORKFLOW_LANDING_PAGE_RECALL=landing,page,homepage,site,hero,cta,conversion
+
+WORKFLOW_DELIVERY_STATE=active
+WORKFLOW_DELIVERY_WORKFLOW_TRIGGER=delivery
+WORKFLOW_DELIVERY_RECALL=deliver,ship,release,deploy,fabrica,entrega
+
+# ---------------------------------------------------------------------------
+# L6 - Keyword recall domains
+# ---------------------------------------------------------------------------
+KEYWORD_COMMERCE_STATE=active
+KEYWORD_COMMERCE_RECALL=loja,store,comercio,product,produto,carrinho,cart,pedido,order,checkout,delivery,entrega
+KEYWORD_COMMERCE_EXCLUDE=test,internal
+
+KEYWORD_RAG_STATE=active
+KEYWORD_RAG_RECALL=conhecimento,knowledge,RAG,embedding,vector,TF-IDF,search,busca,ingest,index
+KEYWORD_RAG_EXCLUDE=test,debug
+
+KEYWORD_CHAT_ENGINE_STATE=active
+KEYWORD_CHAT_ENGINE_RECALL=chat,mensagem,message,session,conversa,persona,onboarding,whatsapp,telegram
+KEYWORD_CHAT_ENGINE_EXCLUDE=test
+
+KEYWORD_DATABASE_STATE=active
+KEYWORD_DATABASE_RECALL=mysql,database,bd,schema,migration,tabela,table,query,sql,index
+KEYWORD_DATABASE_EXCLUDE=test,debug
+
+KEYWORD_FRONTEND_STATE=active
+KEYWORD_FRONTEND_RECALL=frontend,vue,react,html,css,tailwind,component,pagina,page,ui,layout
+KEYWORD_FRONTEND_EXCLUDE=test
+
+KEYWORD_API_STATE=active
+KEYWORD_API_RECALL=api,endpoint,route,rotas,express,middleware,auth,jwt,rest,graphql
+KEYWORD_API_EXCLUDE=test,debug
+
+KEYWORD_AGENT_SYSTEM_STATE=active
+KEYWORD_AGENT_SYSTEM_RECALL=agent,tasks,calendar,goals,automations,cognitive,stages,org-memory,XP,badge,gamification
+KEYWORD_AGENT_SYSTEM_EXCLUDE=test
+
+KEYWORD_ERP_STATE=active
+KEYWORD_ERP_RECALL=erp,product,order,finance,financial,supplier,fornecedor,coupon,cupom,estoque,stock
+KEYWORD_ERP_EXCLUDE=test
+
+# ---------------------------------------------------------------------------
+# L7 - Star commands (always active)
+# ---------------------------------------------------------------------------
+COMMANDS_STATE=active
+COMMANDS_ALWAYS_ON=true

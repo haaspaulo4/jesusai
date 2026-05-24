@@ -1,0 +1,19 @@
+{
+  "id": "task_1779565365971_e64qlrd",
+  "createdAt": "2026-05-23T19:42:45.971Z",
+  "source": "meta-persona",
+  "userId": "user_mpir8atl_0ps5o8",
+  "sessionId": "sid_0a088455636130bd",
+  "personaId": "meta-persona",
+  "description": "crie uma landing page HTML com Tailwind CSS CDN e Vue 3 CDN para loja digital. Quero hero, features e footer.",
+  "priority": "high",
+  "status": "pending",
+  "assignedAgents": [
+    "architect",
+    "dev",
+    "qa",
+    "analyst"
+  ],
+  "workspacePath": "C:\\laragon\\www\\jesus.ai\\workspace",
+  "expectedOutput": "file:landingpage.html or similar creative artifact"
+}

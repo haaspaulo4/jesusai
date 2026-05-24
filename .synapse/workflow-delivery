@@ -1,0 +1,9 @@
+# SYNASPE WORKFLOW: Delivery - L3 Rules
+# Triggered when active_workflow.id === 'delivery'
+
+WORKFLOW_DELIVERY_RULE_1=Delivery workflow follows 4-tier assessment: INSTANT, FAST, STRATEGIC, EPIC.
+WORKFLOW_DELIVERY_RULE_2=INSTANT (1 file, no risk): Execute immediately with no plan needed.
+WORKFLOW_DELIVERY_RULE_3=FAST (multi-file, moderate complexity): Plan + parallel execute. No Conclave needed.
+WORKFLOW_DELIVERY_RULE_4=STRATEGIC (architecture, system design, risky change): Conclave debate -> Plan -> Parallel Execute -> QA gate.
+WORKFLOW_DELIVERY_RULE_5=EPIC (full feature, new system): Spec -> Squad assembly -> Parallel execution -> QA -> Deliver.
+WORKFLOW_DELIVERY_RULE_6=Assess and execute simultaneously. Never plan without context. Always verify before delivering.

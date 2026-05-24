@@ -1,0 +1,19 @@
+{
+  "id": "task_1779601216046_4f7y0c9",
+  "createdAt": "2026-05-24T05:40:16.046Z",
+  "source": "meta-persona",
+  "userId": "user_mp2wj239_89w6db",
+  "sessionId": "pet_session_user_mp2wj239_89w6db",
+  "personaId": "meta-persona",
+  "description": "Crie uma landing page simples sobre consultoria de negócios e vendas chamada Haasgrow",
+  "priority": "high",
+  "status": "pending",
+  "assignedAgents": [
+    "architect",
+    "dev",
+    "qa",
+    "analyst"
+  ],
+  "workspacePath": "C:\\laragon\\www\\jesus.ai\\workspace",
+  "expectedOutput": "file:landingpage.html or similar creative artifact"
+}

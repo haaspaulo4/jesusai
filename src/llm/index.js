@@ -224,18 +224,120 @@ async function* parseStream(response) {
   }
 }
 
+function parseDSML(content) {
+  if (typeof content !== 'string') return null;
+  const toolCalls = [];
+  
+  // DSML block match - looking for tag structures containing invoke
+  const dsmlMatches = content.match(/<.*?DSML.*?tool_calls>([\s\S]*?)<\/.*?DSML.*?tool_calls>/gi) ||
+                      [content]; // fallback to whole string search if block tags aren't perfectly present
+                      
+  for (const block of dsmlMatches) {
+    const invokeRegex = /<.*?DSML.*?invoke\s+name="([^"]+)">([\s\S]*?)<\/.*?DSML.*?invoke>/gi;
+    let invokeMatch;
+    while ((invokeMatch = invokeRegex.exec(block)) !== null) {
+      const funcName = invokeMatch[1];
+      const invokeBody = invokeMatch[2];
+      const args = {};
+
+      const paramRegex = /<.*?DSML.*?parameter\s+name="([^"]+)"(?:\s+type="[^"]+")?(?:\s+string="[^"]+")?>([\s\S]*?)<\/.*?DSML.*?parameter>/gi;
+      let paramMatch;
+      while ((paramMatch = paramRegex.exec(invokeBody)) !== null) {
+        const paramName = paramMatch[1];
+        const paramVal = paramMatch[2].trim();
+        args[paramName] = paramVal;
+      }
+
+      toolCalls.push({
+        id: `dsml_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        function: {
+          name: funcName,
+          arguments: typeof args === 'string' ? args : JSON.stringify(args)
+        },
+        type: 'function'
+      });
+    }
+  }
+
+  return toolCalls.length > 0 ? toolCalls : null;
+}
+
+function parseCustomToolCall(content) {
+  if (typeof content !== 'string') return null;
+  const matches = content.match(/\[TOOL_CALL\]([\s\S]*?)\[\/TOOL_CALL\]/i) ||
+                  content.match(/\{tool\s*=>[\s\S]*?\}/i);
+  if (!matches) return null;
+  
+  const block = matches[0];
+  const toolNameMatch = block.match(/tool\s*=>\s*"([^"]+)"/i) || block.match(/name\s*:\s*"([^"]+)"/i);
+  if (!toolNameMatch) return null;
+  
+  const toolName = toolNameMatch[1];
+  const args = {};
+  
+  // Extract --parameters
+  const paramsRegex = /--(\w+)\s+(?:"([\s\S]*?)"|'([\s\S]*?)'|`([\s\S]*?)`|(\S+))/gi;
+  let paramMatch;
+  while ((paramMatch = paramsRegex.exec(block)) !== null) {
+    const paramName = paramMatch[1];
+    const paramValue = paramMatch[2] || paramMatch[3] || paramMatch[4] || paramMatch[5];
+    args[paramName] = paramValue;
+  }
+  
+  // Fallback for --task if it contains complex nested quotes
+  if (toolName === 'execute_opencode_task' && !args.task) {
+    const taskMatch = block.match(/--task\s+"([\s\S]*?)"\s*--/i) || 
+                      block.match(/--task\s+"([\s\S]*?)"\s*\}/i) ||
+                      block.match(/--task\s+([\s\S]*?)(?=\s+--|\s+\})/i);
+    if (taskMatch) {
+      args.task = taskMatch[1].trim();
+    }
+  }
+
+  return [{
+    id: `custom_${Date.now()}`,
+    function: {
+      name: toolName,
+      arguments: JSON.stringify(args)
+    },
+    type: 'function'
+  }];
+}
+
 function normalizeLLMResponse(data) {
   if (!data) return data;
 
   if (data.message && typeof data.message === 'object') {
     let toolCalls = data.message.tool_calls || data.tool_calls || null;
     if (!toolCalls && data.message.content && typeof data.message.content === 'string') {
-      const inlineMatch = data.message.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
-      if (inlineMatch) {
+      const dsmlToolCalls = parseDSML(data.message.content);
+      if (dsmlToolCalls) {
         try {
-          toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
-          data.message.content = '';
+          toolCalls = dsmlToolCalls;
+          data.message.content = data.message.content
+            .replace(/<.*?DSML.*?tool_calls>([\s\S]*?)<\/.*?DSML.*?tool_calls>/gi, '')
+            .replace(/<.*?DSML.*?invoke[\s\S]*?<\/.*?DSML.*?invoke>/gi, '')
+            .trim();
         } catch {}
+      } else {
+        const customToolCalls = parseCustomToolCall(data.message.content);
+        if (customToolCalls) {
+          try {
+            toolCalls = customToolCalls;
+            data.message.content = data.message.content
+              .replace(/\[TOOL_CALL\]([\s\S]*?)\[\/TOOL_CALL\]/gi, '')
+              .replace(/\{tool\s*=>[\s\S]*?\}/gi, '')
+              .trim();
+          } catch {}
+        } else {
+          const inlineMatch = data.message.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
+          if (inlineMatch) {
+            try {
+              toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
+              data.message.content = '';
+            } catch {}
+          }
+        }
       }
     }
     if (toolCalls?.length > 0) {
@@ -248,12 +350,34 @@ function normalizeLLMResponse(data) {
     const msg = data.choices[0].message;
     let toolCalls = msg.tool_calls || data.tool_calls || null;
     if (!toolCalls && msg.content && typeof msg.content === 'string') {
-      const inlineMatch = msg.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
-      if (inlineMatch) {
+      const dsmlToolCalls = parseDSML(msg.content);
+      if (dsmlToolCalls) {
         try {
-          toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
-          msg.content = '';
+          toolCalls = dsmlToolCalls;
+          msg.content = msg.content
+            .replace(/<.*?DSML.*?tool_calls>([\s\S]*?)<\/.*?DSML.*?tool_calls>/gi, '')
+            .replace(/<.*?DSML.*?invoke[\s\S]*?<\/.*?DSML.*?invoke>/gi, '')
+            .trim();
         } catch {}
+      } else {
+        const customToolCalls = parseCustomToolCall(msg.content);
+        if (customToolCalls) {
+          try {
+            toolCalls = customToolCalls;
+            msg.content = msg.content
+              .replace(/\[TOOL_CALL\]([\s\S]*?)\[\/TOOL_CALL\]/gi, '')
+              .replace(/\{tool\s*=>[\s\S]*?\}/gi, '')
+              .trim();
+          } catch {}
+        } else {
+          const inlineMatch = msg.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
+          if (inlineMatch) {
+            try {
+              toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
+              msg.content = '';
+            } catch {}
+          }
+        }
       }
     }
     return {

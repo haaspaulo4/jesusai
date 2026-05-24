@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Landing Page — landingpage</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600&amp;family=Playfair+Display:wght@700&amp;display=swap');
+    
+    :root { --primary: #0a0a0a; --accent: #00ff9d; }
+    
+    body {
+      margin: 0;
+      font-family: 'Inter', system_ui, sans-serif;
+      background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 100%);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    
+    .container {
+      max-width: 820px;
+      padding: 60px 40px;
+      text-align: center;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 24px;
+      backdrop-filter: blur(20px);
+    }
+    
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 4rem;
+      margin: 0 0 16px;
+      background: linear-gradient(90deg, #fff, #00ff9d);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    
+    .tagline {
+      font-size: 1.4rem;
+      color: #aaa;
+      margin-bottom: 40px;
+    }
+    
+    .cta {
+      background: #00ff9d;
+      color: #000;
+      padding: 18px 48px;
+      font-size: 1.1rem;
+      font-weight: 600;
+      border: none;
+      border-radius: 9999px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    .cta:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 10px 30px rgba(0, 255, 157, 0.3);
+    }
+    
+    .meta-badge {
+      position: absolute;
+      top: 30px;
+      right: 40px;
+      background: rgba(0,255,157,0.1);
+      color: #00ff9d;
+      padding: 6px 18px;
+      border-radius: 9999px;
+      font-size: 0.85rem;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="meta-badge">✧ META-PERSONA</div>
+    
+    <h1>Surpresa.</h1>
+    <p class="tagline">Landing page criada sob demanda pela Meta-Persona<br>na área de trabalho do sistema.</p>
+    
+    <button class="cta" onclick="window.location.href='#'">Explorar agora</button>
+    
+    <p style="margin-top: 60px; font-size: 0.9rem; color: #555;">
+      Gerada em tempo real • 23/05/2026, 07:22:49
+    </p>
+  </div>
+</body>
+</html>

@@ -1,0 +1,19 @@
+{
+  "id": "task_1779602113590_wjomtja",
+  "createdAt": "2026-05-24T05:55:13.590Z",
+  "source": "meta-persona",
+  "userId": "user_mp2wj239_89w6db",
+  "sessionId": "pet_session_user_mp2wj239_89w6db",
+  "personaId": "meta-persona",
+  "description": "ok cade a landingpage??",
+  "priority": "high",
+  "status": "pending",
+  "assignedAgents": [
+    "architect",
+    "dev",
+    "qa",
+    "analyst"
+  ],
+  "workspacePath": "C:\\laragon\\www\\jesus.ai\\workspace",
+  "expectedOutput": "file:landingpage.html or similar creative artifact"
+}

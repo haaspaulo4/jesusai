@@ -1,0 +1,11 @@
+# SYNASPE KEYWORD: ERP - L6 Recall Rules
+KEYWORD_ERP_RULE_1=ERP module: products, orders, finance, suppliers, site CMS, commerce. 15 DB tables.
+KEYWORD_ERP_RULE_2=Backend: src/erp/ - products, orders, finance, suppliers, site, commerce, reports, recovery, delivery modules.
+KEYWORD_ERP_RULE_3=Routes: src/routes/erp.js (Admin API, auth required), src/routes/storefront.js (Public API, no auth).
+KEYWORD_ERP_RULE_4=LLM Tools: src/llm/erp-tools.js - 23 ERP tools + 10 commerce tools (62 total, merged into main tools).
+KEYWORD_ERP_RULE_5=Products: CRUD with variants, categories, stock tracking, SEO fields, images, tech specs. Types: physical, digital, service.
+KEYWORD_ERP_RULE_6=Orders: Full lifecycle (pending -> confirmed -> paid -> processing -> shipped -> delivered). Status transitions enforced.
+KEYWORD_ERP_RULE_7=Delivery zones configurable via settings: store_delivery_fee, store_free_delivery_above, store_delivery_zones JSON.
+KEYWORD_ERP_RULE_8=Loyalty system: src/loyalty/index.js - points, cashback, stamp_card, tier programs per persona.
+KEYWORD_ERP_RULE_9=Broadcast system: src/broadcast/index.js - WhatsApp/Telegram mass messaging with segment targeting.
+KEYWORD_ERP_RULE_10=Reports: src/erp/reports.js - revenue, orders by status, top products, sales trend, customer metrics, conversion funnel.

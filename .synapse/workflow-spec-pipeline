@@ -1,0 +1,8 @@
+# SYNASPE WORKFLOW: Spec Pipeline - L3 Rules
+# Triggered when active_workflow.id === 'spec-pipeline'
+
+WORKFLOW_SPEC_PIPELINE_RULE_1=Spec Pipeline: Document -> Review -> Approve -> Execute.
+WORKFLOW_SPEC_PIPELINE_RULE_2=Document: Create detailed specification with requirements, architecture, and acceptance criteria.
+WORKFLOW_SPEC_PIPELINE_RULE_3=Review: @conclave-critico audits for gaps, @conclave-advogado challenges assumptions.
+WORKFLOW_SPEC_PIPELINE_RULE_4=Approve: @conclave-sintetizador merges perspectives and approves or requests revisions.
+WORKFLOW_SPEC_PIPELINE_RULE_5=Execute: Only after approval, hand off to @dev for implementation.

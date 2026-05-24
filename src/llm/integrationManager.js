@@ -1,4 +1,4 @@
-require('dotenv').config();
+﻿require('dotenv').config();
 const { pool } = require('../db');
 
 const SERVICE_TYPES = {
@@ -339,61 +339,13 @@ class IntegrationManager {
       const numPredict = options.numPredict ?? 4096;
       const tools = options.tools ?? null;
 
+      const safeMessages = messages;
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeout);
 
       const isOllama = integ.baseUrl?.includes('ollama.com') || integ.baseUrl?.includes(':11434');
       const isClaude = integ.baseUrl?.includes('aibee.cloud') || serviceType === 'llm_claude';
       const isAnthropic = isClaude || (integ.baseUrl?.includes('anthropic') || integ.baseUrl?.includes('anthropic.com'));
-
-      // Nuclear safety: deep clone + normalize everything (prevents 400 malformed JSON on Ollama and 413 on Groq)
-      let safeMessages = Array.isArray(messages) ? JSON.parse(JSON.stringify(messages)) : [];
-
-      // Ultra hard cap for meta / cognitive calls
-      if (safeMessages.length > 5) safeMessages = safeMessages.slice(-5);
-
-      // UNIVERSAL aggressive normalizer — force strings for content, arguments, tool results on EVERY provider
-      function normalizeMessagesForLLM(arr) {
-        return arr.map(msg => {
-          if (!msg || typeof msg !== 'object') return msg;
-
-          const m = { ...msg };
-
-          // Always stringify content if object (especially for role: tool or previous tool results)
-          if (m.content && typeof m.content === 'object') {
-            try { m.content = JSON.stringify(m.content); } catch { m.content = String(m.content); }
-          }
-
-          // tool_calls arguments must be string for Ollama / most providers
-          if (Array.isArray(m.tool_calls)) {
-            m.tool_calls = m.tool_calls.map(tc => {
-              if (tc && tc.function) {
-                if (tc.function.arguments && typeof tc.function.arguments === 'object') {
-                  try { tc.function.arguments = JSON.stringify(tc.function.arguments); } catch { tc.function.arguments = '{}'; }
-                }
-              }
-              return tc;
-            });
-          }
-
-          // For role 'tool', content must be string (Ollama chokes on objects)
-          if (m.role === 'tool' && typeof m.content !== 'string') {
-            try { m.content = JSON.stringify(m.content || {}); } catch { m.content = '{}'; }
-          }
-
-          // Recurse into any other objects that might sneak in
-          for (const k of Object.keys(m)) {
-            if (k !== 'content' && k !== 'tool_calls' && m[k] && typeof m[k] === 'object' && !Array.isArray(m[k])) {
-              try { m[k] = JSON.stringify(m[k]); } catch { m[k] = String(m[k]); }
-            }
-          }
-
-          return m;
-        });
-      }
-
-      safeMessages = normalizeMessagesForLLM(safeMessages);
-
       // Final nuclear size guard — slice harder for stability
       let jsonSize = JSON.stringify(safeMessages).length;
       if (jsonSize > 22000) {
@@ -407,9 +359,25 @@ class IntegrationManager {
         headers = { 'Content-Type': 'application/json', ...(integ.key ? { Authorization: `Bearer ${integ.key}` } : {}) };
       } else if (isAnthropic) {
         endpoint = '/messages';
-        body = { model: options.model || integ.model, max_tokens: numPredict, messages: safeMessages };
+        const systemMessages = safeMessages.filter(m => m.role === 'system');
+        const normalMessages = safeMessages.filter(m => m.role !== 'system');
+        body = { model: options.model || integ.model, max_tokens: numPredict, messages: normalMessages };
+        if (systemMessages.length > 0) {
+          body.system = systemMessages.map(m => m.content).join('\n');
+        }
         if (temperature !== undefined && temperature !== null) body.temperature = temperature;
-        if (tools?.length > 0) body.tools = tools;
+        if (tools?.length > 0) {
+          body.tools = tools.map(t => {
+            if (t.type === 'function' && t.function) {
+              return {
+                name: t.function.name,
+                description: t.function.description,
+                input_schema: t.function.parameters
+              };
+            }
+            return t;
+          });
+        }
         headers = { 'Content-Type': 'application/json', 'x-api-key': integ.key, 'anthropic-version': '2023-06-01' };
       } else {
         endpoint = '/chat/completions';
@@ -768,31 +736,133 @@ class IntegrationManager {
   }
 }
 
+function parseDSML(content) {
+  if (typeof content !== 'string') return null;
+  const toolCalls = [];
+  
+  // DSML block match - looking for tag structures containing invoke
+  const dsmlMatches = content.match(/<.*?DSML.*?tool_calls>([\s\S]*?)<\/.*?DSML.*?tool_calls>/gi) ||
+                      [content]; // fallback to whole string search if block tags aren't perfectly present
+                      
+  for (const block of dsmlMatches) {
+    const invokeRegex = /<.*?DSML.*?invoke\s+name="([^"]+)">([\s\S]*?)<\/.*?DSML.*?invoke>/gi;
+    let invokeMatch;
+    while ((invokeMatch = invokeRegex.exec(block)) !== null) {
+      const funcName = invokeMatch[1];
+      const invokeBody = invokeMatch[2];
+      const args = {};
+
+      const paramRegex = /<.*?DSML.*?parameter\s+name="([^"]+)"(?:\s+type="[^"]+")?(?:\s+string="[^"]+")?>([\s\S]*?)<\/.*?DSML.*?parameter>/gi;
+      let paramMatch;
+      while ((paramMatch = paramRegex.exec(invokeBody)) !== null) {
+        const paramName = paramMatch[1];
+        const paramVal = paramMatch[2].trim();
+        args[paramName] = paramVal;
+      }
+
+      toolCalls.push({
+        id: `dsml_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+        function: {
+          name: funcName,
+          arguments: typeof args === 'string' ? args : JSON.stringify(args)
+        },
+        type: 'function'
+      });
+    }
+  }
+
+  return toolCalls.length > 0 ? toolCalls : null;
+}
+
+function parseCustomToolCall(content) {
+  if (typeof content !== 'string') return null;
+  const matches = content.match(/\[TOOL_CALL\]([\s\S]*?)\[\/TOOL_CALL\]/i) ||
+                  content.match(/\{tool\s*=>[\s\S]*?\}/i);
+  if (!matches) return null;
+  
+  const block = matches[0];
+  const toolNameMatch = block.match(/tool\s*=>\s*"([^"]+)"/i) || block.match(/name\s*:\s*"([^"]+)"/i);
+  if (!toolNameMatch) return null;
+  
+  const toolName = toolNameMatch[1];
+  const args = {};
+  
+  // Extract --parameters
+  const paramsRegex = /--(\w+)\s+(?:"([\s\S]*?)"|'([\s\S]*?)'|`([\s\S]*?)`|(\S+))/gi;
+  let paramMatch;
+  while ((paramMatch = paramsRegex.exec(block)) !== null) {
+    const paramName = paramMatch[1];
+    const paramValue = paramMatch[2] || paramMatch[3] || paramMatch[4] || paramMatch[5];
+    args[paramName] = paramValue;
+  }
+  
+  // Fallback for --task if it contains complex nested quotes
+  if (toolName === 'execute_opencode_task' && !args.task) {
+    const taskMatch = block.match(/--task\s+"([\s\S]*?)"\s*--/i) || 
+                      block.match(/--task\s+"([\s\S]*?)"\s*\}/i) ||
+                      block.match(/--task\s+([\s\S]*?)(?=\s+--|\s+\})/i);
+    if (taskMatch) {
+      args.task = taskMatch[1].trim();
+    }
+  }
+
+  return [{
+    id: `custom_${Date.now()}`,
+    function: {
+      name: toolName,
+      arguments: JSON.stringify(args)
+    },
+    type: 'function'
+  }];
+}
+
 function normalizeLLMResponse(data) {
   if (!data) return data;
 
   if (data.message && typeof data.message === 'object') {
     let toolCalls = data.message.tool_calls || data.tool_calls || null;
     if (!toolCalls && data.message.content && typeof data.message.content === 'string') {
-      const inlineMatch = data.message.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
-      if (inlineMatch) {
+      const dsmlToolCalls = parseDSML(data.message.content);
+      if (dsmlToolCalls) {
         try {
-          toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
-          data.message.content = data.message.content.replace(inlineMatch[0], '').trim();
+          toolCalls = dsmlToolCalls;
+          data.message.content = data.message.content
+            .replace(/<.*?DSML.*?tool_calls>([\s\S]*?)<\/.*?DSML.*?tool_calls>/gi, '')
+            .replace(/<.*?DSML.*?invoke[\s\S]*?<\/.*?DSML.*?invoke>/gi, '')
+            .trim();
         } catch {}
       } else {
-        const xmlMatch = data.message.content.match(/<minimax:tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/minimax:tool_call>/i) ||
-                         data.message.content.match(/<tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/tool_call>/i);
-        if (xmlMatch) {
+        const customToolCalls = parseCustomToolCall(data.message.content);
+        if (customToolCalls) {
           try {
-            const funcName = xmlMatch[1];
-            let funcArgsStr = xmlMatch[2].trim();
-            if (!funcArgsStr || !funcArgsStr.startsWith('{')) {
-              funcArgsStr = '{}';
-            }
-            toolCalls = [{ id: 'inline_0', function: { name: funcName, arguments: funcArgsStr }, type: 'function' }];
-            data.message.content = data.message.content.replace(xmlMatch[0], '').trim();
+            toolCalls = customToolCalls;
+            data.message.content = data.message.content
+              .replace(/\[TOOL_CALL\]([\s\S]*?)\[\/TOOL_CALL\]/gi, '')
+              .replace(/\{tool\s*=>[\s\S]*?\}/gi, '')
+              .trim();
           } catch {}
+        } else {
+          const inlineMatch = data.message.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
+          if (inlineMatch) {
+            try {
+              toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
+              data.message.content = data.message.content.replace(inlineMatch[0], '').trim();
+            } catch {}
+          } else {
+            const xmlMatch = data.message.content.match(/<minimax:tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/minimax:tool_call>/i) ||
+                             data.message.content.match(/<tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/tool_call>/i);
+            if (xmlMatch) {
+              try {
+                const funcName = xmlMatch[1];
+                let funcArgsStr = xmlMatch[2].trim();
+                if (!funcArgsStr || !funcArgsStr.startsWith('{')) {
+                  funcArgsStr = '{}';
+                }
+                toolCalls = [{ id: 'inline_0', function: { name: funcName, arguments: funcArgsStr }, type: 'function' }];
+                data.message.content = data.message.content.replace(xmlMatch[0], '').trim();
+              } catch {}
+            }
+          }
         }
       }
     }
@@ -806,26 +876,48 @@ function normalizeLLMResponse(data) {
     const msg = data.choices[0].message;
     let toolCalls = msg.tool_calls || data.tool_calls || null;
     if (!toolCalls && msg.content && typeof msg.content === 'string') {
-      const inlineMatch = msg.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
-      if (inlineMatch) {
+      const dsmlToolCalls = parseDSML(msg.content);
+      if (dsmlToolCalls) {
         try {
-          toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
-          msg.content = msg.content.replace(inlineMatch[0], '').trim();
+          toolCalls = dsmlToolCalls;
+          msg.content = msg.content
+            .replace(/<.*?DSML.*?tool_calls>([\s\S]*?)<\/.*?DSML.*?tool_calls>/gi, '')
+            .replace(/<.*?DSML.*?invoke[\s\S]*?<\/.*?DSML.*?invoke>/gi, '')
+            .trim();
         } catch {}
       } else {
-        const xmlMatch = msg.content.match(/<minimax:tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/minimax:tool_call>/i) ||
-                         msg.content.match(/<tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/tool_call>/i);
-        if (xmlMatch) {
+        const customToolCalls = parseCustomToolCall(msg.content);
+        if (customToolCalls) {
           try {
-            const funcName = xmlMatch[1];
-            let funcArgsStr = xmlMatch[2].trim();
-            // If arguments is empty or not JSON, default to empty object
-            if (!funcArgsStr || !funcArgsStr.startsWith('{')) {
-              funcArgsStr = '{}';
-            }
-            toolCalls = [{ id: 'inline_0', function: { name: funcName, arguments: funcArgsStr }, type: 'function' }];
-            msg.content = msg.content.replace(xmlMatch[0], '').trim();
+            toolCalls = customToolCalls;
+            msg.content = msg.content
+              .replace(/\[TOOL_CALL\]([\s\S]*?)\[\/TOOL_CALL\]/gi, '')
+              .replace(/\{tool\s*=>[\s\S]*?\}/gi, '')
+              .trim();
           } catch {}
+        } else {
+          const inlineMatch = msg.content.match(/\{"name"\s*:\s*"(\w+)"[\s\S]*?"arguments"\s*:\s*(\{[\s\S]*?\})\}/);
+          if (inlineMatch) {
+            try {
+              toolCalls = [{ id: 'inline_0', function: { name: inlineMatch[1], arguments: inlineMatch[2] }, type: 'function' }];
+              msg.content = msg.content.replace(inlineMatch[0], '').trim();
+            } catch {}
+          } else {
+            const xmlMatch = msg.content.match(/<minimax:tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/minimax:tool_call>/i) ||
+                             msg.content.match(/<tool_call>[\s\S]*?<invoke\s+name="([^"]+)">([\s\S]*?)<\/invoke>[\s\S]*?<\/tool_call>/i);
+            if (xmlMatch) {
+              try {
+                const funcName = xmlMatch[1];
+                let funcArgsStr = xmlMatch[2].trim();
+                // If arguments is empty or not JSON, default to empty object
+                if (!funcArgsStr || !funcArgsStr.startsWith('{')) {
+                  funcArgsStr = '{}';
+                }
+                toolCalls = [{ id: 'inline_0', function: { name: funcName, arguments: funcArgsStr }, type: 'function' }];
+                msg.content = msg.content.replace(xmlMatch[0], '').trim();
+              } catch {}
+            }
+          }
         }
       }
     }

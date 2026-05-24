@@ -1,0 +1,13 @@
+# SYNASPE WORKFLOW: landing-page - L3 Rules
+# Triggered when active_workflow.id === 'landing-page'
+
+WORKFLOW_LANDING_PAGE_RULE_1=Landing page creation follows 5-phase UX workflow: Research -> Audit -> Tokens -> Build -> Quality
+WORKFLOW_LANDING_PAGE_RULE_2=Phase 1 (Research): Analyze brand, target audience, competitors, and define conversion goals
+WORKFLOW_LANDING_PAGE_RULE_3=Phase 2 (Audit): Review existing assets, identify gaps, define design tokens (colors, fonts, spacing)
+WORKFLOW_LANDING_PAGE_RULE_4=Phase 3 (Tokens): Extract CSS custom properties from brand settings (--brand-primary, --brand-secondary)
+WORKFLOW_LANDING_PAGE_RULE_5=Phase 4 (Build): Implement in Vue 3 CDN + Tailwind CSS, serve from public/ directory, no build step
+WORKFLOW_LANDING_PAGE_RULE_6=Phase 5 (Quality): Verify responsive design, accessibility (WCAG 2.1 AA), dark mode, performance (Lighthouse 90+)
+WORKFLOW_LANDING_PAGE_RULE_7=Landing pages MUST include: hero section with CTA, features/benefits, testimonials/social proof, pricing (if applicable), footer
+WORKFLOW_LANDING_PAGE_RULE_8=Use /api/store/brand endpoint for dynamic brand injection. Use /api/store/products for product catalog.
+WORKFLOW_LANDING_PAGE_RULE_9=Commerce landing pages integrate with /api/store/* endpoints for product catalog, cart, and checkout flow.
+WORKFLOW_LANDING_PAGE_RULE_10=Store pages (/store) use store.html with dynamic brand injection via CSS variables from /api/store/brand API.

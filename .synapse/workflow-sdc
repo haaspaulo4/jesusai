@@ -1,0 +1,8 @@
+# SYNASPE WORKFLOW: SDC (Spec-Develop-Confirm) - L3 Rules
+# Triggered when active_workflow.id === 'sdc'
+
+WORKFLOW_SDC_RULE_1=SDC workflow: Spec -> Develop -> Confirm. Never skip the Spec phase.
+WORKFLOW_SDC_RULE_2=Spec phase: Define requirements, acceptance criteria, and technical approach before coding.
+WORKFLOW_SDC_RULE_3=Develop phase: Implement the spec with incremental, testable steps.
+WORKFLOW_SDC_RULE_4=Confirm phase: Verify implementation matches spec, run tests, validate acceptance criteria.
+WORKFLOW_SDC_RULE_5=Each phase must complete before the next begins. No parallel SDC phases.

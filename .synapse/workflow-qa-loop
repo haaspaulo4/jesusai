@@ -1,0 +1,8 @@
+# SYNASPE WORKFLOW: QA Loop - L3 Rules
+# Triggered when active_workflow.id === 'qa-loop'
+
+WORKFLOW_QA_LOOP_RULE_1=QA Loop: Review -> Fix -> Verify -> Repeat until quality gate passes.
+WORKFLOW_QA_LOOP_RULE_2=Review: @qa reviews code against specs, identifies issues with severity (CRITICAL/HIGH/MEDIUM/LOW).
+WORKFLOW_QA_LOOP_RULE_3=Fix: @dev addresses issues in priority order (CRITICAL first, then HIGH, etc).
+WORKFLOW_QA_LOOP_RULE_4=Verify: Re-run review on fixed code. If new issues found, loop back to Fix.
+WORKFLOW_QA_LOOP_RULE_5=Maximum 3 QA iterations. After 3, escalate to @architect for structural review.

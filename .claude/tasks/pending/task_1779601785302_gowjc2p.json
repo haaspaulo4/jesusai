@@ -1,0 +1,19 @@
+{
+  "id": "task_1779601785302_gowjc2p",
+  "createdAt": "2026-05-24T05:49:45.302Z",
+  "source": "meta-persona",
+  "userId": "user_mp2wj239_89w6db",
+  "sessionId": "pet_session_user_mp2wj239_89w6db",
+  "personaId": "meta-persona",
+  "description": "Crie os arquivos para um blog com CRUD em HTML, CSS e JS local na pasta public/blog-crud/ usando a ferramenta execute_opencode_task agora!",
+  "priority": "high",
+  "status": "pending",
+  "assignedAgents": [
+    "architect",
+    "dev",
+    "qa",
+    "analyst"
+  ],
+  "workspacePath": "C:\\laragon\\www\\jesus.ai\\workspace",
+  "expectedOutput": "file:landingpage.html or similar creative artifact"
+}

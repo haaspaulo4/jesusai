@@ -104,6 +104,11 @@ async function invokeSkill(skillId, input, context = {}) {
   if (!skill) throw new Error(`Skill "${skillId}" not found`);
   if (!skill.is_active) throw new Error(`Skill "${skillId}" is not active`);
 
+  if (skill.type === 'opencode' || skill.type === 'task') {
+    const { invokeSkillOpenCode } = require('./opencode');
+    return invokeSkillOpenCode(skillId, input, context);
+  }
+
   const integrations = require('../llm/integrationManager');
   const { getSetting } = require('../settings');
 
@@ -132,4 +137,4 @@ async function getSkillsForPersona(personaId) {
   return rows.map(formatSkill);
 }
 
-module.exports = { createSkill, updateSkill, deleteSkill, getSkill, listSkills, invokeSkill, getSkillsForPersona };
+module.exports = { createSkill, updateSkill, deleteSkill, getSkill, listSkills, invokeSkill, getSkillsForPersona, sanitizeForPrompt };

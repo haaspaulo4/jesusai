@@ -1,0 +1,8 @@
+# SYNASPE KEYWORD: Frontend - L6 Recall Rules
+KEYWORD_FRONTEND_RULE_1=Frontend uses Vue 3 (CDN, Composition API, no build step) + Tailwind CSS (CDN) + Socket.IO Client. No SSR.
+KEYWORD_FRONTEND_RULE_2=Static HTML served by Express from /public directory.
+KEYWORD_FRONTEND_RULE_3=Landing page (index.html), admin panel (admin.html), store (store.html).
+KEYWORD_FRONTEND_RULE_4=CSS custom properties for whitelabel: --brand-primary, --brand-secondary from /api/store/brand or /api/settings.
+KEYWORD_FRONTEND_RULE_5=Socket.IO rooms: user:{userId}, session:{sessionId}. Events: new_message, agent_thinking, xp_update, badge_earned, etc.
+KEYWORD_FRONTEND_RULE_6=Chat flow: POST /api/chat -> response with sessionId. On persona switch -> POST /api/persona/switch -> clear local sessionId.
+KEYWORD_FRONTEND_RULE_7=NEVER send empty sessionId string. Always send null or let server generate, then save returned sessionId.

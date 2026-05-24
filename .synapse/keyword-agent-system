@@ -1,0 +1,10 @@
+# SYNASPE KEYWORD: Agent System - L6 Recall Rules
+KEYWORD_AGENT_SYSTEM_RULE_1=Agent system: tasks, calendar, contacts, automations, history, dashboard, checkAndRunAutomations.
+KEYWORD_AGENT_SYSTEM_RULE_2=Meta-persona (id: "meta-persona") has ALL 34+ LLM tools enabled. Admin god that orchestrates everything.
+KEYWORD_AGENT_SYSTEM_RULE_3=LLM tools defined in src/llm/tools.js using Ollama-native format. Tool calling via native /chat endpoint.
+KEYWORD_AGENT_SYSTEM_RULE_4=Cognitive pipeline: analyzeCognitiveState() detects emotion (8 types) and intent (8 types), calculates churn_risk and conversion_probability.
+KEYWORD_AGENT_SYSTEM_RULE_5=Gamification: addXp, updateStreak, checkAndAwardBadges, formatXpContext injected into system prompt.
+KEYWORD_AGENT_SYSTEM_RULE_6=Goals: formatGoalContext() injects active goals into system prompt. Org memory: getOrgMemoryContext() searches by keywords.
+KEYWORD_AGENT_SYSTEM_RULE_7=Conversation stages: ensureDefaultStages creates greeting -> discovery -> engagement -> conversion -> retention funnel.
+KEYWORD_AGENT_SYSTEM_RULE_8=Human override: full (AI pauses), approval (AI generates, human approves), observation (AI responds, human watches).
+KEYWORD_AGENT_SYSTEM_RULE_9=Event bus emit() fires after: goal completed, badge earned, level up, churn risk high, stage advance, cognitive change, XP milestone.

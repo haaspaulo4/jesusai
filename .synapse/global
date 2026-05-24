@@ -1,0 +1,39 @@
+# SYNASPE GLOBAL - L1 Universal Project Rules
+# These rules apply to ALL contexts and ALL agents.
+
+# Tech Stack
+GLOBAL_RULE_1=Backend: Node.js 18+ with Express. Database: MySQL 8.4 via mysql2/promise. LLM: Ollama Cloud API (glm-5.1 model) with multi-key fallback.
+GLOBAL_RULE_2=Frontend: Vue 3 (CDN, Composition API, no build step) + Tailwind CSS (CDN) + Socket.IO Client. No SSR.
+GLOBAL_RULE_3=RAG: Hybrid TF-IDF + Vector Embeddings (nomic-embed-text, 768d). Embeddings in MySQL. Fallback to TF-IDF only if vectors fail.
+GLOBAL_RULE_4=Job Queue: BullMQ (Redis-backed) for proactive engine, ingestion, embeddings, automations, blog, email with retry and scheduling.
+GLOBAL_RULE_5=TTS: Kokoro-82M (primary) + Edge TTS (fallback) + Google Translate (fallback). STT: Whisper local + Groq + OpenAI + whisper.cpp fallback.
+
+# File Structure
+GLOBAL_RULE_6=src/chat/engine.js is the central chat engine - all message processing flows through here.
+GLOBAL_RULE_7=src/llm/integrationManager.js handles multi-key fallback for ALL LLM integrations (Ollama /chat native + Groq OpenAI-compatible).
+GLOBAL_RULE_8=src/llm/tools.js defines ALL 34+ LLM tools in Ollama-native format.
+GLOBAL_RULE_9=Persona management: src/persona/manager.js (CRUD + cache), src/persona/meta-rag.js (LLM generation), src/persona/config.js (defaults + system prompt).
+GLOBAL_RULE_10=Agent system: src/agent/index.js (tasks, calendar, contacts, automations, history, dashboard, checkAndRunAutomations).
+
+# API Patterns
+GLOBAL_RULE_11=Public API routes: /api/chat/*, /api/store/*, /api/auth/*, /api/blog/* - admin routes require auth + admin role.
+GLOBAL_RULE_12=Admin ERP routes /api/erp/* require auth + admin role. Storefront routes /api/store/* are public (no auth).
+GLOBAL_RULE_13=Chat commands are registered in src/chat/commands.js via seedDefaultCommands() on startup.
+GLOBAL_RULE_14=Settings are DB-backed (settings table) with in-memory cache. Whitelabel settings prefixed with brand_.
+
+# Database & Schema
+GLOBAL_RULE_15=All 41+ tables auto-created and migrated on server startup via src/db/index.js.
+GLOBAL_RULE_16=Agent module CRUD operations use VARCHAR primary keys with format: prefix_timestamp_random.
+GLOBAL_RULE_17=createPersona() MUST preserve existing fields from cache. loadPersonas() must NOT fallback to Jesus persona for custom personas.
+GLOBAL_RULE_18=catalog_search tool filters by context.personaId - only returns products belonging to the current persona's store.
+
+# Realtime & Events
+GLOBAL_RULE_19=Socket.IO server attached to HTTP server. Room-based events: user:{userId}, session:{sessionId}.
+GLOBAL_RULE_20=Event bus emit() fires after: goal completed, badge earned, level up, churn risk high, stage advance, cognitive change, XP milestone.
+GLOBAL_RULE_21=ProactiveEngine runs on configurable interval (default 60 min): checkAutomations, checkStreakReminders, checkGoalDeadlines, createFollowUp.
+
+# Commerce System
+GLOBAL_RULE_22=Commerce persona (loja-hlb pattern) has commerce-only identity, NO religious content, knowledge_sources: [].
+GLOBAL_RULE_23=WHATSAPP_PERSONA_ID env var sets default persona for all WhatsApp messages.
+GLOBAL_RULE_24=Commerce system prompt emphasizes natural conversation, proactive selling, upsell/cross-sell. NO slash commands for customers.
+GLOBAL_RULE_25=Loyalty system: points, cashback, stamp_card, tier programs. auto-earns on order finalize. Chat commands: /fidelidade, /pontos, /cashback.

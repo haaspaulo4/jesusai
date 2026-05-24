@@ -1,0 +1,41 @@
+# SYNASPE COMMANDS - L7 Star-Command Rules
+# [*command] headers define rule blocks activated by *command patterns in prompts
+
+[*analyze-project]
+CMMND_ANALYZE_1=Use @architect (Aria) for project analysis. Key commands: *analyze-project-structure, *create-full-stack-architecture, *document-project.
+CMMND_ANALYZE_2=Reference AGENTS.md for complete system architecture: 41+ DB tables, 34+ LLM tools, 8 Synapse layers.
+CMMND_ANALYZE_3=Architecture-first: ALWAYS create architecture docs before code changes in protected paths.
+
+[*build]
+CMMND_BUILD_1=Use @dev (Dex) for code implementation. Key commands: *develop, *build, *execute-subtask.
+CMMND_BUILD_2=CommonJS only (require/module.exports). Kebab-case filenames. No comments unless requested.
+CMMND_BUILD_3=NEVER push to git. That authority belongs EXCLUSIVELY to @devops.
+
+[*wireframe]
+CMMND_WIREFRAME_1=Use @ux-design-expert (Uma) for wireframes and UI specs. Key commands: *research, *wireframe, *create-front-end-spec.
+CMMND_WIREFRAME_2=Vue 3 CDN + Tailwind CSS. No build step. Landing pages in public/ directory.
+CMMND_WIREFRAME_3=Follow Atomic Design: atoms -> molecules -> organisms -> templates -> pages.
+
+[*create]
+CMMND_CREATE_1=Use @aios-master (Orion) for orchestration. Key commands: *create, *workflow, *plan.
+CMMND_CREATE_2=Assess delivery tier: INSTANT (execute), FAST (plan+execute), STRATEGIC (Conclave+execute), EPIC (spec+squad).
+CMMND_CREATE_3=For landing pages: delegate to @ux-design-expert. For analysis: delegate to @architect.
+
+[*research]
+CMMND_RESEARCH_1=Use @analyst (Atlas) for research. Key commands: *perform-market-research, *create-competitor-analysis, *brainstorm.
+CMMND_RESEARCH_2=Market research includes competitor analysis, opportunity identification, and strategic recommendations.
+
+[*plan]
+CMMND_PLAN_1=Use @aios-master (Orion) for planning. Key commands: *plan, *workflow, *create.
+CMMND_PLAN_2=IDS (Incremental Development System): Spec -> Story -> Task -> Execute -> Verify. Never skip steps.
+CMMND_PLAN_3=Delivery declaration format: TIER | AGENT | TASK | STATUS | NEXT.
+
+[*review]
+CMMND_REVIEW_1=Use @qa (Quinn) for quality review. Key commands: *code-review, *review, *gate, *nfr-assess.
+CMMND_REVIEW_2=10-phase structured review. Gate decisions: PASS/CONCERNS/FAIL/WAIVED.
+CMMND_REVIEW_3=CodeRabbit self-healing: max 3 iterations for CRITICAL+HIGH issues.
+
+[*deploy]
+CMMND_DEPLOY_1=Use @devops (Gage) for deployment. Key commands: *push, *create-pr, *release, *health-check.
+CMMND_DEPLOY_2=ONLY @devops has git push authority. All other agents MUST delegate push operations.
+CMMND_DEPLOY_3=Pre-push quality gates: lint, typecheck, tests must pass before pushing.

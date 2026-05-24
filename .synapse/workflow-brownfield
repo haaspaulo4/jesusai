@@ -1,0 +1,8 @@
+# SYNASPE WORKFLOW: Brownfield Discovery - L3 Rules
+# Triggered when active_workflow.id === 'brownfield'
+
+WORKFLOW_BROWNFIELD_RULE_1=Brownfield Discovery: Map existing code before proposing changes.
+WORKFLOW_BROWNFIELD_RULE_2=Phase 1: Catalog all files, dependencies, and architecture patterns using @architect analyze-project-structure.
+WORKFLOW_BROWNFIELD_RULE_3=Phase 2: Identify technical debt, coupling points, and risk areas.
+WORKFLOW_BROWNFIELD_RULE_4=Phase 3: Propose incremental changes that preserve backward compatibility.
+WORKFLOW_BROWNFIELD_RULE_5=NEXT_STATUS map: Never skip steps. Each change must be individually deployable.
