@@ -162,6 +162,20 @@ User message → Rate limit + Ban check → Onboarding check
 - Each persona has `ttsVoice` and `ttsLang` fields
 - Edge TTS fallback: pm_alex → pt-BR-AntonioNeural, pf_dora → pt-BR-FranciscaNeural
 - Message chunk size: configurable via `MESSAGE_CHUNK_SIZE` or `message_chunk_size` setting (default 200 chars)
+- ffmpeg-powered audio processing: WAV concatenation, format conversion (OGG/MP3/FLAC)
+
+### FFmpeg Media Module (`src/media/ffmpeg.js`)
+- `convertAudio()`: Convert between WAV, MP3, OGG/Opus, FLAC, M4A formats
+- `convertToOggOpus()`: WAV → OGG/Opus (for Telegram voice messages)
+- `convertToMp3()`: WAV/any → MP3
+- `convertToWav()`: Any → WAV 16kHz mono (for Whisper STT, best accuracy)
+- `concatAudio()`: Concatenate multiple audio files with ffmpeg (replaces manual WAV splicing in TTS)
+- `trimAudio()`: Extract a segment by start time + duration
+- `extractAudio()`: Extract audio track from video (MP4, AVI, MKV, etc.)
+- `normalizeAudio()`: Resample to target sample rate, channels, format (ideal for STT preprocessing)
+- `getAudioInfo()`: Probe audio metadata (duration, codec, channels, sample rate, bitrate)
+- All functions use temp files with proper cleanup
+- ffmpeg 8.1.1 installed with libopus, libmp3lame, x264, x265, libvpx
 
 ### Hybrid Vector Search
 - `saveEmbedding()`, `searchEmbeddings()`, `cosineSimilarity()`, `indexSource()`
@@ -369,7 +383,8 @@ users, sessions, messages, profiles, posts, comments, feedback, settings, api_ke
 - `src/knowledge/` — config, store (TF-IDF), ingester (multimodal)
 - `src/embeddings/` — Vector search (Ollama embeddings, cosine similarity)
 - `src/tts/index.js` — Kokoro + Edge TTS fallback
-- `src/stt/` — Whisper local + Groq + OpenAI Whisper
+- `src/stt/` — Whisper local + Groq + OpenAI Whisper (ffmpeg normalization to WAV 16kHz mono)
+- `src/media/ffmpeg.js` — FFmpeg utilities: convertAudio, concatAudio, trimAudio, extractAudio, normalizeAudio, getAudioInfo
 - `src/routes/admin.js` — Admin API
 - `src/routes/chat.js` — Chat API
 - `src/routes/auth.js` — Auth API
@@ -465,6 +480,14 @@ Each state defines: color, emissiveIntensity, speed, scale, amplitude, particleS
 | `find_skills` | Search external tool registry for installable skills by query and category. |
 | `install_skill` | Install a skill from registry (admin only, returns manual setup instructions). |
 | `spawn` | Launch a background subagent as a task in persona_tasks table (admin only). Supports explore/general types. |
+
+### Audio/Media LLM Tools
+| Tool | Description |
+|------|-------------|
+| `convert_audio` | Convert audio between formats (WAV, MP3, OGG, FLAC, M4A). Uses ffmpeg. |
+| `merge_audio` | Concatenate multiple audio files into one (WAV/MP3/OGG). |
+| `trim_audio` | Extract a time segment from audio by start time and duration. |
+| `extract_audio` | Extract audio track from video files (MP4, AVI, MKV, etc). |
 
 ### Provider Routing (web_search)
 The `web_search` tool automatically tries providers in priority order:
