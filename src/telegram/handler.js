@@ -33,10 +33,34 @@ const {
   MAX_TTS_LENGTH,
 } = require('../tts');
 
+const { execFile } = require('child_process');
+const path = require('path');
+const os = require('os');
+const fs = require('fs');
+
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY;
 const CHAT_MODEL = process.env.CHAT_MODEL || 'glm-5.1';
 const TELEGRAM_AUDIO = process.env.TELEGRAM_AUDIO !== 'false';
+
+async function convertToOggOpus(wavBuffer) {
+  const tmpDir = os.tmpdir();
+  const wavPath = path.join(tmpDir, `tg_tts_${Date.now()}.wav`);
+  const oggPath = path.join(tmpDir, `tg_tts_${Date.now()}.ogg`);
+  try {
+    fs.writeFileSync(wavPath, wavBuffer);
+    await new Promise((resolve, reject) => {
+      execFile('ffmpeg', ['-y', '-i', wavPath, '-c:a', 'libopus', '-b:a', '48k', '-vbr', 'on', oggPath], { timeout: 15000 }, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+    return fs.readFileSync(oggPath);
+  } finally {
+    try { fs.unlinkSync(wavPath); } catch {}
+    try { fs.unlinkSync(oggPath); } catch {}
+  }
+}
 
 function escapeMarkdown(text) {
   if (!text) return '';
@@ -243,12 +267,17 @@ function makeTelegramHandler(options = {}) {
             console.log(`[TG:${botName}] Sending ${audioChunksFiltered.length} audio chunks, lang=${ttsLang}, voice=${kokoroVoice || 'default'}`);
             for (const chunk of audioChunksFiltered) {
               try {
-                const audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang, kokoroVoice });
+                let audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang, kokoroVoice });
                 if (audioBuffer && audioBuffer.length > 0) {
-                  const contentType = getAudioContentType(ttsLang, kokoroVoice);
-                  const ext = contentType.includes('mp3') ? 'mp3' : 'wav';
-                  // Use sendAudio (accepts WAV/MP3) instead of sendVoice (requires OGG/Opus)
-                  await bot.sendAudio(chatId, audioBuffer, {}, { filename: `voice_${Date.now()}.${ext}`, contentType });
+                  // Convert WAV to OGG/Opus for Telegram voice messages
+                  try {
+                    const oggBuffer = await convertToOggOpus(audioBuffer);
+                    await bot.sendVoice(chatId, oggBuffer, {}, { filename: 'voice.ogg', contentType: 'audio/ogg' });
+                  } catch (convErr) {
+                    // Fallback: send as audio file (WAV) if conversion fails
+                    console.error(`[TG:${botName}] OGG conversion failed, sending as audio:`, convErr.message);
+                    await bot.sendAudio(chatId, audioBuffer, {}, { filename: 'voice.wav', contentType: 'audio/wav' });
+                  }
                   await new Promise(r => setTimeout(r, 500));
                   continue;
                 }
@@ -259,7 +288,7 @@ function makeTelegramHandler(options = {}) {
               try {
                 const audioUrl = generateTTSAudioUrl(chunk, ttsLang);
                 if (audioUrl) {
-                  await bot.sendAudio(chatId, audioUrl);
+                  await bot.sendVoice(chatId, audioUrl);
                   await new Promise(r => setTimeout(r, 500));
                 }
               } catch {}
