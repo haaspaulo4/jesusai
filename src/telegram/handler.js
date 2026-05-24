@@ -244,19 +244,23 @@ function makeTelegramHandler(options = {}) {
                 const audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang, kokoroVoice });
                 if (audioBuffer && audioBuffer.length > 0) {
                   const contentType = getAudioContentType(ttsLang, kokoroVoice);
-                  const ext = contentType.includes('mp3') ? 'mp3' : 'ogg';
-                  await bot.sendVoice(chatId, audioBuffer, {}, { filename: `voice.${ext}`, contentType });
-                  await new Promise(r => setTimeout(r, 300));
+                  const ext = contentType.includes('mp3') ? 'mp3' : 'wav';
+                  // Use sendAudio (accepts WAV/MP3) instead of sendVoice (requires OGG/Opus)
+                  await bot.sendAudio(chatId, audioBuffer, {}, { filename: `voice_${Date.now()}.${ext}`, contentType });
+                  await new Promise(r => setTimeout(r, 500));
                   continue;
                 }
               } catch (err) {
-                console.error(`[TG:${botName}] Voice chunk failed:`, err.message);
+                console.error(`[TG:${botName}] Audio chunk failed:`, err.message);
               }
+              // Fallback: try URL-based TTS
               try {
                 const audioUrl = generateTTSAudioUrl(chunk, ttsLang);
-                if (audioUrl) await bot.sendVoice(chatId, audioUrl);
+                if (audioUrl) {
+                  await bot.sendAudio(chatId, audioUrl);
+                  await new Promise(r => setTimeout(r, 500));
+                }
               } catch {}
-              await new Promise(r => setTimeout(r, 300));
             }
           }
         } catch (ttsErr) {
