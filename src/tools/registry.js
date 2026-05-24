@@ -2420,6 +2420,198 @@ async function searchExternalKnowledge(query, category, limit = 5) {
   return results;
 }
 
+  // ==========================================
+  // WEB SEARCH — Smart provider routing
+  // ==========================================
+
+  registerTool({
+    id: 'web_search',
+    category: 'search',
+    niche: 'general,knowledge,research',
+    name: 'Web Search',
+    description: 'Busca informações na internet com roteamento automático de provedor. Tenta Serper → SerpAPI → SearXNG → Perplexica em sequência.',
+    input: ['query', 'language', 'num_results'],
+    output: ['results', 'total', 'provider'],
+    enabled: true,
+    priority: 20,
+    execute: async (params) => {
+      const query = params.query || '';
+      if (!query) return { error: 'Query é obrigatória' };
+      const lang = params.language || 'pt-BR';
+      const numResults = parseInt(params.num_results) || 10;
+      const gl = lang === 'en-US' ? 'us' : lang === 'es-ES' ? 'es' : 'br';
+      const hl = lang === 'en-US' ? 'en' : lang === 'es-ES' ? 'es' : 'pt-br';
+
+      // Provider 1: Serper (Google Search API)
+      const serperKey = process.env.SERPER_KEY || process.env.SERPER_API_KEY;
+      if (serperKey) {
+        try {
+          const res = await fetch('https://google.serper.dev/search', {
+            method: 'POST',
+            headers: { 'X-API-KEY': serperKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ q: query, gl, hl, num: numResults }),
+            signal: AbortSignal.timeout(10000),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const results = [
+              ...(data.knowledgeGraph ? [{ title: data.knowledgeGraph.title, snippet: data.knowledgeGraph.description, link: data.knowledgeGraph.website || '', type: 'knowledge_graph' }] : []),
+              ...(data.answerBox ? [{ title: data.answerBox.title || 'Answer Box', snippet: data.answerBox.snippet || data.answerBox.answer, link: data.answerBox.link || '', type: 'answer_box' }] : []),
+              ...(data.organic || []).map(r => ({ title: r.title, snippet: r.snippet, link: r.link, position: r.position, type: 'organic' })),
+            ].slice(0, numResults);
+            return { query, results, total: results.length, provider: 'serper' };
+          }
+        } catch (e) { console.error('[web_search] Serper failed:', e.message); }
+      }
+
+      // Provider 2: SerpAPI
+      const serpApiKey = process.env.SERPAPI_KEY;
+      if (serpApiKey) {
+        try {
+          const axios = require('axios');
+          const res = await axios.get('https://serpapi.com/search', {
+            params: { q: query, api_key: serpApiKey, engine: 'google', location: gl === 'br' ? 'Brazil' : 'United States', hl, num: numResults },
+            timeout: 10000,
+          });
+          const data = res.data;
+          const results = (data.organic_results || []).map(r => ({
+            title: r.title, snippet: r.snippet, link: r.link, position: r.position, type: 'organic',
+          })).slice(0, numResults);
+          if (results.length > 0) return { query, results, total: results.length, provider: 'serpapi' };
+        } catch (e) { console.error('[web_search] SerpAPI failed:', e.message); }
+      }
+
+      // Provider 3: SearXNG (self-hosted)
+      const searxUrl = process.env.SEARXNG_URL;
+      if (searxUrl) {
+        try {
+          const axios = require('axios');
+          const res = await axios.get(`${searxUrl}/search`, {
+            params: { q: query, format: 'json', language: lang },
+            timeout: 10000,
+          });
+          const results = (res.data.results || []).slice(0, numResults).map(r => ({
+            title: r.title, snippet: r.content, link: r.url, engine: r.engine, publishedDate: r.publishedDate, type: 'organic',
+          }));
+          if (results.length > 0) return { query, results, total: results.length, provider: 'searxng' };
+        } catch (e) { console.error('[web_search] SearXNG failed:', e.message); }
+      }
+
+      // Provider 4: Perplexica (self-hosted Perplexity alternative)
+      const perplexicaUrl = process.env.PERPLEXICA_URL;
+      if (perplexicaUrl) {
+        try {
+          const axios = require('axios');
+          const res = await axios.post(`${perplexicaUrl}/api/search`, {
+            query, focus: 'web',
+          }, { timeout: 30000 });
+          const data = res.data;
+          const results = [];
+          if (data.sources) {
+            for (const s of (Array.isArray(data.sources) ? data.sources : [data.sources])) {
+              if (s.url) results.push({ title: s.title || s.url, snippet: s.snippet || '', link: s.url, type: 'organic' });
+            }
+          }
+          if (data.answer) {
+            results.unshift({ title: 'Perplexica Answer', snippet: data.answer, link: '', type: 'answer' });
+          }
+          if (results.length > 0) return { query, results, total: results.length, provider: 'perplexica' };
+        } catch (e) { console.error('[web_search] Perplexica failed:', e.message); }
+      }
+
+      return { error: 'Nenhum provedor de busca disponível. Configure SERPER_KEY, SERPAPI_KEY, SEARXNG_URL ou PERPLEXICA_URL.' };
+    },
+  });
+
+  // ==========================================
+  // WEB FETCH — Fetch and summarize URL content
+  // ==========================================
+
+  registerTool({
+    id: 'web_fetch',
+    category: 'search',
+    niche: 'general,knowledge,research',
+    name: 'Web Fetch',
+    description: 'Busca o conteúdo de uma URL e retorna o texto extraído. Útil para ler artigos, páginas web, documentação ou qualquer conteúdo online.',
+    input: ['url', 'max_length'],
+    output: ['title', 'content', 'url', 'content_length'],
+    enabled: true,
+    priority: 19,
+    execute: async (params) => {
+      const url = params.url || '';
+      if (!url) return { error: 'URL é obrigatória' };
+      const maxLength = parseInt(params.max_length) || 8000;
+
+      try {
+        const res = await fetch(url, {
+          headers: { 'User-Agent': 'MetaPersonaAI/1.0 (compatible; web_fetch tool)' },
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!res.ok) return { error: `HTTP ${res.status} ${res.statusText}`, url };
+
+        const contentType = (res.headers.get('content-type') || '').toLowerCase();
+        let content = '';
+        let title = '';
+
+        if (contentType.includes('json')) {
+          const data = await res.json();
+          return { title: 'JSON Response', content: JSON.stringify(data, null, 2).slice(0, maxLength), url, content_length: JSON.stringify(data).length, type: 'json' };
+        }
+
+        const html = await res.text();
+        const trimHtml = html.slice(0, 500000);
+
+        // Extract title
+        const titleMatch = trimHtml.match(/<title[^>]*>([^<]*)<\/title>/i);
+        title = titleMatch ? titleMatch[1].trim() : new URL(url).hostname;
+
+        // Remove scripts, styles, nav, footer, header
+        const cleaned = trimHtml
+          .replace(/<script[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[\s\S]*?<\/style>/gi, '')
+          .replace(/<nav[\s\S]*?<\/nav>/gi, '')
+          .replace(/<footer[\s\S]*?<\/footer>/gi, '')
+          .replace(/<header[\s\S]*?<\/header>/gi, '')
+          .replace(/<aside[\s\S]*?<\/aside>/gi, '')
+          .replace(/<noscript[\s\S]*?<\/noscript>/gi, '')
+          .replace(/<svg[\s\S]*?<\/svg>/gi, '')
+          .replace(/<!--[\s\S]*?-->/g, '');
+
+        // Prefer article/main content
+        const articleMatch = cleaned.match(/<article[\s\S]*?<\/article>/i) || cleaned.match(/<main[\s\S]*?<\/main>/i);
+        const contentBlock = articleMatch ? articleMatch[0] : cleaned;
+
+        // Strip remaining tags
+        const text = contentBlock
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/?(p|div|li|h[1-6]|blockquote|tr)[^>]*>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .replace(/&amp;/g, '&')
+          .replace(/&lt;/g, '<')
+          .replace(/&gt;/g, '>')
+          .replace(/&quot;/g, '"')
+          .replace(/&#39;/g, "'")
+          .replace(/&#x27;/g, "'")
+          .replace(/\n{3,}/g, '\n\n')
+          .trim();
+
+        const finalContent = text.slice(0, maxLength);
+
+        return {
+          title,
+          content: finalContent,
+          url,
+          content_length: text.length,
+          truncated: text.length > maxLength,
+          type: 'text',
+        };
+      } catch (e) {
+        return { error: `Erro ao buscar URL: ${e.message}`, url };
+      }
+    },
+  });
+
 module.exports = {
   registerTool,
   getTool,

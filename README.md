@@ -238,8 +238,16 @@ npm run whisper:start  # Start Whisper server on port 9000 (downloads model on f
 | `automation_macro` | Run RPA macros and automated scripts |
 | `conclave_debate` | Spawn a multi-agent debate to synthesize a strategy |
 | `vision_analyze` | Analyze images and visual context |
+| `web_search` | Search the web (Serper → SerpAPI → SearXNG → Perplexica) |
+| `web_fetch` | Fetch and extract text from any URL |
+| `read_file` / `write_file` / `list_dir` / `edit_file` / `append_file` | Workspace filesystem operations |
+| `exec` | Run shell commands in workspace sandbox (admin only) |
+| `cron` | Schedule and manage cron jobs |
+| `message` / `send_file` | Proactive chat messages and file attachments via Socket.IO |
+| `find_skills` / `install_skill` | Discover and install skills from the registry |
+| `spawn` | Launch background subagent tasks |
 
-*(and over 70 more tools for ERP, B2B prospecting, Commerce, Loyalty, Delivery and Education)*
+*(plus 70+ ERP, B2B, Commerce, Loyalty, Delivery and Education tools)*
 
 ---
 

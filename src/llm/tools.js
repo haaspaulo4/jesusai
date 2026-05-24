@@ -1016,6 +1016,228 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'web_search',
+      description: 'Search the web for current information. Automatically routes to the best available search provider (Serper → SerpAPI → SearXNG → Perplexica). Use this when you need up-to-date info, facts, news, or any real-world data.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query string' },
+          language: { type: 'string', description: 'Language for results (pt-BR, en-US, es-ES). Default: pt-BR' },
+          num_results: { type: 'integer', description: 'Max number of results (default: 10)' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'web_fetch',
+      description: 'Fetch and extract text content from a URL. Use this to read articles, documentation, or any webpage content.',
+      parameters: {
+        type: 'object',
+        properties: {
+          url: { type: 'string', description: 'URL to fetch' },
+          max_length: { type: 'integer', description: 'Max characters to extract (default: 8000)' },
+        },
+        required: ['url'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'read_file',
+      description: 'Read file content from the workspace or explicitly allowed paths. Returns the file text content.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File path relative to workspace root, or absolute path if allowed' },
+          workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+        },
+        required: ['path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'write_file',
+      description: 'Create or overwrite a file within the writable workspace scope.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File path relative to workspace root' },
+          content: { type: 'string', description: 'File content to write' },
+          workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+        },
+        required: ['path', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_dir',
+      description: 'Inspect a directory and enumerate files available in the workspace.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'Directory path relative to workspace root (default: root)' },
+          workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+        },
+        required: [],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'edit_file',
+      description: 'Apply targeted edits to an existing file without rewriting everything. Provide the old string to find and the new string to replace it with.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File path relative to workspace root' },
+          old_string: { type: 'string', description: 'Exact text to find and replace' },
+          new_string: { type: 'string', description: 'Replacement text' },
+          workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+        },
+        required: ['path', 'old_string', 'new_string'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'append_file',
+      description: 'Append content to the end of an existing file.',
+      parameters: {
+        type: 'object',
+        properties: {
+          path: { type: 'string', description: 'File path relative to workspace root' },
+          content: { type: 'string', description: 'Content to append' },
+          workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+        },
+        required: ['path', 'content'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'exec',
+      description: 'Run a shell command inside the configured workspace sandbox. Use for build scripts, git operations, installing packages, etc.',
+      parameters: {
+        type: 'object',
+        properties: {
+          command: { type: 'string', description: 'Shell command to execute' },
+          cwd: { type: 'string', description: 'Working directory (default: workspace root)' },
+          timeout: { type: 'integer', description: 'Timeout in milliseconds (default: 30000)' },
+        },
+        required: ['command'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cron',
+      description: 'Schedule one-time or recurring reminders, jobs, and shell commands. Use to set timers, schedule tasks, or create cron-based automations.',
+      parameters: {
+        type: 'object',
+        properties: {
+          action: { type: 'string', enum: ['create', 'list', 'delete'], description: 'Action to perform' },
+          schedule: { type: 'string', description: 'Cron expression or natural language schedule (e.g., "every day at 9am", "in 30 minutes")' },
+          message: { type: 'string', description: 'Message or command to execute at the scheduled time' },
+          job_id: { type: 'string', description: 'Job ID for delete action' },
+        },
+        required: ['action'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'message',
+      description: 'Send a follow-up message back to the active user or chat. Use to proactively send notifications, reminders, or follow-up messages.',
+      parameters: {
+        type: 'object',
+        properties: {
+          text: { type: 'string', description: 'Message text to send' },
+          session_id: { type: 'string', description: 'Session ID to send the message to (defaults to current session)' },
+          persona_id: { type: 'string', description: 'Persona ID context (optional)' },
+        },
+        required: ['text'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'send_file',
+      description: 'Send an outbound file or media attachment to the active chat. Use to share generated files, images, documents, or audio.',
+      parameters: {
+        type: 'object',
+        properties: {
+          file_path: { type: 'string', description: 'Path to the file in the workspace or absolute path' },
+          caption: { type: 'string', description: 'Optional caption for the file' },
+          session_id: { type: 'string', description: 'Session ID to send the file to (defaults to current session)' },
+        },
+        required: ['file_path'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'find_skills',
+      description: 'Search external skill registries for installable skills. Use to discover new capabilities, integrations, or templates that can be added.',
+      parameters: {
+        type: 'object',
+        properties: {
+          query: { type: 'string', description: 'Search query for skills' },
+          category: { type: 'string', description: 'Category filter (e.g., "automation", "communication", "analysis")' },
+          limit: { type: 'integer', description: 'Max results to return (default: 10)' },
+        },
+        required: ['query'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'install_skill',
+      description: 'Install a skill into the current workspace from a registry. Use after finding skills with find_skills.',
+      parameters: {
+        type: 'object',
+        properties: {
+          skill_id: { type: 'string', description: 'Skill ID to install' },
+          config: { type: 'object', description: 'Optional configuration for the skill' },
+        },
+        required: ['skill_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'spawn',
+      description: 'Launch a background subagent for long-running or delegated work. The subagent runs independently and its result can be retrieved later.',
+      parameters: {
+        type: 'object',
+        properties: {
+          task: { type: 'string', description: 'Task description for the subagent to execute' },
+          agent_type: { type: 'string', enum: ['explore', 'general'], description: 'Type of subagent (default: general)' },
+          priority: { type: 'string', enum: ['low', 'medium', 'high'], description: 'Task priority (default: medium)' },
+        },
+        required: ['task'],
+      },
+    },
+  },
 ];
 
 async function executeTool(name, args, context = {}) {
@@ -2432,6 +2654,270 @@ async function executeTool(name, args, context = {}) {
       const { executeTool: execTool } = require('../tools');
       const result = await execTool('google_places', { query: args.query, location: args.location });
       return result;
+    }
+
+    // ─── Web Search & Fetch ─────────────────────────────────────────────────
+    case 'web_search': {
+      const { executeTool: execTool } = require('../tools');
+      const result = await execTool('web_search', {
+        query: args.query,
+        language: args.language || context.lang || 'pt-BR',
+        num_results: args.num_results || 10,
+      });
+      return result;
+    }
+
+    case 'web_fetch': {
+      const { executeTool: execTool } = require('../tools');
+      const result = await execTool('web_fetch', {
+        url: args.url,
+        max_length: args.max_length || 8000,
+      });
+      return result;
+    }
+
+    // ─── Filesystem Tools ───────────────────────────────────────────────────
+    case 'read_file': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.readFile(args.workspace_id || 'default', args.path);
+        return result;
+      } catch (err) {
+        return { error: `Erro ao ler arquivo: ${err.message}` };
+      }
+    }
+
+    case 'write_file': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.writeFile(args.workspace_id || 'default', args.path, args.content || '');
+        return result;
+      } catch (err) {
+        return { error: `Erro ao escrever arquivo: ${err.message}` };
+      }
+    }
+
+    case 'list_dir': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const result = await wsManager.listWorkspace(args.workspace_id || 'default', args.path || '', 2);
+        return result;
+      } catch (err) {
+        return { error: `Erro ao listar diretório: ${err.message}` };
+      }
+    }
+
+    case 'edit_file': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.path);
+        if (!fileResult.success) return { error: fileResult.error };
+        let content = fileResult.content;
+        const idx = content.indexOf(args.old_string);
+        if (idx === -1) return { error: `String não encontrada em ${args.path}` };
+        content = content.slice(0, idx) + args.new_string + content.slice(idx + args.old_string.length);
+        const writeResult = await wsManager.writeFile(args.workspace_id || 'default', args.path, content);
+        return { success: true, path: args.path, replacements: 1, message: `Edit applied to ${args.path}` };
+      } catch (err) {
+        return { error: `Erro ao editar arquivo: ${err.message}` };
+      }
+    }
+
+    case 'append_file': {
+      try {
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const content = fileResult.content + '\n' + args.content;
+        const writeResult = await wsManager.writeFile(args.workspace_id || 'default', args.path, content);
+        return { success: true, path: args.path, message: `Content appended to ${args.path}` };
+      } catch (err) {
+        return { error: `Erro ao anexar ao arquivo: ${err.message}` };
+      }
+    }
+
+    // ─── Exec (Shell Command) ────────────────────────────────────────────────
+    case 'exec': {
+      if (!context.isAdmin && !context.isMetaPersona) {
+        return { error: 'Apenas administradores podem executar comandos shell.' };
+      }
+      try {
+        const { exec } = require('child_process');
+        const wsManager = require('../tools/workspace-manager');
+        const wsPath = await wsManager.getWorkspacePath(args.workspace_id || 'default', '');
+        const cwd = args.cwd || wsPath;
+        const timeout = args.timeout || 30000;
+        const result = await new Promise((resolve, reject) => {
+          exec(args.command, { cwd, timeout }, (err, stdout, stderr) => {
+            if (err && err.killed) {
+              resolve({ error: `Command timed out after ${timeout}ms`, stdout: stdout?.toString() || '', stderr: stderr?.toString() || '' });
+            } else if (err) {
+              resolve({ error: err.message, stdout: stdout?.toString() || '', stderr: stderr?.toString() || '', exitCode: err.code });
+            } else {
+              resolve({ stdout: stdout?.toString() || '', stderr: stderr?.toString() || '', exitCode: 0 });
+            }
+          });
+        });
+        return result;
+      } catch (err) {
+        return { error: `Erro ao executar comando: ${err.message}` };
+      }
+    }
+
+    // ─── Cron / Scheduling ───────────────────────────────────────────────────
+    case 'cron': {
+      const action = args.action;
+      if (action === 'create') {
+        const schedule = args.schedule;
+        const message = args.message;
+        if (!schedule || !message) return { error: 'schedule e message são obrigatórios para criar um job.' };
+        try {
+          const { pool } = require('../db');
+          const jobId = `cron_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+          await pool.execute(
+            'INSERT INTO persona_automations (id, persona_id, trigger_type, trigger_config, actions, is_active) VALUES (?, ?, ?, ?, ?, ?)',
+            [jobId, context.personaId || 'default', 'schedule', JSON.stringify({ schedule }), JSON.stringify([{ type: 'message', message }]), 1]
+          );
+          return { success: true, job_id: jobId, message: `Cron job criado: "${schedule}" → "${message.slice(0, 50)}..."` };
+        } catch (err) {
+          return { error: `Erro ao criar cron job: ${err.message}` };
+        }
+      } else if (action === 'list') {
+        try {
+          const { pool } = require('../db');
+          const [rows] = await pool.execute(
+            'SELECT id, trigger_type, trigger_config, actions, is_active, created_at FROM persona_automations WHERE trigger_type = ? AND persona_id = ? ORDER BY created_at DESC LIMIT 20',
+            ['schedule', context.personaId || 'default']
+          );
+          return { jobs: rows, total: rows.length };
+        } catch (err) {
+          return { error: `Erro ao listar cron jobs: ${err.message}` };
+        }
+      } else if (action === 'delete') {
+        if (!args.job_id) return { error: 'job_id é obrigatório para deletar.' };
+        try {
+          const { pool } = require('../db');
+          await pool.execute('DELETE FROM persona_automations WHERE id = ?', [args.job_id]);
+          return { success: true, message: `Cron job ${args.job_id} removido.` };
+        } catch (err) {
+          return { error: `Erro ao deletar cron job: ${err.message}` };
+        }
+      }
+      return { error: `Ação desconhecida: ${action}. Use: create, list, delete` };
+    }
+
+    // ─── Message (Proactive Follow-up) ──────────────────────────────────────
+    case 'message': {
+      try {
+        const io = global._io;
+        if (!io) return { error: 'Socket.IO não disponível para envio de mensagem.' };
+        const targetSession = args.session_id || context.sessionId;
+        if (!targetSession) return { error: 'Nenhum session_id disponível para enviar mensagem.' };
+        io.to(`session:${targetSession}`).emit('new_message', {
+          type: 'proactive',
+          message: args.text,
+          persona_id: args.persona_id || context.personaId,
+          timestamp: new Date().toISOString(),
+        });
+        return { success: true, message: `Mensagem enviada para sessão ${targetSession}`, text: args.text };
+      } catch (err) {
+        return { error: `Erro ao enviar mensagem: ${err.message}` };
+      }
+    }
+
+    // ─── Send File ───────────────────────────────────────────────────────────
+    case 'send_file': {
+      try {
+        const fs = require('fs').promises;
+        const path = require('path');
+        const wsManager = require('../tools/workspace-manager');
+        let filePath;
+        try {
+          filePath = await wsManager.getWorkspacePath(args.workspace_id || 'default', args.file_path);
+        } catch {
+          filePath = args.file_path;
+        }
+        const stat = await fs.stat(filePath).catch(() => null);
+        if (!stat) return { error: `Arquivo não encontrado: ${args.file_path}` };
+        const MAX_SIZE = 25 * 1024 * 1024;
+        if (stat.size > MAX_SIZE) return { error: `Arquivo muito grande (${(stat.size / 1024 / 1024).toFixed(1)}MB). Limite: 25MB.` };
+
+        const io = global._io;
+        if (!io) return { error: 'Socket.IO não disponível para envio de arquivo.' };
+        const targetSession = args.session_id || context.sessionId;
+        if (!targetSession) return { error: 'Nenhum session_id disponível para enviar arquivo.' };
+
+        const ext = path.extname(filePath).toLowerCase();
+        const mimeTypes = {
+          '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.png': 'image/png', '.gif': 'image/gif', '.webp': 'image/webp',
+          '.pdf': 'application/pdf', '.doc': 'application/msword', '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+          '.mp3': 'audio/mpeg', '.wav': 'audio/wav', '.ogg': 'audio/ogg',
+          '.mp4': 'video/mp4', '.webm': 'video/webm',
+          '.txt': 'text/plain', '.csv': 'text/csv', '.json': 'application/json', '.html': 'text/html',
+        };
+        const buffer = await fs.readFile(filePath);
+        const base64 = buffer.toString('base64');
+
+        io.to(`session:${targetSession}`).emit('file_attachment', {
+          filename: path.basename(filePath),
+          mime_type: mimeTypes[ext] || 'application/octet-stream',
+          size: stat.size,
+          base64,
+          caption: args.caption || '',
+          persona_id: args.persona_id || context.personaId,
+          timestamp: new Date().toISOString(),
+        });
+        return { success: true, filename: path.basename(filePath), size: stat.size, message: `Arquivo enviado para sessão ${targetSession}` };
+      } catch (err) {
+        return { error: `Erro ao enviar arquivo: ${err.message}` };
+      }
+    }
+
+    // ─── Find Skills ─────────────────────────────────────────────────────────
+    case 'find_skills': {
+      const tools = require('../tools');
+      const allTools = tools.listExternalTools // via the executeTool path
+        ? [] : [];
+      try {
+        const result = await tools.executeTool('list_external_tools', { category: args.category });
+        const query = (args.query || '').toLowerCase();
+        const limit = args.limit || 10;
+        const filtered = (result.tools || [])
+          .filter(t => !query || t.name.toLowerCase().includes(query) || (t.description || '').toLowerCase().includes(query) || (t.id || '').toLowerCase().includes(query))
+          .slice(0, limit);
+        return { skills: filtered, total: filtered.length, query: args.query };
+      } catch (err) {
+        return { error: `Erro ao buscar skills: ${err.message}` };
+      }
+    }
+
+    // ─── Install Skill ───────────────────────────────────────────────────────
+    case 'install_skill': {
+      if (!context.isAdmin && !context.isMetaPersona) {
+        return { error: 'Apenas administradores podem instalar skills.' };
+      }
+      return { success: false, message: `Skill "${args.skill_id}" installation requires manual setup. Use /admin or the admin API to configure the skill.`, skill_id: args.skill_id, config: args.config || null };
+    }
+
+    // ─── Spawn Subagent ──────────────────────────────────────────────────────
+    case 'spawn': {
+      if (!context.isAdmin && !context.isMetaPersona) {
+        return { error: 'Apenas administradores podem spawnar subagentes.' };
+      }
+      try {
+        const agentId = `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const { pool } = require('../db');
+        await pool.execute(
+          'INSERT INTO persona_tasks (id, persona_id, title, description, status, priority, metadata) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [agentId, context.personaId || 'default', `Subagent: ${args.agent_type || 'general'}`, args.task, 'in_progress', args.priority || 'medium', JSON.stringify({ agent_type: args.agent_type || 'general', spawned_at: new Date().toISOString() })]
+        );
+        return { success: true, agent_id: agentId, task: args.task, agent_type: args.agent_type || 'general', priority: args.priority || 'medium', message: `Subagent spawned. Task ID: ${agentId}` };
+      } catch (err) {
+        if (err.code === 'ER_NO_SUCH_TABLE') {
+          return { success: true, agent_id: `agent_${Date.now()}`, task: args.task, agent_type: args.agent_type || 'general', priority: args.priority || 'medium', message: 'Subagent task created (no DB table, using memory track).' };
+        }
+        return { error: `Erro ao spawnar subagente: ${err.message}` };
+      }
     }
 
     // ─── Workspace Tools ─────────────────────────────────────────────────

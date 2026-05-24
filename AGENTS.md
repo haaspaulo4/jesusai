@@ -430,6 +430,51 @@ Each state defines: color, emissiveIntensity, speed, scale, amplitude, particleS
 
 **Constraints:** Three.js r128 CDN (no ES modules, no import maps), all JS inline in pet.html, Persona IDs preserve hyphens
 
+## LLM Tools — Web, Filesystem, Automation, Communication
+
+### Web Tools
+| Tool | Description |
+|------|-------------|
+| `web_search` | Search the web with smart provider routing (Serper → SerpAPI → SearXNG → Perplexica). Auto-selects best available provider. |
+| `web_fetch` | Fetch and extract text content from a URL. Strips HTML, extracts article/main content, returns title + cleaned text. |
+
+### Filesystem Tools
+| Tool | Description |
+|------|-------------|
+| `read_file` | Read file content from the workspace. Delegates to workspace-manager. |
+| `write_file` | Create or overwrite a file in the workspace. |
+| `list_dir` | List directory contents in the workspace. |
+| `edit_file` | Apply targeted edit to an existing file (find old_string → replace with new_string). |
+| `append_file` | Append content to the end of an existing file. |
+
+### Automation & Execution
+| Tool | Description |
+|------|-------------|
+| `exec` | Run shell commands in the workspace sandbox (admin/meta-persona only). Configurable cwd and timeout. |
+| `cron` | Schedule, list, and delete cron jobs (uses persona_automations table). Actions: create, list, delete. |
+
+### Communication Tools
+| Tool | Description |
+|------|-------------|
+| `message` | Send a proactive follow-up message to the user via Socket.IO (real-time). |
+| `send_file` | Send a file attachment to the active chat via Socket.IO (reads from workspace, sends as base64 with mime detection). |
+
+### Skills & Agent Tools
+| Tool | Description |
+|------|-------------|
+| `find_skills` | Search external tool registry for installable skills by query and category. |
+| `install_skill` | Install a skill from registry (admin only, returns manual setup instructions). |
+| `spawn` | Launch a background subagent as a task in persona_tasks table (admin only). Supports explore/general types. |
+
+### Provider Routing (web_search)
+The `web_search` tool automatically tries providers in priority order:
+1. **Serper** (Google Search API) — `SERPER_KEY` env var
+2. **SerpAPI** (Google Search) — `SERPAPI_KEY` env var
+3. **SearXNG** (self-hosted metasearch) — `SEARXNG_URL` env var
+4. **Perplexica** (self-hosted Perplexity) — `PERPLEXICA_URL` env var
+
+If no provider is configured, returns an error message listing the required env vars.
+
 ## ERP System
 
 Complete ERP module: products (variants, categories, stock, SEO), orders (lifecycle with status transitions), finance (transactions, payment links), suppliers (search, rating, payment terms), site CMS (i18n sections, reorder), coupons.
