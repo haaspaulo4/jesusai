@@ -7,1594 +7,514 @@ Plataforma de agentes cognitivos persistentes com RAG multimodal, multi-persona 
 **Arquitetura:** Tudo é gerenciável via admin API, chat commands, ou painel web. A **meta-persona** é admin god — orquestra personas, cria skills, gerencia tarefas, agenda, CRM, automações, metas, estágios de conversa, conhecimento RAG, e eventos do ciclo de vida.
 
 ## Tech Stack
-- **Backend**: Node.js 18+ + Express
-- **Database**: MySQL 8.4 (via mysql2/promise)
-- **LLM**: Ollama Cloud API (native `/chat` endpoint) — model glm-5.1, **multi-key fallback automático**, tool calling via native Ollama format
-- **RAG**: **Hybrid TF-IDF + Vector Embeddings** (Ollama embeddings via API, MySQL vector storage, hybrid search scoring) + multimodal ingestion (PDF, DOCX, images/OCR, audio/STT, JSON, text, APIs)
-- **Fulltext Search**: FlexSearch — in-memory fulltext search across personas, contacts, goals, org memory, tasks, skills
-- **Persona**: **Multi-persona com Meta-RAG** — criar via LLM, trocar com `/persona`, **skills configuráveis e criáveis**, whitelabel
-- **Meta-Persona**: **Admin god** — orquestra personas, cria skills, gerencia tarefas, agenda, CRM, automações, RAG
-- **Agent**: **Agentic** — tasks, calendar, CRM/contacts, automations, goals, conversation stages, org memory, history, dashboard — tudo via tools LLM
-- **Onboarding**: State machine automático — novo usuário → pergunta nome, interesse, sentimento, email
-- **Follow-ups**: Automático por intervalo de mensagens ou agendado
-- **Auth**: JWT + bcrypt + Google OAuth + **role-based access (guest/user/premium/admin/banned)** + **rate limiting per role**
-- **Bots**: Multi-instance Telegram + WhatsApp + Instagram via bot manager, cada um com persona própria
-- **Realtime**: Socket.IO — eventos ao vivo (new_message, agent_thinking, xp_update, badge_earned, stage_advance, goal_update, creative_progress, override_status, cognitive_state)
-- **Job Queue**: BullMQ (Redis-backed) — proactive engine, ingestion, embeddings, automations, blog, email com retry e scheduling
-- **Creative Engine**: Handlebars templates + html-to-image — quote_post, announcement_post, carousel_slide, minimal_blog + post sizes (Instagram, Facebook, Twitter, YouTube, blog, ebook)
-- **STT**: Whisper local (faster-whisper Python server on port 9000, primary) + Groq Whisper + OpenAI Whisper + whisper.cpp fallback
-- **TTS**: Kokoro-82M (30+ languages, 35+ voices) + Edge TTS + Google Translate (fallback)
-- **Instagram**: instagram-private-api (DM polling, persona per instance)
-- **Surveys**: CRUD completo com triggers (after_messages, after_session, manual)
-- **Ratings**: 1-5 stars com categorias e feedback
-- **Blog**: Auto-generated daily devotionals via LLM
-- **Email**: Nodemailer (SMTP) — newsletter, contact, daily devotional
-- **i18n**: pt-BR (default), en-US, es-ES
-- **Whitelabel**: brand_name, brand_tagline, brand_logo_url, brand_primary_color, brand_secondary_color — tudo via settings
+- **Backend**: Node.js 18+ / Express
+- **Desktop Widget**: Electron.js + Three.js r128 (Neural Link Brain)
+- **Database**: MySQL 8.4 (mysql2/promise)
+- **LLM**: Ollama Cloud API (native `/chat`) — model glm-5.1, multi-key fallback, tool calling
+- **RAG**: Hybrid TF-IDF + Vector Embeddings (Ollama embeddings, MySQL vector)
+- **Fulltext**: FlexSearch (in-memory)
+- **Auth**: JWT + bcrypt + Google OAuth + role-based (guest/user/premium/admin/banned) + rate limiting
+- **Bots**: Multi-instance Telegram + WhatsApp (Evolution API v2) + Instagram
+- **TTS**: Kokoro-82M (30+ langs) + Edge TTS + Google Translate (fallback)
+- **STT**: Whisper Local (faster-whisper + whisper.cpp) + Groq + OpenAI Whisper
+- **i18n**: pt-BR, en-US, es-ES
+- **Jobs**: BullMQ (Redis-backed)
+- **Whitelabel**: brand_name, brand_tagline, brand_logo_url, brand_primary/secondary_color
 
 ## Commands
-- `npm start` — Start the server (initializes DB schema automatically)
+- `npm start` — Start server (auto-creates DB schema)
 - `npm run dev` — Start with watch mode
 - `npm run ingest` — Ingest knowledge sources into TF-IDF index
-- `npm run ngrok` — Start Cloudflare tunnel and configure Evolution API webhook
+- `npm run ngrok` — Start Cloudflare tunnel + configure Evolution API webhook
 
 ## Prerequisites
-1. MySQL 8.4 running on localhost (root, no password, database `metapersona_ai`)
+1. MySQL 8.4 on localhost (root, no password, db `metapersona_ai`)
 2. Ollama Cloud API key in `.env`
 3. Run `npm run ingest` before first use
-4. DB schema auto-created and migrated on startup
-5. (Recommended) Kokoro TTS: `npm run tts:start`
-6. (Optional) Serper API key in `.env` for B2B prospecting (SERPER_KEY)
-7. (Optional) GNews API key in `.env` for news search (GNEWS_API_KEY)
-8. (Optional) YouTube Data API key in `.env` for video search (YOUTUBE_API_KEY)
+4. (Recommended) Kokoro TTS: `npm run tts:start`
+5. (Optional) Serper, GNews, YouTube API keys in `.env`
 
 ## Architecture
 
 ### Core Flow
 ```
-User message → Rate limit check + Ban check
-             → Onboarding check (new user? → ask questions)
-             → Persona resolution (session → user → default)
-             → Chat command? → handleChatCommand
-             → Extract context + Search knowledge (persona-aware) + Build memory + Build profile
-             → Build goal context + Search org memory + Get conversation stage
-             → buildSystemPrompt(persona, lang, context, memory, profile, name, isGroup, knowledgeSources) + extra context (goals, org memory, stage)
-             → LLM call via IntegrationManager (with tools if enabled)
-             → normalizeLLMResponse: extracts tool_calls from Ollama format (message.tool_calls) or OpenAI format (choices[0].message.tool_calls), plus inline tool call detection
-             → Tool calls loop (up to 5 rounds): execute tools, push results as role:tool, retry LLM
-             → Strip inline tool calls from content
-             → Empty content retry (no tools): direct prompt asking for natural language
-             → CJK check → Save message → Auto follow-up scheduling
-             → Return response + sources + persona info + ttsVoice
+User message → Rate limit + Ban check → Onboarding check
+→ Persona resolution (session → user → default)
+→ Chat command? → handleChatCommand
+→ Extract context + Search knowledge (persona-aware) + Build memory + Build profile
+→ Build goal context + Search org memory + Get conversation stage
+→ buildSystemPrompt(persona, lang, context, memory, profile, name, isGroup, knowledgeSources) + extra context
+→ LLM call via IntegrationManager (with tools if enabled)
+→ normalizeLLMResponse → tool_calls loop (up to 5 rounds)
+→ Strip inline tool calls → Empty content retry → CJK check
+→ Save message → Auto follow-up scheduling → Return response + sources + persona info + ttsVoice
 ```
 
-### LLM Integration Architecture
-```
-IntegrationManager.callLLM()
-  → Uses callWithFallback() for multi-key failover
-  → Auto-detects Ollama vs OpenAI-compatible by URL pattern:
-    - ollama.com or :11434 → /chat endpoint, body: {model, messages, stream, options: {temperature, num_predict}}
-    - groq.com or /v1/ → /chat/completions endpoint, body: {model, messages, stream, temperature, max_tokens}
-  → normalizeLLMResponse() handles both response formats:
-    - Ollama: {message: {role, content, tool_calls}, done}
-    - OpenAI: {choices: [{message: {role, content, tool_calls}}]}
-    - Inline: detects tool calls embedded in content text
-  → Tool calls in Ollama format: {id, function: {name, arguments: {object}}}
-  → Tool calls in OpenAI format: {id, type: "function", function: {name, arguments: "json_string"}}
-  → Both formats handled transparently
-
-KeyManager (deprecated, not imported): Legacy key management, superseded by IntegrationManager
-processMessageStream (removed): Dead code, streaming path had no tool call support
-```
+### LLM Integration
+- `IntegrationManager.callLLM()` → `callWithFallback()` for multi-key failover
+- Auto-detect: Ollama (`/chat` endpoint) vs OpenAI-compatible (`/chat/completions`)
+- `normalizeLLMResponse()` handles Ollama, OpenAI, and inline tool call formats
+- Tool calls: Ollama `{id, function: {name, arguments: {object}}}` / OpenAI `{id, type: "function", function: {name, arguments: "json_string"}}`
 
 ### Persona-Aware System Prompt
-- `buildSystemPrompt()` handles both string and object identity formats
-- String identity: DB personas store `identity` as `{ "pt-BR": "...", "en-US": "...", "es-ES": "..." }` (flat strings)
-- Object identity: Default persona (jesus) has `{ "pt-BR": { core: "...", rules: "..." } }` (nested object) — string identity (DB personas) is flat per-language
-- Context template: Uses the persona's knowledge source contextTemplate (e.g., "CONHECIMENTO DE VENDAS" for sales, not "VERSÍCULOS BÍBLICOS")
-- Falls back to primary source context template if no persona sources match
+- String identity: DB personas store `identity` as `{"pt-BR": "...", "en-US": "...", "es-ES": "..."}` (flat strings)
+- Object identity: Default persona has `{"pt-BR": {core: "...", rules: "..."}}` (nested object)
+- `switchPersona()` clears session message history to prevent persona contamination
 
-### Persona Switching & Message History
-- `switchPersona()` clears the session's message history (DELETE FROM messages WHERE session_id = ?)
-- This prevents old persona messages from contaminating the new persona's context
-- Cache invalidated and reloaded on every persona switch
-
-### Onboarding System (Whitelabel)
-```
-New user → shouldOnboard(uid) → returns next step question
-User answers → processOnboardingAnswer(uid, message) → save to profile + DB
-              → next step? → return question
-              → done? → welcome message from persona
-Steps are configurable via /api/admin/onboarding or DB:
-  - name, interest, feeling, email, custom steps
-  - each step: question (3 langs), field_type (text/choice/email/phone/number), required
-  - auto-creates user if needed (for bot users)
-```
+### Onboarding System
+- `shouldOnboard(uid)` → returns next step question
+- Steps: name, interest, feeling, email, custom (configurable per persona)
+- Commerce personas use `PERSONA_STEP_CONFIGS` (e.g., loja-hlb: name + phone only)
 
 ### Multi-Persona + Meta-RAG
-```
-/persona create <description> → LLM generates FULL persona config (identity, rules, commands, topics, TTS voice, etc.)
-/persona <id> → switch per-session, per-user, or per-bot-instance
-Meta-RAG: uses LLM to create personas from any description — biblical figure, health coach, business consultant, teacher, etc.
-Each persona can have: own knowledge sources, skills, onboarding questions, follow-up style, brand whitelabel
-
-Meta-Persona (id: "meta-persona"):
-  - Admin god that orchestrates personas, skills, knowledge, tasks, calendar, CRM, automations, goals, stages, org memory
-  - Has ALL LLM tools enabled (create_persona, manage_tasks, manage_calendar, manage_contacts, manage_automations, etc.)
-  - Registered in DB on startup with priority 0
-  - Accessible via /persona meta-persona
-  - Tools: create_persona, list_personas, create_skill, invoke_skill, list_skills, add_knowledge_source,
-    manage_tasks, manage_calendar, manage_contacts, manage_automations, manage_goals, manage_conversation_stages,
-    manage_org_memory, get_dashboard, get_history
-```
+- `/persona create <description>` → LLM generates full persona config (identity, rules, commands, topics, TTS voice, etc.)
+- Meta-persona (id: "meta-persona"): admin god with ALL tools, orchestrates everything
+- Each persona: own knowledge sources, skills, onboarding, follow-up style, brand whitelabel
 
 ### Skills System
-```
-Skills: Reusable actions that personas can execute (stored in persona_skills table)
-  - Types: action, generator, communication, analysis, workflow
-  - Each skill has: id, persona_id (null = global), name, description, type, prompt, parameters, output_format
-  - Skills are invoked via invoke_skill tool or /skills command
-  - Created via LLM (create_skill tool) or admin API (POST /api/admin/skills)
-  - Skill prompt uses {input} placeholder for user input and {context} for context
-  - Cross-persona: skills with persona_id=null are available to all personas
-```
+- 5 types: action, generator, communication, analysis, workflow
+- Created via LLM (`create_skill`) or admin API
+- Skills with `persona_id=null` are global (available to all personas)
 
-### Agentic System (Tasks, Calendar, CRM, Automations, Goals, Stages, Org Memory)
-```
-Tasks (persona_tasks table):
-  - CRUD via manage_tasks tool or /tasks command
-  - Fields: title, description, status (pending/in_progress/completed/cancelled), priority (urgent/high/medium/low), due_date
-  - Get overdue tasks, filter by status/priority/persona
+### Agentic System
+| Module | Key Functions |
+|--------|--------------|
+| Tasks | CRUD via `manage_tasks`, filter by status/priority/persona |
+| Calendar | CRUD via `manage_calendar`, event types (meeting/reminder/task/followup/call/other) |
+| Contacts/CRM | CRUD via `manage_contacts`, stages (lead→prospect→customer→churned→vip) |
+| Automations | Triggers: keyword/interval/schedule/on_contact_create/event/manual; Actions: message/create_task/send_email/webhook/switch_persona/invoke_skill |
+| Goals | Hierarchical (strategic→tactical→operational), progress 0-100, `formatGoalContext()` injected into system prompt |
+| Conversation Stages | Funnel: greeting→discovery→engagement→conversion→retention, `getUserStageContext()` injected |
+| Org Memory | 10 categories, keyword search, `getOrgMemoryContext()` injected |
+| History | Cross-session context via `persona_messages`, queryable via `get_history` |
+| Dashboard | Aggregated stats via `get_dashboard` or `/dashboard` command |
 
-Calendar (persona_calendar table):
-  - CRUD via manage_calendar tool or /calendar command
-  - Event types: meeting, reminder, task, followup, call, other
-  - Attendees, reminders, location, start/end time
-  - Get upcoming events for next N days
+### RAG Knowledge (Hybrid)
+- **TF-IDF**: Exact keyword match, references, fast
+- **Vector**: Ollama embeddings (nomic-embed-text, 768d) in MySQL `embeddings` table
+- **Hybrid scoring**: `VECTOR_WEIGHT (0.7) × vector + TFIDF_WEIGHT (0.3) × tfidf`
+- Fallback: TF-IDF only if embeddings unavailable
+- Ingestion: PDF, DOCX, images/OCR, audio/STT, JSON, text, APIs
+- Per-persona: `personas.knowledge_sources` selects which sources to search
 
-Contacts/CRM (persona_contacts table):
-  - CRUD via manage_contacts tool or /contacts command
-  - Fields: name, email, phone, company, role, tags, notes, stage (lead/prospect/customer/churned/vip)
-  - Custom fields via JSON, search by name/email/company
-  - Stage tracking for sales funnel
+### Gamification (XP + Levels + Badges)
+- `addXp(uid, personaId, amount, reason)` → auto-level-up, streak tracking
+- `calculateLevel(xp)`: thresholds 0, 50, 150, 300, 500, 800, 1200, ...
+- Auto-badges: first_message, streak_3/7/30, level_5/10, xp_100/500/1000/5000
+- Streak bonus: +5 XP per day maintained
+- `formatXpContext()` injected into system prompt
 
-Automations (persona_automations table):
-  - CRUD via manage_automations tool or /automations command
-  - Triggers: keyword, interval_messages, schedule, on_contact_create, manual
-  - Actions: message, create_task, send_email, webhook, switch_persona, invoke_skill
-  - trigger_config: {keywords: [...], every_n: 10, cron: "0 9 * * *"}
-  - action_config: {message: "...", task_title: "...", email_to: "..."}
-  - Auto-check triggers on each message via checkAndRunAutomations()
-
-Goals (persona_goals table):
-  - CRUD via manage_goals tool or /goals command
-  - Goal types: strategic, tactical, operational, learning, relationship, financial, growth
-  - Fields: title, description, goal_type, priority, status (active/paused/completed/abandoned), progress (0-100)
-  - target_metric, target_value, current_value for measurable goals
-  - parent_goal_id for hierarchical goals (goal → sub-goals tree)
-  - getGoalHierarchy() returns tree structure
-  - getGoalProgress() returns aggregate stats by status
-  - formatGoalContext() injects active goals into system prompt
-
-Conversation Stages (persona_conversation_stages + persona_user_stages tables):
-  - Define funnel stages per persona: greeting → discovery → engagement → conversion → retention
-  - Default stages auto-created via ensureDefaultStages()
-  - Each stage: name, description, stage_order, triggers (JSON), responses (JSON)
-  - User stage tracking: getUserStage() / setUserStage() / advanceUserStage()
-  - getUserStageContext() injects current stage into system prompt
-  - Init defaults: /stages init or manage_conversation_stages init_defaults
-
-Organizational Memory (persona_org_memory table):
-  - Stores business knowledge: products, services, pricing, team, policies, FAQ, processes, brand, market
-  - CRUD via manage_org_memory tool or /orgmem command
-  - searchOrgMemory() for semantic keyword search across categories
-  - getOrgMemoryContext() injects relevant org knowledge into system prompt
-  - Categories: products, services, pricing, team, policies, faq, processes, brand, market, custom
-  - Tags for flexible categorization, priority levels, expiry support
-
-History (persona_messages table):
-  - Stores all messages with persona_id, session_id, user_id, role, content, tool_calls, tool_results
-  - Queryable via get_history tool
-  - Enables cross-session context for meta-persona
-
-Dashboard (get_dashboard tool or /dashboard command):
-  - Tasks by status, upcoming events, contacts by stage, active automations, personas, skills, goals by status, org memory by category
-```
-
-### RAG Knowledge (Hybrid TF-IDF + Vector Embeddings)
-```
-Knowledge Sources (configurable per persona):
-  - Bible verses (JSON, built-in)
-  - PDF documents → text extraction via pdf-parse v1.1.1
-  - DOCX documents → text extraction via mammoth
-  - Images → OCR via Tesseract
-  - Audio → STT transcription via Groq/OpenAI Whisper
-  - Plain text / Markdown
-  - JSON data (structured)
-  - API endpoints → fetch + cache → index
-
-Hybrid Search:
-  - TF-IDF: Existing keyword-based search (fast exact match, references, keywords)
-  - Vector: Ollama embeddings (nomic-embed-text, 768d) stored in MySQL `embeddings` table
-  - Hybrid scoring: VECTOR_WEIGHT (0.7) × vector_score + TFIDF_WEIGHT (0.3) × tfidf_score
-  - Fallback: If vector search fails, falls back to TF-IDF only (seamless degradation)
-  - Migration: npm run migrate-vectors → indexes all knowledge sources into embeddings
-  - Auto-index: VECTOR_AUTO_INDEX=true → embeddings generated on every ingestion
-
-Ingestion: npm run ingest → reads all configured sources → TF-IDF index + vector embeddings
-Per-persona: personas.knowledge_sources selects which sources to search
-  - searchMultiSource(query, sourceIds, topK) splits topK evenly across sources
-  - Each source has its own contextTemplate per language
-Admin: /api/admin/knowledge/reindex, /api/admin/knowledge (stats)
-Upload: POST /api/admin/knowledge/upload (PDF, DOCX, image, audio, text, JSON)
-```
-
-### TTS Voice System
-```
-TTS Modes: kokoro (default), multivozes, edge-tts
-Kokoro voices: pm_alex (pt-BR male), pf_dora (pt-BR female), am_adam (en-US male), af_bella (en-US female), etc.
-Each persona has ttsVoice and ttsLang fields
-/voice command → list available voices, switch persona voice
-Edge TTS fallback: Kokoro voice mapped to Edge TTS voice (pm_alex → pt-BR-AntonioNeural, pf_dora → pt-BR-FranciscaNeural)
-Message chunk size configurable via MESSAGE_CHUNK_SIZE env var or message_chunk_size setting (default 200 chars)
-Audio/TTS truncated to 200 chars per generation by default
-```
-
-### Gamification System
-```
-XP + Levels:
-  - addXp(uid, personaId, amount, reason) — adds XP, auto-levels up
-  - getXp(uid, personaId) — returns { xp, level, streak, best_streak, badges }
-  - calculateLevel(xp) — thresholds: 0, 50, 150, 300, 500, 800, 1200, ...
-  - getXpForNextLevel(xp) — returns { needed, remaining }
-  - formatXpContext(xpData) — injects into system prompt: "GAMIFICATION: Level 5, 450 XP, Streak: 3 days"
-
-Streaks:
-  - updateStreak(uid, personaId) — auto-detects consecutive days, handles broken streaks
-  - Streak resets if >1 day gap, increments if yesterday, stays same if today
-  - Streak bonus: +5 XP per day streak maintained
-
-Badges:
-  - checkAndAwardBadges(uid, personaId) — auto-awards based on conditions
-  - Built-in badges: first_message, streak_3, streak_7, streak_30, level_5, level_10, xp_100, xp_500, xp_1000, xp_5000
-  - Admin can add custom badges via API or manage_xp tool
-  - Stored in user_xp.badges as JSON array [{id, name, earnedAt}]
-
-Leaderboard:
-  - getLeaderboard(personaId, limit) — top users by XP
-  - Per-persona or global ranking
-
-Context Injection:
-  - formatXpContext() injected into system prompt every message
-  - Shows: Level, XP, XP to next, Streak, Badges
-  - AI uses this to adapt tone (congratulate level ups, encourage streaks)
-```
-
-### Progress State System
-```
-Per-user Persona-specific State (user_progress table):
-  - getProgressState(uid, personaId) — returns { state: { weak_topics: [...], mastery_level: 7, engagement: 0.85 } }
-  - updateProgressState(uid, personaId, updates) — merge updates into state
-  - incrementProgressField(uid, personaId, field, amount) — +1 counter
-  - pushProgressArray(uid, personaId, field, value) — add to array (no duplicates)
-  - removeProgressArray(uid, personaId, field, value) — remove from array
-  - formatProgressContext(progress) — injects into system prompt: "PROGRESS STATE: ..."
-
-Use cases:
-  - Education: weak_topics, mastery_level, learning_style, study_streak
-  - Health: symptoms, medications, adherence_score, recovery_stage
-  - Sales: funnel_stage, budget, objections, interest_level
-  - Religion: prayer_requests_count, spiritual_stage, verse_bookmarks
-```
+### Progress State
+- Per-user, per-persona state (user_progress table)
+- `getProgressState(uid, personaId)`, `updateProgressState(uid, personaId, updates)`
+- Use cases: education (weak_topics, mastery), sales (funnel_stage, objections), religion (prayer_requests, spiritual_stage)
 
 ### Cognitive Pipeline
-```
-Every message is analyzed by analyzeCognitiveState():
+- `analyzeCognitiveState()` runs on every message
+- Emotions: happy, frustrated, confused, excited, sad, angry, anxious, curious, neutral
+- Intents: purchase, support, information, complaint, chitchat, scheduling, feedback, cancellation
+- Scoring: churn_risk (0-1), conversion_probability (0-1), engagement_score (0-1), suggested_action
+- `formatCognitiveContext()` injected into system prompt
 
-Emotion Analysis (keyword-based):
-  - happy: "obrigado", "legal", "adorei", "ótimo", "great", "love", "thanks"
-  - frustrated: "não funciona", "erro", "problema", "doesn't work", "bad"
-  - confused: "não entendo", "como", "explica", "how", "what", "help"
-  - excited: "quero", "vamos", "incrível", "wow", "can't wait"
-  - sad: "triste", "sozinho", "desanimado", "sad", "lonely"
-  - angry: "raiva", "ódio", "reclamar", "angry", "furious"
-  - anxious: "preocupado", "medo", "nervoso", "worried", "anxious"
-  - curious: "como funciona", "interessante", "tell me more"
-  - neutral: (default)
-
-Intent Analysis (keyword-based):
-  - purchase: "comprar", "preço", "plano", "buy", "subscribe"
-  - support: "ajuda", "problema", "erro", "help", "bug"
-  - information: "como", "o que", "explique", "how", "what"
-  - complaint: "reclamar", "insatisfeito", "complaint"
-  - chitchat: "oi", "olá", "hey", "hello"
-  - scheduling: "agendar", "horário", "schedule", "appointment"
-  - feedback: "feedback", "avaliação", "suggest"
-  - cancellation: "cancelar", "desistir", "cancel", "stop"
-
-Scoring:
-  - churn_risk: 0-1 (blended with previous state, 60/40 weight)
-  - conversion_probability: 0-1 (based on intent + emotion)
-  - engagement_score: 0-1 (based on emotion + history)
-  - suggested_action: retain_user, convert_lead, escalate_support, prevent_churn, schedule_appointment, re_engage
-
-Context Injection:
-  - formatCognitiveContext(state) — injects: "COGNITIVE STATE: emotion=excited (87%), intent=purchase (72%)\nCONVERSION PROBABILITY: 73% — high intent detected"
-  - High churn_risk → "CHURN RISK: 70% — consider retention strategy"
-  - Low engagement → "ENGAGEMENT: low (25%) — consider re-engagement"
-
-Stats:
-  - getCognitiveStats(personaId, days) — aggregated emotion distribution, intent distribution, avg churn/conversion/engagement
-```
-
-### Human Override System
-```
-Three override modes per session:
-  - full: AI pauses completely, human handles conversation
-  - approval: AI generates response, human approves before sending
-  - observation: AI responds normally, human watches logs
-
-Management:
-  - setOverride(sessionId, { is_active, override_type, human_message })
-  - clearOverride(sessionId) — deactivate override
-  - isOverridden(sessionId) — check if override is active
-  - listOverrides({ is_active: true }) — list active overrides
-
-Chat Engine Check:
-  - processMessage checks override before LLM call
-  - If full override + human_message → sends human message directly
-  - If full override + no human_message → returns "human handling" message
-
-API Endpoints:
-  - POST /api/admin/override/activate
-  - POST /api/admin/override/deactivate
-  - GET /api/admin/override/status/:sessionId
-  - GET /api/admin/override/list
-```
+### Human Override
+- Three modes per session: full (AI pauses), approval (AI generates, human approves), observation (AI responds, human watches)
+- `setOverride()`, `clearOverride()`, `isOverridden()`
 
 ### Agent Thought Log
-```
-Every message response is logged via logThought():
-  - session_id, user_id, persona_id
-  - message_input (truncated 500 chars)
-  - message_output (truncated 500 chars)
-  - tools_used: array of tool names invoked
-  - context_injected: { hasGoals, hasOrgMemory, hasStage, hasXp, hasProgress, hasCognitive }
-  - reasoning: emotion/intent from cognitive state
-  - decision: suggested_action from cognitive state
-  - response_time_ms, tokens_used
-
-Stats:
-  - getThoughtStats(personaId, days) — avg response time, avg tokens, thought count, tool usage
-  - getThoughts(filters) — query by session, user, persona
-
-Admin API:
-  - GET /api/admin/thoughts — list thoughts
-  - GET /api/admin/thoughts/stats — aggregated statistics
-```
+- Every response logged: message_input/output (truncated 500 chars), tools_used, context_injected, reasoning, decision, response_time_ms, tokens_used
 
 ### Self-Optimization Suggestions
-```
-generateSuggestions(personaId, days) analyzes:
+- `generateSuggestions(personaId, days)`: emotion distribution, churn risk, engagement, tool usage, goal analysis
+- Available via `/suggestions` command or `get_suggestions` LLM tool
 
-  1. Emotion Distribution: if frustrated/angry > 30% → suggest tone adjustment
-  2. Churn Risk: avg > 50% → suggest retention strategy
-  3. Engagement: avg < 40% → suggest gamification/re-engagement
-  4. Tool Usage: most-used tool → suggest dedicated skill
-  5. Goals: active >> completed ratio → simplify objectives
-  6. Automations: 0 active with 20+ messages → suggest automatic follow-ups
-  7. Human Overrides: 3+ active → suggest personality/rules adjustment
+### Proactive Intelligence
+- BullMQ-based: checkAutomations, checkStreakReminders, checkGoalDeadlines, createFollowUp
+- Falls back to interval if Redis unavailable
 
-Returns: { persona_id, period_days, total_messages, suggestions: [...] }
-Each suggestion: { type, priority, title, description, data }
-
-Admin API:
-  - GET /api/admin/suggestions?persona_id=X&days=7
-  - Also available via get_suggestions LLM tool
-```
-
-### Proactive Intelligence (cron-based)
-```
-ProactiveEngine runs on configurable interval (default: 60 min):
-  - checkAutomations() — triggers schedule-type automations
-  - checkStreakReminders() — warns users about streak at risk
-  - checkGoalDeadlines() — flags goals due within 3 days
-  - createFollowUp() — creates follow-up entries for proactive messages
-
-Future: connect to WhatsApp/Telegram/Email for proactive outreach
-```
+### Event Bus
+- Types: on_goal_completed, on_goal_created, on_stage_advance, on_badge_earned, on_level_up, on_churn_risk_high, on_cognitive_change, on_message_sent, on_user_created, on_automation_triggered, on_override_activated, on_xp_milestone
 
 ### Conversation Simulation
-```
-POST /api/admin/simulate
-Body: { message, persona_id, user_id, language }
+- `POST /api/admin/simulate { message, persona_id, user_id, language }` — test persona behavior before deploy
 
-Runs processMessage() with simulated user, returns full response including:
-  - cognitive state (emotion, intent, churn risk)
-  - tool calls used
-  - sources found
-  - persona info
-  - TTS voice
+### Survey + Rating + Follow-up
+- Surveys: CRUD with triggers (after_messages, after_session, manual)
+- Ratings: 1-5 stars with categories (general, spiritual, response_quality, empathy)
+- Follow-ups: Auto-created every N messages, types: spiritual_check, daily_devotional, prayer_request, custom
 
-Use case: test persona behavior before deploy, evaluate tone, debug context injection
-```
+### Rate Limiting
+| Role | msgs/day |
+|------|----------|
+| guest | 5 |
+| user | 30 |
+| premium | 100 |
+| admin | 999 |
 
-### Survey + Rating + Follow-up System
-```
-Surveys: CRUD via /api/admin/surveys, triggers: after_messages, after_session, manual
-  - Questions: rating, text, choice — configurable per survey
-  - Responses stored in survey_responses table
+### Auth + Account Linking
+- JWT includes: {id, email, role}
+- Bot users auto-created with `wa_*`/`tg_*` IDs
+- Account linking: web user generates 6-digit code → bot user sends `/vincular CODE`
+- Linked users share: profile, XP, goals, org memory, stages, contacts
 
-Ratings: POST /api/chat/rating (web/telegram/whatsapp)
-  - Categories: general, spiritual, response_quality, empathy
-  - Stats via /api/admin/ratings or /ratings command
+### TTS Voice System
+- Modes: kokoro (default), multivozes, edge-tts
+- Kokoro voices: pm_alex (pt-BR male), pf_dora (pt-BR female), am_adam (en-US), af_bella (en-US), etc.
+- Each persona has `ttsVoice` and `ttsLang` fields
+- Edge TTS fallback: pm_alex → pt-BR-AntonioNeural, pf_dora → pt-BR-FranciscaNeural
+- Message chunk size: configurable via `MESSAGE_CHUNK_SIZE` or `message_chunk_size` setting (default 200 chars)
 
-Follow-ups: Auto-created every N messages (configurable)
-  - Types: spiritual_check, daily_devotional, prayer_request, custom
-  - Status: pending → sent → completed
-  - Admin: /api/admin/followups, /followups command
-```
-
-### Multi-Bot System
-```
-Bot instances stored in bot_instances table
-Each instance has: platform (telegram/whatsapp), name, token, persona_id, config
-API: /api/admin/bots — CRUD + start/stop
-Manager: src/bot/manager.js — start, stop, list active bots
-Handlers: src/telegram/handler.js, src/whatsapp/handler.js — factory pattern per instance
-Each bot instance can use a different persona
-```
-
-### Rate Limiting & Access Control
-```
-Rate limits per role (configurable via settings):
-  guest: 5 msgs/day, user: 30, premium: 100, admin: 999
-Banned users get 403 immediately
-Middleware: src/auth/rateLimit.js — checkRateLimit, rateLimitMiddleware
-Applied in chat engine for all channels (web, telegram, whatsapp)
-```
-
-### Auth + JWT
-```
-JWT includes: { id, email, role }
-Role middleware: authMiddleware → sets req.userId + req.userRole
-roleMiddleware('admin') → 403 if not admin
-Login/register/Google returns role in response
-Onboarding: auto-creates user for bot users (ensureUser)
-Web chat REQUIRES auth (authMiddleware) — no anonymous access
-Bot users (WhatsApp/Telegram) auto-created with wa_*/tg_* IDs
-
-Account Linking:
-- Web user generates 6-digit code (expires in 15 min) via POST /api/auth/link-code
-- Bot user sends /vincular CODE on WhatsApp/Telegram
-- linkAccount() maps whatsapp_id/telegram_id to web user, deletes bot user record
-- processMessage resolves linked bot user to web user ID automatically
-- Linked users share: profile, XP, goals, org memory, conversation stages, contacts
-- /desvincular unlinks bot account
-```
-
-### Hybrid Vector Search (Embeddings)
-```
-Embeddings Service (src/embeddings/index.js):
-  - getEmbedding(text) → Ollama /embed API (nomic-embed-text, 768d)
-  - In-memory cache (5000 entries) for repeated queries
-  - cosineSimilarity(a, b) → vector similarity score
-  - saveEmbedding(sourceId, docId, text, vector) → MySQL embeddings table
-  - searchEmbeddings(queryVector, sourceIds, topK) → cosine similarity search
-
-Vector Store (src/embeddings/vectorStore.js):
-  - Hybrid search: VECTOR_WEIGHT (0.7) × vector + TFIDF_WEIGHT (0.3) × tfidf
-  - Fallback to TF-IDF only if embeddings unavailable
-  - indexSource(sourceId) → generate embeddings for all docs in source
-  - indexAllSources() → index all enabled sources
-  - getStats() → embedding count per source, model, dimensions
-
-Migration: npm run migrate-vectors → indexes all knowledge sources into embeddings table
-Auto-index: VECTOR_AUTO_INDEX=true → embeddings generated during ingestion
-Environment: EMBEDDING_MODEL, EMBEDDING_DIMENSIONS, VECTOR_SEARCH_ENABLED, VECTOR_WEIGHT, TFIDF_WEIGHT, VECTOR_MIN_SCORE
-
-Admin API:
-  GET /api/admin/vector-stats — Vector DB statistics
-  POST /api/admin/vector-reindex — Reindex all (or specific source via body.sourceId)
-```
+### Hybrid Vector Search
+- `saveEmbedding()`, `searchEmbeddings()`, `cosineSimilarity()`, `indexSource()`
+- `VECTOR_AUTO_INDEX=true` → embeddings generated on every ingestion
+- `npm run migrate-vectors` → indexes all sources into embeddings table
 
 ### Fulltext Search (FlexSearch)
-```
-FulltextSearch (src/search/index.js):
-  - FlexSearch Document index per entity: personas, knowledge_sources, contacts, goals, org_memory, tasks, skills
-  - Built on startup from MySQL data
-  - search(collection, query, limit) → fast fulltext search across entities
-  - rebuildIndex(collection) → rebuild specific or all indexes
+- Per-entity indexes: personas, knowledge_sources, contacts, goals, org_memory, tasks, skills
+- Built on startup from MySQL data
+- `search(collection, query, limit)` → fast fulltext search
 
-Admin API:
-  GET /api/admin/search?q=term&collection=personas&limit=10 — Global search
-  GET /api/admin/search/stats — Search index statistics
-```
-
-### Creative Engine (Templates + Media Generation)
-```
-Creative Engine (src/creative/index.js):
-  Templates: quote_post, announcement_post, carousel_slide, minimal_blog
-  Post Sizes: instagram_post (1080×1080), instagram_story (1080×1920), instagram_carousel (1080×1350),
-              facebook_post (1200×630), twitter_post (1200×675), linkedin_post (1200×627),
-              youtube_thumbnail (1280×720), blog_banner (1920×600), ebook_cover (1600×2400)
-
-  compileTemplate(templateId, data) → HTML via Handlebars
-  saveCreative(personaId, ownerId, type, templateId, data, html) → MySQL + file
-  listCreatives(personaId, ownerId, type, limit) → list generated creatives
-  getCreative(id) → get creative by ID
-  deleteCreative(id) → delete creative + file
-  generateWithLLM(personaContext, prompt, contentType) → LLM prompt for content generation
-
-DB Table: creatives (id, persona_id, owner_id, type, template_id, data, html_path, image_path, created_at)
-
-LLM Tools: create_visual, list_visual_templates
-
-Admin API:
-  GET /api/admin/creatives — List creatives
-  GET /api/admin/creatives/templates — Available templates + sizes
-  POST /api/admin/creatives/generate — Generate creative (template_id + data)
-  GET /api/admin/creatives/:id — Get creative
-  GET /api/admin/creatives/:id/html — Preview HTML
-  DELETE /api/admin/creatives/:id — Delete creative
-```
+### Creative Engine
+- Templates: quote_post, announcement_post, carousel_slide, minimal_blog
+- Post sizes: instagram_post, instagram_story, instagram_carousel, facebook_post, twitter_post, linkedin_post, youtube_thumbnail, blog_banner, ebook_cover
+- `compileTemplate()` via Handlebars → HTML, `generateWithLLM()` for content generation
 
 ### Job Queue (BullMQ)
-```
-Queue System (src/queue/index.js):
-  Redis-backed job queue with retry, scheduling, and concurrency
-  Queues: proactive, followup, ingestion, embedding, notification, automation, blog, email
-
-Processors (src/queue/processors/):
-  - proactive.js — checkAutomations, checkStreaks, checkGoals
-  - ingestion.js — runIngestion, indexEmbeddings (auto-triggers vector indexing)
-  - blog.js — generateDailyPost, sendEmail
-
-Environment: REDIS_HOST, REDIS_PORT, REDIS_PASSWORD
-
-Admin API:
-  GET /api/admin/queue-stats — Queue statistics (waiting, active, completed, failed)
-
-Graceful shutdown: Closes workers + queues on SIGTERM/SIGINT
-Fallback: If Redis unavailable, falls back to interval-based processing
-```
+- Queues: proactive, followup, ingestion, embedding, notification, automation, blog, email
+- Fallback to interval-based if Redis unavailable
 
 ### Realtime Events (Socket.IO)
-```
-Realtime Engine (src/realtime/index.js):
-  Socket.IO server attached to HTTP server
-  Room-based events: user:{userId}, session:{sessionId}
+- Rooms: user:{userId}, session:{sessionId}
+- Events: new_message, agent_thinking, agent_step, xp_update, badge_earned, stage_advance, goal_update, creative_progress, override_status, cognitive_state
 
-Client Events:
-  auth — authenticate with userId + sessionId
-  join_session / leave_session — join/leave session room
-  typing — emit typing indicator
+### Synapse Engine (`.synapse/`)
+7-layer memory hierarchy: L0 (Constitution) → L1 (Global) → L2 (Agent) → L3 (Workflow) → L4 (Task) → L5 (Squad) → L6 (Keyword) → L7 (Star Command)
 
-Server Events:
-  new_message — message sent/received
-  agent_thinking — AI processing status
-  agent_step — step in processing pipeline (search, analyze, generate, etc.)
-  xp_update — XP/level/streak change
-  badge_earned — new badge earned
-  stage_advance — conversation stage advanced
-  goal_update — goal progress update
-  creative_progress — creative generation progress
-  override_status — human override status change
-  cognitive_state — emotion/intent/churn risk update
-
-Integration: Chat engine emits events on message save, XP update, cognitive state
-```
-### Synapse Engine
-```
-O Synapse Engine (presente em .synapse/) atua como a espinha dorsal de rastreamento de contexto e diagnóstico do sistema.
-Ele estabelece uma hierarquia de 7 camadas (L0 a L7) para estruturar a memória da IA:
-  - L0: Constitution (Regras globais e inquebráveis)
-  - L1: Global (Contexto fixo de operação)
-  - L2: Agent (Memória estruturada da persona)
-  - L3: Workflow (Fluxo de trabalho atual)
-  - L4: Task (Tarefa ativa)
-  - L5: Squad (Time de agentes colaborativos, ex: Conclave)
-  - L6: Keyword (Gatilhos rápidos)
-  - L7: Star Command (Overrides absolutos do usuário/admin)
-```
-
-### Claude Multi-Agent Governance
-```
-O diretório .claude/ abriga as regras (rules), habilidades (skills) e os agentes autônomos (agents) como o QA, Architect e UX Expert.
-O sistema possui hooks rígidos no git (ex: pre-commit e enforce-git-push-authority) que validam se os sub-agentes aprovaram as alterações na base de código, garantindo a integridade arquitetural (mind-clone-governance).
-```
+### Claude Multi-Agent Governance (`.claude/`)
+Rules, skills, sub-agents (Architect, QA, UX), git hooks (pre-commit, enforce-git-push-authority)
 
 ### Conclave Multi-Agent Debate
-```
-A ferramenta conclave permite que um agente instancie uma equipe temporária de especialistas (sub-agentes de LLM) para debaterem um problema antes de executar uma tarefa crítica. O Conclave gera um resumo sintetizado das opiniões (Chain of Thought avançado), permitindo maior robustez nas decisões da IA.
-```
+Temporary team of specialists (sub-agents) debate before executing critical tasks. Generates synthesized Chain of Thought summary.
+
+### Blueprint System
+- CRUD + clone + seed (5 official: Coach de Vendas, Hipnoterapeuta, Tutor ENEM, Consultor Imobiliário, Nutricionista)
+- `cloneBlueprint()` creates new persona from blueprint config
+- `savePersonaAsBlueprint()` extracts persona config into reusable template
+
+### B2B Prospecting
+- Pipeline: discover → enrich → score → analyze → diagnose
+- Discovery: Serper API (Google), 5 query variations, dedup by domain/CNPJ
+- Enrichment: CNPJ via BrasilAPI, site scraping (emails, phones, socials), phone-to-CNPJ fallback
+- Scoring: 0-100 (has_website, has_instagram, has_google_maps, capital_social, reviews, etc.)
+- Market Analysis + Lead Diagnosis: LLM-generated insights
+- Chat: `/prospect <nicho> [cidade]`, `/prospect cnpj <CNPJ>`, `/prospect stats`
+
+### External Tools (35+)
+Free: weather, cep_lookup, geocoding, cat_facts, dog_facts, jokes, advice, horoscope, exchange_rates, wikipedia, number_fact, word_definition, qr_code, url_metadata, ibge_search
+API key: b2b_search (Serper), google_places (Serper), news_search (GNews), youtube_search (YouTube Data), site_scraper
+
+### WhatsApp Smart Intent Detection
+- `_detectIntent(text)` → location, poll, contact, list, image, video, audio, buttons
+- Brazilian city mapping, auto-read receipts, typing indicators, humanized pacing
+
+### Chat Commands Seed
+Default: `/ajuda`, `/ping`, `/bonjour`, `/hola`, `/hi`, `/piada` (joke), `/fato` (fact), `/clima` (weather)
 
 ## Admin Chat Commands
+
 | Command | Access | Description |
-|---|---|---|
+|---------|--------|-------------|
 | `/admin` | admin | Admin dashboard |
-| `/stop` | anyone | Interrupt response (info about silence mode) |
-| `/silence <N>` | anyone | Silence persona for N messages, /silence off to disable, /silence infinite for indefinite |
-| `/mute` | anyone | Alias for /silence |
-| `/vincular [CODE]` | bot | Link WhatsApp/Telegram to web account (no code = instructions, with code = link) |
-| `/desvincular` | bot | Unlink WhatsApp/Telegram from web account |
-| `/cadastrar email senha [nome]` | bot | Create web account from bot, links automatically |
-| `/entrar email senha` | bot | Login to existing web account from bot, links automatically |
-| `/stats` | user | Your stats |
-| `/myprofile` | user | Your profile |
-| `/persona` | anyone | List personas |
-| `/persona <id>` | anyone | Switch persona |
-| `/persona create <desc>` | admin | Meta-RAG create persona |
-| `/persona edit <id> <field> <value>` | admin | Edit persona |
-| `/persona delete <id>` | admin | Delete persona |
+| `/stop` | anyone | Interrupt response |
+| `/silence <N>` | anyone | Silence persona for N messages |
+| `/persona` | anyone | List/switch personas |
+| `/persona create <desc>` | admin | Meta-RAG create |
 | `/voice` | anyone | List/switch TTS voice |
-| `/survey` | admin | Manage surveys |
-| `/ratings` | admin | Rating stats |
-| `/followups` | admin | Follow-up status |
-| `/skills` | anyone | List skills |
-| `/tasks` | user | List your tasks (/tasks overdue\|pending\|in_progress) |
-| `/calendar` | user | Upcoming events (/calendar upcoming) |
-| `/contacts` | user | List contacts (/contacts search <name>) |
-| `/automations` | user | List automations |
+| `/tasks` | user | Manage tasks |
+| `/calendar` | user | Upcoming events |
+| `/contacts` | user | Manage contacts |
+| `/automations` | user | Manage automations |
 | `/dashboard` | user | Dashboard overview |
-| `/goals` | user | List/manage goals (/goals create <title>, /goals <id>, /goals progress) |
-| `/stages` | user | View/advance conversation stages (/stages init, /stages advance) |
-| `/orgmem` | user | Manage org memory (/orgmem create, /orgmem search <query>) |
-| `/xp` | user | Gamification — XP, level, streak, badges, leaderboard |
-| `/progress` | user | View/update progress state (key-value per user+persona) |
-| `/cognitive, /cognitivo` | user | Cognitive state (emotion, intent, churn risk, engagement) |
-| `/override` | admin | Human override control (full/approval/observation per session) |
-| `/thoughts, /pensamentos` | admin | Agent thought logs (reasoning, tools, response time) |
-| `/suggestions, /sugestoes` | admin | Self-optimization suggestions (tone, retention, engagement) |
-| `/creative` | admin | Generate visual content (quote_post, announcement, carousel, blog) |
-| `/blog` | admin | Blog posts (list, generate via LLM) |
-| `/email` | admin | Send email (to | subject | body) |
-| `/search, /buscar` | anyone | Search knowledge sources (persona-aware) |
-| `/prospect` | anyone | B2B prospecting (discover, cnpj, score, stats, ajuda) |
-| `/quiz` | anyone | Interactive quizzes (list, create, answer) |
-| `/context` | anyone | View recent conversation context |
-| `/reflect, /refletir` | anyone | Persona self-reflection (strengths, weaknesses, recommendations) |
-| `/events, /eventos` | anyone | Event log and statistics |
+| `/goals` | user | Manage goals |
+| `/stages` | user | Conversation stages |
+| `/orgmem` | user | Org memory |
+| `/xp` | user | Gamification stats |
+| `/progress` | user | Progress state |
+| `/cognitive` | user | Cognitive state |
+| `/override` | admin | Human override (full/approval/observation) |
+| `/thoughts` | admin | Agent thought logs |
+| `/suggestions` | admin | Self-optimization suggestions |
+| `/creative` | admin | Generate visual content |
+| `/blog` | admin | Blog posts |
+| `/email` | admin | Send email |
+| `/search` | anyone | Knowledge search |
+| `/prospect` | anyone | B2B prospecting |
+| `/quiz` | anyone | Interactive quizzes |
+| `/context` | anyone | Recent conversation context |
+| `/reflect` | anyone | Persona self-reflection |
+| `/events` | anyone | Event log |
 | `/media` | admin | Media listing |
-| `/workspace, /ws` | admin | Workspace management (create, usage, rules) |
-| `/billing` | admin | Plans and usage reports |
-| `/lang, /idioma` | anyone | Switch language (pt-BR, en-US, es-ES) |
-| `/plan, /planejar, /planner` | anyone | AI planning agent (intent analysis, tool plan) |
-| `/history, /historico` | anyone | Session message history |
-| `/export` | admin | Export DB data (personas, skills, goals, etc.) |
-| `/stats2, /estatisticas` | anyone | Global statistics (messages, users, emotions, intents) |
-| `/config` | admin | Quick settings (view/set) |
-| `/keys, /addkey, /removekey, /togglekey` | admin | Integration management |
-| `/blueprints` | anyone | List/clone/view blueprints (/blueprints list, /blueprints clone <id>, /blueprints categories) |
+| `/workspace` | admin | Workspace management |
+| `/billing` | admin | Plans and usage |
+| `/lang` | anyone | Switch language |
+| `/plan` | anyone | AI planning agent |
+| `/history` | anyone | Session history |
+| `/export` | admin | Export DB data |
+| `/stats2` | anyone | Global statistics |
+| `/config` | admin | Quick settings |
+| `/keys` | admin | Integration management |
+| `/blueprints` | anyone | List/clone blueprints |
 | `/health` | anyone | Integration health |
-| `/settings, /set` | admin | Settings management |
-| `/users, /promote, /ban` | admin | User management |
+| `/settings` | admin | Settings management |
+| `/users` | admin | User management |
+| `/fidelidade` | user | Loyalty program |
+| `/relatorios` | user | Financial reports |
+| `/broadcast` | admin | Mass campaigns |
+| `/vincular` | bot | Link bot account |
+| `/desvincular` | bot | Unlink bot account |
 
-## Admin API Endpoints
-| Method | Path | Description |
-|---|---|---|
-| **Users** |||
-| GET | `/api/admin/users` | List users (paginated, filterable) |
-| GET | `/api/admin/users/:id` | Get user details |
-| PUT | `/api/admin/users/:id/role` | Set user role |
-| DELETE | `/api/admin/users/:id` | Delete user |
-| **Personas (Meta-RAG)** |||
-| GET | `/api/admin/personas` | List all personas |
-| POST | `/api/admin/personas` | Create persona |
-| POST | `/api/admin/personas/generate` | Generate persona via Meta-RAG LLM |
-| PUT | `/api/admin/personas/:id` | Update persona |
-| DELETE | `/api/admin/personas/:id` | Delete persona |
-| POST | `/api/admin/personas/:id/toggle` | Enable/disable |
-| POST | `/api/admin/personas/:id/activate` | Activate |
-| POST | `/api/admin/personas/:id/deactivate` | Deactivate |
-| **Skills** |||
-| GET | `/api/admin/skills` | List skills (filter by persona_id) |
-| POST | `/api/admin/skills` | Create skill |
-| PUT | `/api/admin/skills/:id` | Update skill |
-| DELETE | `/api/admin/skills/:id` | Delete skill |
-| POST | `/api/admin/skills/:id/invoke` | Invoke a skill |
-| **Tasks** |||
-| GET | `/api/admin/tasks` | List tasks |
-| POST | `/api/admin/tasks` | Create task |
-| PUT | `/api/admin/tasks/:id` | Update task |
-| DELETE | `/api/admin/tasks/:id` | Delete task |
-| **Calendar** |||
-| GET | `/api/admin/calendar` | List events |
-| POST | `/api/admin/calendar` | Create event |
-| PUT | `/api/admin/calendar/:id` | Update event |
-| DELETE | `/api/admin/calendar/:id` | Delete event |
-| **Contacts (CRM)** |||
-| GET | `/api/admin/contacts` | List contacts |
-| POST | `/api/admin/contacts` | Create contact |
-| PUT | `/api/admin/contacts/:id` | Update contact |
-| DELETE | `/api/admin/contacts/:id` | Delete contact |
-| **Automations** |||
-| GET | `/api/admin/automations` | List automations |
-| POST | `/api/admin/automations` | Create automation |
-| PUT | `/api/admin/automations/:id` | Update automation |
-| DELETE | `/api/admin/automations/:id` | Delete automation |
-| **Dashboard** |||
-| GET | `/api/admin/dashboard` | Dashboard stats (tasks, events, contacts, automations, personas, skills, goals, org memory) |
-| **Surveys** |||
-| GET | `/api/admin/surveys` | List surveys |
-| POST | `/api/admin/surveys` | Create survey |
-| GET | `/api/admin/surveys/:id` | Get survey |
-| PUT | `/api/admin/surveys/:id` | Update survey |
-| DELETE | `/api/admin/surveys/:id` | Delete survey |
-| GET | `/api/admin/surveys/:id/responses` | Get responses |
-| **Ratings** |||
-| GET | `/api/admin/ratings` | List ratings with stats |
-| **Follow-ups** |||
-| GET | `/api/admin/followups` | List follow-ups |
-| POST | `/api/admin/followups` | Create follow-up |
-| POST | `/api/admin/followups/:id/send` | Mark as sent |
-| **Goals** |||
-| GET | `/api/admin/goals` | List goals |
-| POST | `/api/admin/goals` | Create goal |
-| GET | `/api/admin/goals/:id` | Get goal |
-| PUT | `/api/admin/goals/:id` | Update goal |
-| DELETE | `/api/admin/goals/:id` | Delete goal |
-| GET | `/api/admin/goals/progress` | Goal progress stats |
-| GET | `/api/admin/goals/hierarchy` | Goal hierarchy tree |
-| **Conversation Stages** |||
-| GET | `/api/admin/stages` | List stages |
-| POST | `/api/admin/stages` | Create stage |
-| PUT | `/api/admin/stages/:id` | Update stage |
-| DELETE | `/api/admin/stages/:id` | Delete stage |
-| POST | `/api/admin/stages/init-defaults` | Create default stages |
-| GET | `/api/admin/stages/user/:userId` | Get user stage |
-| POST | `/api/admin/stages/user/:userId/advance` | Advance user stage |
-| **Org Memory** |||
-| GET | `/api/admin/org-memory` | List org memories |
-| POST | `/api/admin/org-memory` | Create org memory |
-| GET | `/api/admin/org-memory/search` | Search org memories |
-| GET | `/api/admin/org-memory/:id` | Get org memory |
-| PUT | `/api/admin/org-memory/:id` | Update org memory |
-| DELETE | `/api/admin/org-memory/:id` | Delete org memory |
-| **Bot Instances** |||
-| GET | `/api/admin/bots` | List bot instances |
-| GET | `/api/admin/bots/active` | List running bots |
-| POST | `/api/admin/bots` | Add bot instance |
-| PUT | `/api/admin/bots/:id` | Update bot |
-| DELETE | `/api/admin/bots/:id` | Delete bot |
-| POST | `/api/admin/bots/:id/start` | Start bot |
-| POST | `/api/admin/bots/:id/stop` | Stop bot |
-| POST | `/api/admin/bots/start-all` | Start all bots |
-| **Integrations** |||
-| GET/POST | `/api/admin/integrations` | List/add integrations |
-| PUT/DELETE | `/api/admin/integrations/:id` | Update/remove |
-| POST | `/api/admin/integrations/:id/toggle` | Enable/disable |
-| POST | `/api/admin/integrations/:id/test` | Test health |
-| **Knowledge (RAG)** |||
-| GET | `/api/admin/knowledge` | Knowledge stats |
-| POST | `/api/admin/knowledge/reindex` | Reindex |
-| POST | `/api/admin/knowledge/upload` | Upload file (PDF, DOCX, image, audio, text) |
-| **Settings** |||
-| GET | `/api/admin/settings` | Get all settings |
-| PUT | `/api/admin/settings` | Set a setting |
-| **MCP** |||
-| GET/POST | `/api/admin/mcp` | List/add MCP servers |
-| DELETE | `/api/admin/mcp/:id` | Remove |
-| POST | `/api/admin/mcp/:id/connect` | Connect |
-| **Blueprints** |||
-| GET | `/api/admin/blueprints` | List blueprints (filter: category, niche, search) |
-| POST | `/api/admin/blueprints` | Create blueprint |
-| GET | `/api/admin/blueprints/:id` | Get blueprint |
-| PUT | `/api/admin/blueprints/:id` | Update blueprint |
-| DELETE | `/api/admin/blueprints/:id` | Delete blueprint |
-| POST | `/api/admin/blueprints/:id/clone` | Clone blueprint as new persona |
-| POST | `/api/admin/blueprints/:id/apply/:personaId` | Apply blueprint to existing persona |
-| POST | `/api/admin/blueprints/from-persona/:personaId` | Save persona as blueprint |
-| GET | `/api/admin/blueprints/stats` | Blueprint statistics |
-| GET | `/api/admin/blueprints/categories` | List categories |
-| GET | `/api/admin/blueprints/niches` | List niches |
-| **Events** |||
-| GET | `/api/admin/events/log` | Event log (filter: event_type, user_id, persona_id) |
-| GET | `/api/admin/events/stats` | Event statistics |
+## API Endpoints
 
-## Public API Endpoints
-| Method | Path | Description |
-|---|---|---|
-| POST | `/api/chat` | Chat (JSON response, rate-limited, persona-aware, returns ttsVoice) |
-| POST | `/api/chat/stt` | Speech-to-text |
-| POST | `/api/chat/tts` | Text-to-speech (accepts voice param, truncates to 200 chars) |
-| POST | `/api/chat/rating` | Submit rating |
-| GET | `/api/chat/personas` | List personas |
-| POST | `/api/chat/persona/switch` | Switch persona |
-| POST | `/api/chat/persona/create` | Meta-RAG create |
-| GET | `/api/chat/persona/current` | Current persona (returns ttsVoice, ttsLang) |
-| GET | `/api/chat/surveys/active` | Check active survey |
-| POST | `/api/chat/surveys/:id/respond` | Submit survey response |
-| GET | `/api/chat/followups/pending` | Check pending follow-up |
-| POST | `/api/chat/followups/:id/respond` | Respond to follow-up |
-| GET | `/api/chat/blueprints` | List active blueprints (public, no auth) |
-| GET | `/api/chat/blueprints/categories` | List categories (public) |
-| GET | `/api/chat/blueprints/niches` | List niches (public) |
-| GET | `/api/chat/blueprints/:id` | Get blueprint (public) |
-| POST | `/api/chat/blueprints/:id/clone` | Clone as new persona (public) |
-| POST | `/api/auth/register` | Register |
-| POST | `/api/auth/login` | Login |
-| POST | `/api/auth/google` | Google OAuth |
-| POST | `/api/auth/link-code` | Generate link code (auth required) |
-| GET | `/api/auth/link-status` | Check linked accounts (auth required) |
-| POST | `/api/auth/link` | Link bot account to web account |
-| POST | `/api/auth/unlink` | Unlink bot account (auth required) |
-| GET | `/api/auth/me` | Current user (with role) |
+### Admin API (auth + admin role required)
+| Resource | Methods |
+|----------|---------|
+| Users | GET/PUT/DELETE `/api/admin/users`, role management |
+| Personas | GET/POST `/api/admin/personas`, generate, toggle, CRUD |
+| Skills | GET/POST/PUT/DELETE `/api/admin/skills`, invoke |
+| Tasks | GET/POST/PUT/DELETE `/api/admin/tasks` |
+| Calendar | GET/POST/PUT/DELETE `/api/admin/calendar` |
+| Contacts | GET/POST/PUT/DELETE `/api/admin/contacts` |
+| Automations | GET/POST/PUT/DELETE `/api/admin/automations` |
+| Dashboard | GET `/api/admin/dashboard` |
+| Goals | GET/POST/PUT/DELETE `/api/admin/goals`, hierarchy, progress |
+| Stages | GET/POST/PUT/DELETE, init-defaults, user stage, advance |
+| Org Memory | GET/POST/PUT/DELETE `/api/admin/org-memory`, search |
+| Surveys | GET/POST/PUT/DELETE `/api/admin/surveys`, responses |
+| Ratings | GET `/api/admin/ratings` |
+| Follow-ups | GET/POST `/api/admin/followups`, send |
+| Bots | GET/POST/PUT/DELETE `/api/admin/bots`, start/stop/start-all |
+| Integrations | GET/POST/PUT/DELETE `/api/admin/integrations`, toggle, test |
+| Knowledge | GET `/api/admin/knowledge`, reindex, upload |
+| Settings | GET/PUT `/api/admin/settings` |
+| MCP | GET/POST/DELETE `/api/admin/mcp`, connect |
+| Blueprints | CRUD + clone + apply + from-persona + stats + categories + niches |
+| Events | GET log + stats |
+| Search | GET `/api/admin/search`, stats |
+| Loyalty | Programs, balance, history, earn, redeem, rewards, stats, expire |
+| Broadcasts | CRUD + send + logs + stats |
+| Reports | Dashboard, revenue, top-products, sales-trend, conversion, customers |
+| Recovery | Inactive, churn-risk, at-risk, seed-automations |
+| Delivery | Drivers, assign, status, track |
+| ERP | Products, orders, stock, finance, suppliers, site CMS, coupons |
+| Wizard | GET/POST steps, apply, reset |
+| Thoughts | GET thoughts + stats |
+| Override | Activate, deactivate, status, list |
+| Vector | Stats, reindex |
+| Creative | CRUD + generate + templates |
 
-## Database Schema
-- **users** — id, email, password, name, google_id, avatar, ollama_api_key, telegram_chat_id, role (guest/user/premium/admin/banned), persona_id, link_code (VARCHAR 10), link_code_expires (TIMESTAMP), whatsapp_id (VARCHAR 100), telegram_id (VARCHAR 100), phone (VARCHAR 50)
-- **sessions** — id, user_id, user_name, user_context (JSON), summary, persona_id, timestamps
-- **messages** — id, session_id, role, content, timestamp
-- **profiles** — id, name, story, topics (JSON), emotions (JSON), spiritual_journey, prayer_requests (JSON)
-- **posts** — slug (PK), title, topic, verse, content, sources (JSON), published_at
-- **comments** — id, post_slug, parent_id, author_name, author_id, content, created_at
-- **feedback** — id, type, message, user_id, session_id, created_at, status
-- **settings** — setting_key (PK), setting_value (TEXT)
-- **api_keys** — id, service_type, api_key, base_url, model, label, priority, is_active, extra_config (JSON)
-- **personas** — persona_id (PK), name, name_en, name_es, identity (JSON), commands (JSON), knowledge_sources (JSON), tts_voice, tts_lang, model, priority, is_active, topic_keywords (JSON), emotion_keywords (JSON), name_patterns (JSON), disclaimer (JSON), conversation_with (JSON), memory_block (JSON), profile_block (JSON), group_context (JSON), cjk_fallback (JSON), llm_error (JSON), welcome_title (JSON), welcome_body (JSON), prayer_prompt (JSON), blog_prompt (JSON), blog_topics (JSON), donate_verse (JSON), summary_prompt (JSON), profile_summary_prompt (JSON)
-- **persona_skills** — id (PK), persona_id (FK nullable), name, description, type (action/generator/communication/analysis/workflow), prompt, parameters (JSON), output_format, is_active, created_at, updated_at
-- **persona_tasks** — id (PK), persona_id, owner_id, title, description, status (pending/in_progress/completed/cancelled), priority (urgent/high/medium/low), due_date, assigned_to, result, auto_execute, skill_id, created_at, updated_at
-- **persona_calendar** — id (PK), persona_id, owner_id, title, description, event_type (meeting/reminder/task/followup/call/other), start_time, end_time, location, attendees (JSON), reminders (JSON), status, created_at, updated_at
-- **persona_contacts** — id (PK), persona_id, owner_id, name, email, phone, company, role, tags (JSON), notes, stage (lead/prospect/customer/churned/vip), custom_fields (JSON), last_contact_at, created_at, updated_at
-- **persona_automations** — id (PK), persona_id, owner_id, name, description, trigger_type (keyword/interval_messages/schedule/on_contact_create/manual), trigger_config (JSON), action_type (message/create_task/send_email/webhook/switch_persona/invoke_skill), action_config (JSON), is_active, last_run_at, run_count, created_at, updated_at
-- **persona_messages** — id (PK), persona_id, session_id, user_id, role (user/assistant/system/tool), content, tool_calls (JSON), tool_results (JSON), metadata (JSON), created_at
-- **persona_goals** — id (PK), persona_id, owner_id, title, description, goal_type (strategic/tactical/operational/learning/relationship/financial/growth), priority (urgent/high/medium/low), status (active/paused/completed/abandoned), progress (0-100), target_metric, target_value, current_value, parent_goal_id, due_date, completed_at, created_at, updated_at
-- **persona_conversation_stages** — id (PK), persona_id, name, description, stage_order, triggers (JSON), responses (JSON), is_active, created_at
-- **persona_user_stages** — id (PK), user_id, persona_id, session_id, current_stage, stage_data (JSON), stage_history (JSON), updated_at
-- **persona_org_memory** — id (PK), persona_id, owner_id, category (products/services/pricing/team/policies/faq/processes/brand/market/custom), title, content, tags (JSON), priority (urgent/high/medium/low), is_active, expires_at, created_at, updated_at
-- **rate_limits** — id, user_id, service_type, request_count, window_start
-- **surveys** — id, title, description, questions (JSON), is_active, trigger_type, trigger_config (JSON)
-- **survey_responses** — id, survey_id, user_id, session_id, answers (JSON), completed_at
-- **ratings** — id, user_id, session_id, message_id, rating, feedback, category, source, created_at
-- **follow_ups** — id, user_id, session_id, type, question, response, status, scheduled_at, sent_at, responded_at, created_at
-- **bot_instances** — id, platform, name, token, webhook_url, instance_name, persona_id, is_active, config (JSON)
-- **onboarding_steps** — id, step_key, step_order, question, question_en, question_es, field, field_type, choices (JSON), required, is_active
-- **user_onboarding** — id, user_id, step_key, answer, answered_at
-- **mcp_servers** — id, name, command, args (JSON), env_vars (JSON), is_active, created_at
-- **user_xp** — user_id, persona_id, xp, level, streak, best_streak, last_activity, badges (JSON) (composite PK user_id+persona_id)
-- **user_xp_log** — id, user_id, persona_id, amount, reason, created_at
-- **user_progress** — user_id, persona_id, state (JSON), created_at, updated_at (composite PK user_id+persona_id)
-- **cognitive_states** — id, user_id, persona_id, session_id, message_id, emotion, emotion_confidence, intent, intent_confidence, topics (JSON), churn_risk, conversion_probability, engagement_score, suggested_action, context_snapshot (JSON), created_at
-- **human_overrides** — id, session_id (unique), user_id, persona_id, is_active, override_type (full/approval/observation), human_message, metadata (JSON), created_at, updated_at
-- **agent_thoughts** — id, session_id, user_id, persona_id, message_input, message_output, tools_used (JSON), context_injected (JSON), reasoning, decision, response_time_ms, tokens_used, created_at
-- **persona_blueprints** — id (PK), name, description, category, niche, config (JSON), preview (JSON), is_official, is_active, tags (JSON), icon, color, created_at, updated_at
-- **event_log** — id (PK), event_type, user_id, persona_id, session_id, data (JSON), results (JSON), created_at
-- **b2b_searches** — id (VARCHAR 80 PK), user_id (VARCHAR 60), niche (VARCHAR 255), location (VARCHAR 255), results (JSON), created_at (TIMESTAMP)
-- **chat_commands** — id (INT AUTO_INCREMENT PK), command (VARCHAR 50 UNIQUE), description (TEXT), response_template (TEXT), response_type (VARCHAR 20), action_type (VARCHAR 30), action_config (JSON), required_role (VARCHAR 20), required_persona_id (VARCHAR 60), aliases (JSON), usage_examples (JSON), category (VARCHAR 50), is_active (TINYINT 1), usage_count (INT), created_by (VARCHAR 60), created_at (TIMESTAMP), updated_at (TIMESTAMP)
+### Public API
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/chat` | POST | Chat (JSON, rate-limited, persona-aware) |
+| `/api/chat/stt` | POST | Speech-to-text |
+| `/api/chat/tts` | POST | Text-to-speech |
+| `/api/chat/rating` | POST | Submit rating |
+| `/api/chat/personas` | GET | List personas |
+| `/api/chat/persona/switch` | POST | Switch persona |
+| `/api/chat/persona/create` | POST | Meta-RAG create |
+| `/api/chat/persona/current` | GET | Current persona + ttsVoice |
+| `/api/chat/surveys/active` | GET | Active survey |
+| `/api/chat/blueprints` | GET | List active blueprints |
+| `/api/auth/register` | POST | Register |
+| `/api/auth/login` | POST | Login |
+| `/api/auth/google` | POST | Google OAuth |
+| `/api/auth/link-code` | POST | Generate link code (auth) |
+| `/api/auth/link` | POST | Link bot account |
+| `/api/auth/unlink` | POST | Unlink bot account (auth) |
+| `/api/auth/me` | GET | Current user |
+| `/api/store/*` | Various | Public storefront (products, categories, orders, brand, coupons, loyalty) |
+
+## Database Schema (41 tables)
+users, sessions, messages, profiles, posts, comments, feedback, settings, api_keys, personas, persona_skills, persona_tasks, persona_calendar, persona_contacts, persona_automations, persona_messages, persona_goals, persona_conversation_stages, persona_user_stages, persona_org_memory, rate_limits, surveys, survey_responses, ratings, follow_ups, bot_instances, onboarding_steps, user_onboarding, mcp_servers, user_xp, user_xp_log, user_progress, cognitive_states, human_overrides, agent_thoughts, persona_blueprints, event_log, b2b_searches, chat_commands + ERP tables (products, product_variants, product_categories, orders, order_items, deliveries, notifications, financial_transactions, payment_links, suppliers, site_sections, coupon_codes, commerce_carts) + loyalty tables (loyalty_programs, loyalty_transactions, loyalty_rewards) + broadcast tables (broadcasts, broadcast_logs) + delivery tables (delivery_drivers, delivery_assignments)
 
 ## Key File Structure
-- `src/chat/engine.js` — Central chat engine (rate limit, onboarding, persona-aware RAG, tools, agentic loop for meta-persona, inline tool call stripping)
-- `src/auth/index.js` — Auth core (register, login, Google OAuth, JWT, role-based, createUser)
+- `src/chat/engine.js` — Central chat engine (rate limit, onboarding, persona RAG, tools, agentic loop)
+- `src/auth/index.js` — Auth (register, login, Google OAuth, JWT, role-based)
 - `src/auth/rateLimit.js` — Rate limiting per role + ban enforcement
-- `src/onboarding/index.js` — Onboarding state machine (whitelabel, 3 langs, ensureUser)
-- `src/survey/index.js` — Surveys, ratings, follow-ups engine
-- `src/persona/manager.js` — Multi-persona with DB persistence, cache invalidation
-- `src/persona/meta-rag.js` — Meta-RAG persona generation (any niche, not just biblical), switchPersona, getMetaPersona
-- `src/persona/config.js` — Default persona definitions, buildSystemPrompt (handles string/object identity)
-- `src/skills/index.js` — Skills CRUD + invocation (create, list, invoke, getForPersona)
-- `src/agent/index.js` — Agentic system (tasks, calendar, contacts, automations, history, dashboard, checkAndRunAutomations)
-- `src/goals/index.js` — Goal stack CRUD + hierarchy + progress + context injection (createGoal, listGoals, getGoalHierarchy, getGoalProgress, formatGoalContext)
-- `src/stages/index.js` — Conversation stages CRUD + user stage tracking + context injection (createConversationStage, getUserStage, advanceUserStage, getUserStageContext, ensureDefaultStages)
-- `src/orgmemory/index.js` — Organizational memory CRUD + search + context injection (createOrgMemory, searchOrgMemory, getOrgMemoryContext)
-- `src/gamification/index.js` — XP, levels, streaks, badges, leaderboard, auto-award (getXp, addXp, updateStreak, addBadge, checkAndAwardBadges, formatXpContext)
-- `src/progress/index.js` — Per-user progress state (getProgressState, updateProgressState, incrementProgressField, pushProgressArray, formatProgressContext)
-- `src/cognitive/index.js` — Cognitive state analysis (analyzeCognitiveState, formatCognitiveContext, getCognitiveStats) — emotion, intent, churn risk, engagement
-- `src/override/index.js` — Human override (setOverride, getOverride, clearOverride, isOverridden) — full/approval/observation
-- `src/thoughts/index.js` — Agent thought logging (logThought, getThoughts, getThoughtStats) — tools used, context, reasoning, response time
-- `src/optimization/index.js` — Self-optimization suggestions (generateSuggestions) — tone, retention, engagement, automation
-- `src/proactive/index.js` — Proactive intelligence engine (cron-based: streak reminders, goal deadlines, scheduled automations)
-- `src/events/index.js` — Event bus (emit, on, off, logEvent, getEventLog, getEventStats, processAutomations) — 12 event types
-- `src/blueprints/index.js` — Blueprint CRUD + clone + seed (createBlueprint, cloneBlueprint, savePersonaAsBlueprint, getBlueprintStats)
-- `src/llm/tools.js` — LLM tool definitions (34 tools: create_persona, manage_tasks, manage_calendar, manage_contacts, manage_automations, manage_goals, manage_conversation_stages, manage_org_memory, manage_xp, manage_progress, get_cognitive_state, human_override, get_suggestions, get_dashboard, get_history, manage_blueprints, b2b_prospect, cnpj_lookup, lead_scoring, site_scraper, google_places_search, etc.)
-- `src/llm/integrationManager.js` — Multi-key fallback for ALL integrations (Ollama `/chat` native, Groq `/chat/completions` OpenAI-compatible; auto-detect by URL pattern; normalizeLLMResponse handles both formats + inline tool calls)
-- `src/llm/keyManager.js` — **DEPRECATED** (not imported) — Legacy key management, superseded by IntegrationManager
-- `src/llm/index.js` — LLM chat, parseStream, extractContent, normalizeLLMResponse (Ollama `/chat` native, Groq `/chat/completions` OpenAI-compatible; auto-detect by URL pattern)
-- `src/b2b/index.js` — B2B prospecting pipeline (discover, enrich, score, analyze, diagnose, pipeline, saveSearch, listSearches)
-- `src/bot/manager.js` — Multi-instance bot manager (Telegram + WhatsApp)
-- `src/telegram/handler.js` — Telegram handler factory (persona per instance)
-- `src/whatsapp/bot.js` — WhatsApp handler (persona-aware, voice pass-through, chunk size)
-- `src/instagram/bot.js` — Instagram bot (DM polling, persona per instance, instagram-private-api)
-- `src/instagram/handler.js` — Instagram DM handler (processMessage, persona resolution, chunk size)
-- `src/settings/index.js` — Runtime settings (DB-backed, cached) with whitelabel configs
-- `src/knowledge/config.js` — Knowledge source definitions (multimodal, dynamic registry)
-- `src/knowledge/store.js` — Multi-source TF-IDF search (searchMultiSource, getAllSourceStats)
-- `src/knowledge/ingester.js` — Multi-source ingestion (PDF, DOCX, image, audio, JSON, text, API, upload)
-- `src/tts/index.js` — TTS engine (Kokoro + Edge TTS fallback, voice mapping, chunk truncation)
-- `src/routes/admin.js` — Admin API (users, personas, skills, tasks, calendar, contacts, automations, goals, stages, org memory, dashboard, surveys, ratings, follow-ups, bots, integrations, knowledge, blueprints, events)
-- `src/routes/chat.js` — Chat API (JSON response, personas, TTS with voice, ratings, surveys, onboarding, persona/create public)
-- `src/routes/auth.js` — Auth API (register, login, Google, profile with role)
-- `src/server/templates.js` — `escapeHtml`, `buildPersonaPage`, `buildSitePage`, `buildCreatePersonaPage` (string concatenation)
-- `src/server.js` — Express server, routes, startup (registers meta-persona in DB)
-- `src/db/index.js` — MySQL pool + schema init + auto-migration (41 tables)
+- `src/onboarding/index.js` — Onboarding state machine (whitelabel, 3 langs)
+- `src/persona/manager.js` — Multi-persona DB persistence, cache invalidation
+- `src/persona/meta-rag.js` — Meta-RAG persona generation, switchPersona
+- `src/persona/config.js` — Default persona definitions, buildSystemPrompt
+- `src/skills/index.js` — Skills CRUD + invocation
+- `src/agent/index.js` — Tasks, calendar, contacts, automations, history, dashboard
+- `src/goals/index.js` — Goal hierarchy, progress, context injection
+- `src/stages/index.js` — Conversation stages, user tracking, context injection
+- `src/orgmemory/index.js` — Org memory CRUD + search + context injection
+- `src/gamification/index.js` — XP, levels, streaks, badges, leaderboard
+- `src/progress/index.js` — Per-user progress state
+- `src/cognitive/index.js` — Cognitive state analysis (emotion, intent, churn, engagement)
+- `src/override/index.js` — Human override (full/approval/observation)
+- `src/thoughts/index.js` — Agent thought logging
+- `src/optimization/index.js` — Self-optimization suggestions
+- `src/proactive/index.js` — Proactive intelligence (cron-based)
+- `src/events/index.js` — Event bus (12 event types)
+- `src/blueprints/index.js` — Blueprint CRUD + clone + seed
+- `src/loyalty/index.js` — Loyalty programs (points, cashback, stamp_card, tier)
+- `src/broadcast/index.js` — Mass campaigns via WhatsApp/Telegram
+- `src/b2b/index.js` — B2B prospecting pipeline
+- `src/bot/manager.js` — Multi-instance Telegram + WhatsApp
+- `src/llm/tools.js` — 34+ base LLM tool definitions
+- `src/llm/erp-tools.js` — 30+ ERP + commerce tools
+- `src/llm/integrationManager.js` — Multi-key fallback, auto-detect Ollama/Groq
+- `src/llm/index.js` — LLM chat, parseStream, normalizeLLMResponse
+- `src/knowledge/` — config, store (TF-IDF), ingester (multimodal)
+- `src/embeddings/` — Vector search (Ollama embeddings, cosine similarity)
+- `src/tts/index.js` — Kokoro + Edge TTS fallback
+- `src/stt/` — Whisper local + Groq + OpenAI Whisper
+- `src/routes/admin.js` — Admin API
+- `src/routes/chat.js` — Chat API
+- `src/routes/auth.js` — Auth API
+- `src/routes/erp.js` — ERP admin API
+- `src/routes/storefront.js` — Public store API
+- `src/server.js` — Express server, startup
+- `src/db/index.js` — MySQL pool + schema init + migration (41+ tables)
+- `pet/pet.html` — Companion Pet (Electron + Three.js Neural Link Brain)
 
-## User Roles & Access Levels
-| Role | Chat | Commands | Admin API | Custom Persona | Onboarding |
-|---|---|---|---|---|---|
-| guest | 5 msg/day | /stats, /myprofile | No | No | Yes |
-| user | 30 msg/day | + /tools, /persona, /voice | No | Via session | Yes |
-| premium | 100/day | + /health | No | Yes | Yes |
-| admin | 999/day | All | Full | Yes | Skip |
-
-## Whitelabel Settings (via /set or Admin API)
+## Whitelabel Settings
 | Setting | Default | Description |
-|---|---|---|
-| `brand_name` | (empty) | Brand name (overrides persona name in UI) |
-| `brand_tagline` | (empty) | Tagline shown on landing page |
-| `brand_logo_url` | (empty) | Logo URL |
-| `brand_primary_color` | (empty) | Primary hex color |
-| `brand_secondary_color` | (empty) | Secondary hex color |
-| `onboarding_enabled` | true | Enable/disable onboarding |
-| `onboarding_greeting` | (empty) | Custom greeting (pt-BR) |
-| `onboarding_greeting_en` | (empty) | Custom greeting (en-US) |
-| `onboarding_greeting_es` | (empty) | Custom greeting (es-ES) |
-| `survey_enabled` | true | Enable surveys |
-| `followup_enabled` | true | Enable follow-ups |
-| `followup_interval_messages` | 10 | Messages between follow-ups |
-| `ratings_enabled` | true | Enable ratings |
-| `rate_limit_guest` | 5 | Guest daily message limit |
-| `rate_limit_user` | 30 | User daily message limit |
-| `rate_limit_premium` | 100 | Premium daily message limit |
-| `rate_limit_admin` | 999 | Admin daily message limit |
-| `message_chunk_size` | 200 | Max chars per text/audio message chunk |
-| `audio_chunk_size` | 200 | Max chars per TTS audio generation |
+|---------|---------|-------------|
+| brand_name | (empty) | Brand name |
+| brand_tagline | (empty) | Tagline |
+| brand_logo_url | (empty) | Logo URL |
+| brand_primary_color | (empty) | Primary hex color |
+| brand_secondary_color | (empty) | Secondary hex color |
+| onboarding_enabled | true | Enable/disable onboarding |
+| message_chunk_size | 200 | Max chars per message chunk |
+| rate_limit_* | 5/30/100/999 | Per-role daily limits |
+| loyalty_enabled | false | Enable loyalty system |
+| store_delivery_fee | 0 | Default delivery fee |
+| store_free_delivery_above | 90 | Free delivery threshold |
+| store_delivery_zones | JSON | Delivery zone config |
+
+## Frontend Architecture
+- **Vue 3** (CDN, Composition API, no build step) + **Tailwind CSS** + **Socket.IO Client**
+- `public/index.html` — SPA (landing, auth, chat, content, search)
+- `public/admin.html` — Admin dashboard (all management sections)
+- `public/store.html` — Whitelabel e-commerce storefront
+- `pet/pet.html` — Companion Pet (Electron + Three.js)
+
+Views: Landing, Auth, Chat, Content, Search, Onboarding, Donate
+
+Chat flow: POST `/api/chat` → server generates sessionId → persona switch clears messages → Socket.IO realtime events
+
+### Companion Pet (3D Neural Link Brain)
+**File:** `pet/pet.html` — standalone Electron/HTML companion widget
+
+**3D Scene Architecture:**
+- Brain: Two hemispheres with wrinkle-displaced SphereGeometry + cerebellum + brain stem, MeshPhysicalMaterial (clearcoat, transparency, metallic sheen)
+- Cortical wireframe overlay: slightly scaled-up mesh with wireframe (ethereal outer shell)
+- Inner glow spheres: BackSide-rendered spheres inside each hemisphere for subsurface light
+- 2-layer atmosphere: outer glowSphere (radius 3.2) + inner glowSphere2 (radius 2.4) with additive-opacity
+- Neural Link Crown: 16 electrode nodes at EEG positions, 28 curved signal traces (QuadraticBezierCurve3 → TubeGeometry), main + glow traces
+- Processor chip: BoxGeometry with MeshPhysicalMaterial at stem base, 6 blinking LED edge dots
+- Energy tendrils: 6 CatmullRomCurve3 tubes connecting hemispheres across the fissure
+- Synaptic particles: 80 additive-blending points with per-particle drift
+- Cinematic 3-point lighting: key (upper-right), fill (left), rim (back-left, purple)
+- Camera float: gentle Y-axis sinusoidal drift
+
+**State System (7 states):** idle (purple), listening (cyan), thinking (gold), speaking (pink), excited (red), frustrated (red-orange), curious (green)
+Each state defines: color, emissiveIntensity, speed, scale, amplitude, particleSpeed. Smooth LERP transitions (factor 0.06).
+
+**Chat Integration:** Socket.IO realtime events, chat panel with persona avatar, typing animation, STT/Whisper, TTS/Kokoro auto-play, persona switcher, drag-drop floating window.
+
+**Key Variables:** `brainMat`, `nlGroup`, `nlNodes`, `nlTraces`, `curSpeed`, `curAmp`, `curEmissive`, `curGlow`, `scanMat`, `STATES_3D`
+
+**Constraints:** Three.js r128 CDN (no ES modules, no import maps), all JS inline in pet.html, Persona IDs preserve hyphens
+
+## ERP System
+
+Complete ERP module: products (variants, categories, stock, SEO), orders (lifecycle with status transitions), finance (transactions, payment links), suppliers (search, rating, payment terms), site CMS (i18n sections, reorder), coupons.
+
+**Backend:** `src/erp/` — products, orders, finance, suppliers, site, commerce, reports, recovery, delivery
+**Routes:** `src/routes/erp.js` (admin), `src/routes/storefront.js` (public)
+**LLM Tools:** `src/llm/erp-tools.js` — 30+ tools (products, orders, stock, finance, suppliers, site, commerce)
+
+### Commerce System (WhatsApp Store)
+Flow: customer message → LLM detects product interest → catalog_search → commerce_add_to_cart → commerce_set_address → commerce_set_payment → commerce_apply_coupon → commerce_finalize_order
+
+**Cart State Machine:** browsing → building_order → confirming_address → confirming_payment → confirming_order → completed
+
+**10 Commerce LLM Tools:** commerce_add_to_cart, commerce_remove_from_cart, commerce_cart_summary, commerce_clear_cart, commerce_set_address, commerce_set_payment, commerce_apply_coupon, commerce_finalize_order, commerce_get_order, commerce_calculate_delivery
+
+**Delivery Zones:** Centro (free), Bairro (R$5), Rural (R$7), Premium (R$10), free above R$90 (configurable)
+
+**Payment Methods:** cash, pix, credit_card, debit_card, bank_transfer, boleto (configurable via settings)
+
+**Commerce System Prompt:** natural conversation only, no slash commands, proactive selling, upsell/cross-sell, LLM auto-uses commerce tools
+
+**Store Persona Config:** `WHATSAPP_PERSONA_ID` env var sets default WhatsApp persona. `loja-hlb` pattern: commerce-only identity, no religious content.
+
+### Storefront (Whitelabel E-commerce SPA)
+Public API `/api/store/*` (no auth): brand, sections, products, categories, orders, coupons, loyalty
+Features: dynamic brand colors, product catalog, cart (localStorage), checkout → WhatsApp deep link, coupon discounts, 3-language i18n
+
+### Admin Panel — ERP Sections
+Produtos, Pedidos, Estoque, Financeiro, Fornecedores, Site CMS, Cupons, Entrega
+
+### Loyalty System
+Programs: points, cashback, stamp_card, tier (per persona or global)
+Key functions: earnPoints, redeemPoints, getLoyaltyBalance, formatLoyaltyContext
+Tables: loyalty_programs, loyalty_transactions, loyalty_rewards
+Commands: `/fidelidade`, `/pontos`, `/cashback`, `/loyalty`
+Integration: finalizeOrder auto-calls earnPoints when loyalty enabled
+
+### Broadcast System
+Segments: all, new (7d), inactive_7d/15d/30d, vip, tag
+Tables: broadcasts, broadcast_logs
+Command: `/broadcast list/send <id>`
+
+### Reports Module
+getRevenueReport, getOrdersByStatus, getTopProducts, getSalesTrend, getCustomerMetrics, getConversionFunnel, getFullDashboard
+Command: `/relatorios` (vendas, produtos, tendencia, funil)
+LLM Tools: reports_dashboard, reports_top_products, reports_sales_trend, reports_conversion_funnel
+
+### Customer Recovery
+getInactiveCustomers, getChurnRiskCustomers, getAtRiskCustomers, seedRecoveryAutomations (7d, 15d, 30d)
+
+### Delivery Driver Module
+createDriver, listDrivers, assignDriver, updateAssignment, getOrderAssignment
+Tables: delivery_drivers, delivery_assignments
+
+### Setup Wizard
+5 steps: brand → persona → products → whatsapp → finish
 
 ## Critical Constraints
-- `pdf-parse` must be v1.1.1 — v2.x has breaking API changes (`pdfParse is not a function`)
+
+- `pdf-parse` must be v1.1.1 — v2.x has breaking API changes
 - MySQL `LIMIT ? OFFSET ?` with `pool.execute()` (prepared statements) fails — must interpolate as `${Number(limit)}`
 - Persona IDs preserve original format including hyphens — do NOT sanitize with regex
 - `buildSystemPrompt()` must handle both string and object identity formats
 - `switchPersona()` clears message history to prevent persona contamination
 - Message saving: `processMessage` saves assistant messages — do NOT double-save in bot handlers
-- TTS voice: persona.ttsVoice is passed through to Kokoro/Edge TTS — KOKORO_EDGE_VOICE_MAP handles fallback
-- Meta-persona (id: "meta-persona") has ALL tools enabled — admin god that orchestrates everything
-- Agent module CRUD operations use VARCHAR primary keys generated as `prefix_timestamp_random`
+- TTS voice: persona.ttsVoice passed through to Kokoro/Edge TTS
+- Meta-persona (id: "meta-persona") has ALL tools enabled
+- Agent module CRUD uses VARCHAR primary keys `prefix_timestamp_random`
 - `createPersona()` must preserve existing fields from cache
 - `loadPersonas()` must NOT fallback to Jesus persona fields for custom personas
-- Skills provide specialized instructions and workflows for specific tasks.
-- Goal context is injected into system prompt via `formatGoalContext()` — active goals only
-- Org memory is injected via `getOrgMemoryContext()` — searched by user message keywords
-- Conversation stage is injected via `getUserStageContext()` — shows current funnel stage
-- Dashboard stats now include goals by status and org memory by category
-- `ensureDefaultStages()` creates default funnel stages (greeting → discovery → engagement → conversion → retention)
-- Event bus `emit()` fires after key actions (goal completed, badge earned, level up, churn risk high, stage advance, cognitive change, XP milestone)
-- Event automations use `trigger_type = 'event'` with `trigger_config.event` matching the event type
-- Blueprint `cloneBlueprint()` creates a new persona from blueprint config — overrides merge on top
-- Blueprint `savePersonaAsBlueprint()` extracts full persona config into a reusable template
-- 5 official blueprints seeded on first startup: Coach de Vendas, Hipnoterapeuta, Tutor ENEM, Consultor Imobiliário, Nutricionista
-
-### Blueprint System
-```
-personas → savePersonaAsBlueprint() → persona_blueprints table (config JSON)
-personas ← cloneBlueprint(blueprintId, overrides) → new persona with merged config
-personas ← cloneBlueprintToExisting(blueprintId, personaId) → merge template into existing persona
-
-Official blueprints (seeded on startup):
-  - bp_coach_vendas: Sales coach with funnel, objection handling, CRM (business/vendas)
-  - bp_hipnoterapeuta: Hypnotherapy with safety rules, Ericksonian techniques (health/terapia)
-  - bp_tutor_enem: Exam prep with study techniques, progress tracking (education/enem)
-  - bp_consultor_imobiliario: Real estate with market knowledge, legal compliance (business/imobiliário)
-  - bp_nutricionista: Nutrition with clinical safety, evidence-based recommendations (health/nutrição)
-
-Admin API:
-  GET    /api/admin/blueprints           — List blueprints (filter: category, niche, search)
-  POST   /api/admin/blueprints           — Create blueprint
-  GET    /api/admin/blueprints/:id       — Get blueprint
-  PUT    /api/admin/blueprints/:id       — Update blueprint
-  DELETE /api/admin/blueprints/:id       — Delete blueprint
-  POST   /api/admin/blueprints/:id/clone — Clone blueprint as new persona
-  POST   /api/admin/blueprints/:id/apply/:personaId — Apply blueprint to existing persona
-  POST   /api/admin/blueprints/from-persona/:personaId — Save persona as blueprint
-  GET    /api/admin/blueprints/stats     — Blueprint statistics
-  GET    /api/admin/blueprints/categories — List categories
-  GET    /api/admin/blueprints/niches    — List niches
-
-Public API:
-  GET    /api/chat/blueprints            — List active blueprints (public, no auth)
-  GET    /api/chat/blueprints/categories — List categories (public)
-  GET    /api/chat/blueprints/niches     — List niches (public)
-  GET    /api/chat/blueprints/:id        — Get blueprint (public)
-  POST   /api/chat/blueprints/:id/clone  — Clone as new persona (public)
-
-Chat Command:
-  /blueprints list              — List active blueprints
-  /blueprints <id>              — View blueprint details
-  /blueprints clone <id> [name] — Clone blueprint as new persona
-  /blueprints categories         — List categories
-  /blueprints stats              — Blueprint statistics
-
-LLM Tool:
-  manage_blueprints — list, get, clone, apply, create_from_persona, categories, niches, stats
-```
-
-### B2B Prospecting (Prospector-inspired)
-```
-Pipeline: discover → enrich → score → analyze → diagnose
-
-Discovery (Serper API):
-  - Searches Google for businesses by niche + location
-  - Returns organic + Places results (title, website, phone, address, rating, reviews, maps link)
-  - Generates 5 query variations per search
-  - Deduplicates by domain + CNPJ + fuzzy title similarity
-
-Enrichment:
-  - CNPJ lookup via BrasilAPI (razão_social, capital_social, CNAE, sócios, situação, MEI)
-  - Site scraping via HTTP (emails, phones, social links, CNPJ from HTML, title, description)
-  - Phone-to-CNPJ fallback via Serper search
-  - Progress saved every 5 leads
-
-Scoring (0-100):
-  - has_website (15pts), has_instagram (10pts), has_google_maps (10pts), has_ads (10pts)
-  - has_email (5pts), has_phone (3pts), has_youtube (3pts), has_tiktok (2pts)
-  - capital_social (5-20pts), maps_rating (3-15pts), reviews (3-5pts), business_age (5-10pts)
-  - MEI penalty (-5pts)
-  - Priority: muito_alto (<40), alto (40-69), medio (70+)
-
-Market Analysis (LLM):
-  - AI-generated market insights (pontos_fracos, oportunidades, estrategia_entrada, ticket_medio, concorrencia)
-
-Lead Diagnosis (LLM):
-  - Individual AI diagnosis per lead (pontos_fracos, pontos_fortes, urgencia, servicos_sugeridos, abordagem_whatsapp)
-
-Chat Command:
-  /prospect <nicho> [cidade]     — Discover + score leads
-  /prospect cnpj <CNPJ>          — Lookup CNPJ via BrasilAPI
-  /prospect score site maps insta — Calculate lead score
-  /prospect stats                 — List saved searches
-  /prospect ajuda                 — Help
-
-Admin API:
-  POST /api/admin/b2b/prospect   — Discover leads (niche + location)
-  POST /api/admin/b2b/enrich     — Enrich leads (CNPJ + scraping)
-  POST /api/admin/b2b/analyze    — Market AI analysis
-  POST /api/admin/b2b/diagnose  — Lead AI diagnosis
-  POST /api/admin/b2b/pipeline   — Full pipeline (discover → enrich → score → analyze → diagnose)
-  GET  /api/admin/b2b/searches   — List saved searches
-  GET  /api/admin/b2b/searches/:id — Get search details
-  DELETE /api/admin/b2b/searches/:id — Delete search
-
-DB: b2b_searches (id, user_id, niche, location, results JSON, created_at)
-```
-
-### External Tools (Real APIs)
-```
-Tool Registry (src/tools/registry.js) — 35+ tools with real API integrations:
-
-Free APIs (no key required):
-  - weather: Open-Meteo API — weather forecast by city (coordinates via Nominatim)
-  - cep_lookup: ViaCEP — Brazilian address lookup by CEP (8 digits)
-  - geocoding: Nominatim — forward/reverse geocoding
-  - cat_facts: catfact.ninja — random cat facts
-  - dog_facts: dogapi.dog — random dog facts
-  - jokes: jokeapi.dev — jokes by category (safe mode)
-  - advice: api.adviceslip.com — random advice
-  - random_user: randomuser.me — random user data (name, email, phone, location)
-  - number_fact: numbersapi.com — trivia/math/date facts about numbers
-  - word_definition: dictionaryapi.dev — English word definitions
-  - horoscope: horoscope-app-api — daily horoscope by sign
-  - exchange_rates: exchangerate-api.com — live currency exchange rates
-  - wikipedia_search: Wikipedia REST API — article summaries
-  - emoji_search: emoji-api.com — emoji search by keyword
-  - qr_code: qrserver.com — QR code generation from URL/text
-  - url_metadata: microlink.io — URL metadata extraction
-  - ibge_search: IBGE API — Brazilian city demographics
-
-API key required:
-  - b2b_search: Serper API — Google Search for B2B prospecting
-  - google_places: Serper API — Google Places search
-  - news_search: GNews API — news search by query
-  - youtube_search: YouTube Data API — video search
-  - site_scraper: HTTP + regex — extract emails, phones, socials, CNPJ from websites
-
-Business (B2B Prospecting):
-  - lead_scoring: Algorithm 0-100 — digital presence scoring
-  - whatsapp_template: B2B cold outreach message generator (cold, referral, value templates)
-
-LLM Tool Access:
-  use_external_tool — execute any tool by ID (meta-persona only)
-  list_external_tools — list available tools by category/niche
-  b2b_prospect — search businesses via Google (Serper API)
-  cnpj_lookup — CNPJ data via BrasilAPI
-  lead_scoring — calculate digital presence score
-  site_scraper — extract contact data from websites
-  google_places_search — find businesses on Google Maps
-```
-
-### WhatsApp Smart Intent Detection
-```
-WhatsAppMessenger class (src/whatsapp/bot.js):
-  - Intent patterns detect: location, poll, contact, list, image, video, audio, buttons
-  - _detectIntent(text) — regex matching on user message
-  - _extractLocation(text) — city extraction with Brazilian city mapping
-  - _handleSmartIntent(jid, intent, formatted, originalMessage) — auto-send location/poll/contact
-  - Location DB: 12+ Brazilian cities with coordinates
-  - Fallback to text for @lid JIDs
-  - Auto-read receipts, typing indicators, humanized pacing, auto-reactions
-
-Format: formatWhatsAppText — converts markdown to WhatsApp format (**bold** → *bold*, etc.)
-Split: splitMessage — splits long messages with skipFormat to avoid double-formatting
-Strip: stripWhatsAppFormat — removes formatting for TTS (no asterisks, bullets)
-```
-
-### Chat Commands Seed
-```
-Default commands seeded on startup (src/chat/commands.js):
-  /ajuda — Show available commands
-  /ping — Connectivity test
-  /bonjour — French greeting
-  /hola — Spanish greeting
-  /hi — English greeting
-  /piada — Random joke (via jokeapi.dev)
-  /fato — Random fact (via catfact.ninja)
-  /clima — Weather forecast (via Open-Meteo)
-```
-
-### Event Bus
-```
-Trigger lifecycle events → handlers + automations + logging
-Event types: on_goal_completed, on_goal_created, on_stage_advance, on_badge_earned,
-             on_level_up, on_churn_risk_high, on_cognitive_change, on_message_sent,
-             on_user_created, on_automation_triggered, on_override_activated, on_xp_milestone
-
-Emit points:
-  - goals/index.js: updateGoal() when status='completed' → emit('on_goal_completed')
-  - gamification/index.js: addXp() when leveledUp → emit('on_level_up'), XP milestone → emit('on_xp_milestone')
-  - gamification/index.js: checkAndAwardBadges() when new badge → emit('on_badge_earned')
-  - stages/index.js: advanceUserStage() → emit('on_stage_advance')
-  - cognitive/index.js: analyzeCognitiveState() when churnRisk > 0.6 → emit('on_churn_risk_high')
-  - cognitive/index.js: analyzeCognitiveState() when emotion changes → emit('on_cognitive_change')
-
-Automation integration:
-  - persona_automations with trigger_type='event' and trigger_config.event matching event type
-  - Actions: message, create_task, send_email, webhook, switch_persona, invoke_skill
-
-Admin API:
-  GET /api/admin/events/log    — Event log (filter: event_type, user_id, persona_id)
-  GET /api/admin/events/stats   — Event statistics
-
-B2B Prospecting:
-  POST /api/admin/b2b/prospect   — Discover leads (niche + location)
-  POST /api/admin/b2b/enrich     — Enrich leads (CNPJ + scraping)
-  POST /api/admin/b2b/analyze    — Market AI analysis
-  POST /api/admin/b2b/diagnose  — Lead AI diagnosis
-  POST /api/admin/b2b/pipeline   — Full pipeline (discover → enrich → score → analyze → diagnose)
-  GET  /api/admin/b2b/searches   — List saved searches
-  GET  /api/admin/b2b/searches/:id — Get search details
-  DELETE /api/admin/b2b/searches/:id — Delete search
-```
-
-## Frontend Architecture
-
-### Tech Stack
-- **Vue 3** (CDN, Composition API, no build step)
-- **Tailwind CSS** (CDN)
-- **Socket.IO Client** (realtime events)
-- **No SSR** — static HTML served by Express from `/public`
-
-### File Structure
-```
-public/
-  index.html          — Vue 3 SPA (landing + auth + chat + content + search)
-  admin.html          — Vue 3 SPA (admin dashboard, all management sections)
-  css/
-    style.css         — Custom CSS (Tailwind utilities via CDN + custom theme)
-    admin.css          — Admin panel custom styles
-  js/
-    app.js             — Vue 3 app (landing, auth, chat, persona switch, content, search)
-    admin.js            — Vue 3 admin app
-```
-
-### Pages / Views (Chat App — `index.html`)
-
-| View | Route | Description |
-|---|---|---|
-| Landing | `#landing` | Hero, features, use cases, CTA |
-| Auth | `#auth` | Login / register / Google / skip modal |
-| Chat | `#chat` | Main chat with persona switcher, messages, TTS, sources |
-| Content | `#content` | Blog posts (persona-aware) |
-| Search | `#search` | Knowledge search (persona-aware sources) |
-| Onboarding | `#onboarding` | Multi-step onboarding overlay |
-| Donate | `#donate` | PIX donation + API key modal |
-
-### Persona Switcher
-- Dropdown in sidebar showing current persona avatar + name
-- Click shows all active personas with avatar, name, description
-- Switching calls `POST /api/persona/switch` → clears messages → shows welcome
-- Persona identity (colors, avatar, font) applied via CSS variables
-- `localStorage('mp_persona')` persists choice across sessions
-
-### Chat Flow (Critical Fix)
-1. User types message → `POST /api/chat { message, sessionId, userId, language, personaId }`
-2. If no sessionId → server generates one → returned in response
-3. On persona switch → `POST /api/persona/switch` → clear local `sessionId` → next chat call gets new sessionId from response
-4. **Bug fix:** Never send empty `sessionId` string — always send `null` or let server generate, then save the returned sessionId
-
-### Admin Panel Sections (`admin.html`)
-Dashboard, Users, Personas, Skills, Knowledge/RAG, Integrations, Settings, Bots, Surveys, Ratings, Follow-ups, Tasks, Calendar, Contacts, Automations, Goals, Stages, Org Memory, Blueprints, XP/Gamification, Progress, Cognitive, Override, Thoughts, Creatives, Events, Commands, Queue, Search
-
-### Key API Endpoints (Frontend Focus)
-
-| Purpose | Method | Endpoint |
-|---|---|---|
-| Send message | POST | `/api/chat` |
-| List personas | GET | `/api/personas` |
-| Switch persona | POST | `/api/persona/switch` |
-| Current persona | GET | `/api/persona/current` |
-| Create persona | POST | `/api/persona/create` |
-| List sessions | GET | `/api/sessions` |
-| Get session | GET | `/api/session/:id` |
-| Login | POST | `/api/auth/login` |
-| Register | POST | `/api/auth/register` |
-| Profile | GET/PUT | `/api/profile/:userId` |
-| TTS | POST | `/api/tts` |
-| STT | POST | `/api/stt` |
-| Rating | POST | `/api/rating` |
-| Blog posts | GET | `/api/blog/posts` |
-| Blog search | GET | `/api/blog/search?q=` |
-| Bible books | GET | `/api/blog/books` |
-| Blueprints | GET | `/api/blueprints` |
-| Blueprint clone | POST | `/api/blueprints/:id/clone` |
-| Follow-ups | GET | `/api/followups/pending` |
-| Surveys | GET | `/api/surveys/active` |
-| Whitelabel | GET | `/api/settings` |
-| Translations | GET | `/api/translations/:lang` |
-| Config | GET | `/api/config` |
-| Donate/Pix | GET | `/api/donate` |
-
-### ERP System
-
-Complete ERP module for product management, orders, finance, suppliers, and site CMS.
-
-**Database:** 15 tables (products, product_variants, product_categories, orders, order_items, deliveries, notifications, financial_transactions, payment_links, suppliers, site_sections, coupon_codes, commerce_carts + indexes)
-
-**Backend:** `src/erp/` — products, orders, finance, suppliers, site, commerce modules
-**Routes:** `src/routes/erp.js` — Admin API (auth required), `src/routes/storefront.js` — Public API (no auth)
-**LLM Tools:** `src/llm/erp-tools.js` — 23 ERP tools + 10 commerce tools (62 total tools)
-
-#### Product Management
-- Products: CRUD with variants, categories, stock tracking, SEO fields, images, tech specs
-- Categories: Tree structure with parent/child, icons, i18n names
-- Stock: Adjustments (in/out/adjustment/return/reserved/released/loss), low stock alerts
-- Product types: physical, digital, service (each with different workflows)
-
-#### Order Management
-- Orders: Full lifecycle (pending → confirmed → paid → processing → shipped → delivered)
-- Status transitions enforced via NEXT_STATUS map (no skipping steps)
-- Order items with product_id, variant_id, title, unit_price, quantity, type
-- Deliveries with tracking code, carrier, estimated delivery
-- Notifications created on order creation (channel, recipient, message)
-- Stock deducted automatically on order creation, restored on cancellation
-- `formatOrderForWhatsApp()` — WhatsApp-friendly order receipt formatting
-
-#### Finance
-- Transactions: CRUD with types (income, expense, refund, withdrawal)
-- Payment links: PIX links with expiration, external reference
-- Dashboard: Revenue, expenses, profit, orders by status, average ticket
-
-#### Suppliers
-- CRUD with search, category filter, rating, payment terms
-- Contact info, delivery time, documents
-
-#### Site CMS
-- Sections: CRUD with i18n (title, subtitle, content per language)
-- Types: hero, features, gallery, cta, testimonials, faq, about, custom
-- Reorder, activate/deactivate, media attachments
-- Seeded with e-commerce defaults (hero, features, CTA, product gallery)
-
-### Commerce System (WhatsApp Store)
-
-Complete WhatsApp commerce flow inspired by real-world delivery bots (e.g., HLB Conveniência).
-
-**Commerce Module:** `src/erp/commerce.js`
-**Cart Table:** `commerce_carts` — session-based cart with flow_step state machine
-
-#### Flow (matches real WhatsApp bot behavior)
-```
-Customer message → LLM detects product interest → catalog_search
-  →commerce_add_to_cart → shows cart summary
-  →commerce_set_address → calculates delivery fee by zone
-  →commerce_set_payment → sets method (pix/dinheiro/cartao) + change_for
-  →commerce_apply_coupon → validates and applies discount
-  →commerce_finalize_order → creates order in DB, deducts stock, returns receipt
-  →commerce_get_order → status check anytime
-```
-
-#### Cart State Machine
-```
-browsing → building_order → confirming_address → confirming_payment → confirming_order → completed
-```
-
-#### LLM Commerce Tools (10)
-| Tool | Description |
-|---|---|
-| `commerce_add_to_cart` | Add product to cart (searches by product_id, resolves name/price) |
-| `commerce_remove_from_cart` | Remove product from cart |
-| `commerce_cart_summary` | Show cart: items, quantities, subtotal, shipping, total |
-| `commerce_clear_cart` | Empty cart |
-| `commerce_set_address` | Save delivery address + calculate shipping fee by zone |
-| `commerce_set_payment` | Set payment method (pix/dinheiro/cartao/etc) + change_for amount |
-| `commerce_apply_coupon` | Apply discount coupon (percentage or fixed) |
-| `commerce_finalize_order` | Create order in DB, deduct stock, return WhatsApp receipt |
-| `commerce_get_order` | Check order status by number or ID |
-| `commerce_calculate_delivery` | Calculate delivery fee for an address |
-
-#### Delivery Zones (configurable via admin)
-```json
-[
-  {"name":"Centro","keywords":["centro","praca","matriz"],"fee":0,"estimated_minutes":"20-30"},
-  {"name":"Bairro","keywords":["bairro","jardim","vila"],"fee":5,"estimated_minutes":"30-40"},
-  {"name":"Rural","keywords":["rural","rodovia","km"],"fee":7,"estimated_minutes":"35-45"},
-  {"name":"Premium","keywords":["condominio","alphaville"],"fee":10,"estimated_minutes":"40-55"}
-]
-```
-- Free delivery above configurable threshold (default: R$90)
-- Zone matching by keywords in address text
-- Settings: `store_delivery_fee`, `store_free_delivery_above`, `store_delivery_zones`
-
-#### Payment Methods
-| User Input | DB Value | Display |
-|---|---|---|
-| dinheiro, cash | cash | Dinheiro |
-| pix | pix | PIX |
-| cartao, cartao_credito, credit_card | credit_card | Cartão de Crédito |
-| cartao_debito, debit_card | debit_card | Cartão de Débito |
-| transferencia, bank_transfer | bank_transfer | Transferência |
-| boleto | boleto | Boleto |
-
-#### Coupon System
-- Types: percentage, fixed
-- Validation: min_value, max_uses, expires_at
-- Auto-increment used_count on storefront order creation
-- Admin CRUD: `/api/erp/coupons` (POST, GET, PUT/:id, DELETE/:id)
-
-### Storefront (Whitelabel E-commerce SPA)
-
-**Public API:** `/api/store/*` — no authentication required
-**Page:** `/store` — serves `store.html`
-
-| Endpoint | Method | Description |
-|---|---|---|
-| `/api/store/brand` | GET | Brand info (name, logo, colors, social links, currency) |
-| `/api/store/sections` | GET | Active site sections (i18n) |
-| `/api/store/products` | GET | Active products (filter by category, type, search) |
-| `/api/store/products/:id` | GET | Single product detail |
-| `/api/store/products/slug/:slug` | GET | Product detail by slug |
-| `/api/store/categories` | GET | Product category tree |
-| `/api/store/orders` | POST | Create order from storefront (deducts stock) |
-| `/api/store/coupons/:code` | GET | Validate coupon code |
-
-**Features:**
-- Dynamic brand color injection via CSS variables from `/api/store/brand`
-- Product catalog with filters, search, categories
-- Product detail page with images, variants, stock info
-- Cart sidebar (localStorage persistence)
-- Checkout modal → WhatsApp deep link with formatted order message
-- Coupon discount application
-- 3-language i18n (pt-BR, en-US, es-ES)
-- Cookie consent, floating WhatsApp button, hero video support
-
-### Commerce System Prompt (Chat Engine)
-
-When `commerce_enabled` is not disabled, the chat engine injects a SALES-FOCUSED COMMERCE SYSTEM block into the system prompt:
-- **Natural conversation only** — no slash commands, the LLM proactively sells and closes deals
-- Tool sequence: catalog_search → commerce_add_to_cart → commerce_cart_summary → commerce_set_address → commerce_set_payment → commerce_apply_coupon → commerce_finalize_order
-- **Upsell and cross-sell**: burger → suggest fries/drink, pizza → suggest coke, ice cream → suggest toppings
-- **Proactive selling**: greet with popular items, suggest daily specials, mention free delivery above threshold
-- Rules: confirm order before finalizing, ask for change on cash, calculate delivery by zone, suggest alternatives when product not found
-- Store name and currency from settings
-- Delivery zones: Centro (free), Bairro (R$5), Rural (R$7), Premium (R$10), free above R$90
-
-### WhatsApp Persona Configuration
-
-- `WHATSAPP_PERSONA_ID` env var: sets the default persona for all WhatsApp messages (e.g., `loja-hlb` for a store)
-- If not set, falls back to session persona → user persona → active persona (env `PERSONA`)
-- Each bot instance can have its own persona via `bot_instances.persona_id`
-- Store persona `loja-hlb`: commerce-only identity, no religious content, `knowledge_sources: []`
-
-### Store Persona Onboarding (loja-hlb)
-
-Custom onboarding steps for commerce personas — only ask for name and phone (skip interest/feeling/email):
-1. **name** (required): "Ola! Prazer te atender! Como posso te chamar?"
-2. **phone** (optional): "Pode me passar seu telefone?"
-
-Global onboarding steps (interest, feeling, email) are overridden when the persona has its own steps in `PERSONA_STEP_CONFIGS`.
-
-### B2B Business Model
-
-Each installation = one client. No multi-tenancy needed.
-- **Implementation fee**: one-time setup (brand, products, WhatsApp config, persona training)
-- **Monthly management**: support, optimization, analytics, persona updates
-- **Revenue streams**: setup + monthly retainer + usage-based (API keys, LLM costs)
-- **Delivery model**: self-hosted (client server) or managed (our infra)
-
-### Store Personas as Product
-
-The `loja-hlb` pattern is the template for selling to businesses:
-1. Create persona with commerce identity (no AI mentions, natural selling)
-2. Configure `WHATSAPP_PERSONA_ID` to point to store persona
-3. Seed products via admin API or DB
-4. Set store settings: brand_name, delivery zones, currency
-5. Customer conversations flow naturally → LLM uses commerce tools automatically
-6. Store persona onboarding: name + phone only (not interest/feeling/email)
-
-### Admin Panel — ERP Sections
-
-| Section | Description |
-|---|---|
-| Produtos | Product CRUD, variants, categories, stock management |
-| Pedidos | Order list, status updates, detail view |
-| Estoque | Stock levels, low stock alerts, adjustments |
-| Financeiro | Financial summary, transactions, payment links |
-| Fornecedores | Supplier CRUD with contact info |
-| Site CMS | Section editor (i18n, reorder, activate/deactivate) |
-| Cupons | Coupon CRUD (percentage/fixed, min_value, max_uses, expires) |
-| Entrega | Delivery fee settings, free delivery threshold, zone configuration |
-
-## Critical Constraints (Updated)
-
-- `pdf-parse` must be v1.1.1 — v2.x has breaking API changes
-- MySQL `LIMIT ? OFFSET ?` with `pool.execute()` (prepared statements) fails — must interpolate as `${Number(limit)}`
-- Persona IDs preserve original format including hyphens
-- `buildSystemPrompt()` handles both string and object identity formats
-- `switchPersona()` clears message history to prevent persona contamination
-- Message saving: `processMessage` saves assistant messages — do NOT double-save in bot handlers
-- TTS voice: persona.ttsVoice passed through to Kokoro/Edge TTS
-- Meta-persona has ALL tools enabled
-- Agent module CRUD uses VARCHAR primary keys `prefix_timestamp_random`
-- `createPersona()` preserves existing fields from cache
-- `loadPersonas()` does NOT fallback to Jesus persona fields for custom personas
 - **Product INSERT** must have exactly 38 columns matching 38 placeholders
 - **Order INSERT** must have exactly 27 columns matching 27 placeholders
 - Payment method mapping: `dinheiro` → `cash`, `cartao` → `credit_card` (ENUM values)
-- `commerce_carts` table uses `session_id` as the cart key (not user_id)
+- `commerce_carts` table uses `session_id` as cart key (not user_id)
 - Storefront routes are PUBLIC (no auth) — `/api/store/*`
 - Admin ERP routes require auth + admin role — `/api/erp/*`
-- `admin.js` uses `loading()` not `showLoading()` for spinner
+- `admin.js` uses `loading()` not `showLoading()`
 - Settings allowlist in admin routes includes store_* keys
 - `seedDefaultCommands` must be exported from `src/chat/commands.js`
 - `WHATSAPP_PERSONA_ID` env var sets default persona for WhatsApp messages
-- Commerce persona onboarding uses `PERSONA_STEP_CONFIGS` keyed by persona_id (e.g., `loja-hlb`)
+- Commerce persona onboarding uses `PERSONA_STEP_CONFIGS` keyed by persona_id
 - Store persona identity must NOT be NULL — requires commerce-only identity in DB
-- Commerce system prompt emphasizes natural conversation, proactive selling, upsell/cross-sell
-- **`catalog_search` filters by `context.personaId`** — only returns products belonging to the current persona's store
-- **`session_id` is optional in commerce tools** — falls back to `context.sessionId` from the chat engine
-- **Payment methods are configurable** via settings: `store_payment_methods`, `store_pix_key`, `store_pix_name`, `store_bank_info`
-- **PIX key injected into commerce prompt** — LLM tells customers the real PIX key, NEVER makes up payment info
-
-### Loyalty System (Fidelidade + Cashback)
-
-**Module:** `src/loyalty/index.js`
-
-Programs: points, cashback, stamp_card, tier. Each persona can have its own program (or global if `persona_id IS NULL`).
-
-**Key Functions:**
-- `getLoyaltyProgram(personaId)` — get active program for persona (falls back to global)
-- `getOrCreateLoyaltyProgram(personaId)` — auto-creates from settings if none exists
-- `getLoyaltyBalance(userId, personaId)` — returns `{ points, cashback, program }`
-- `earnPoints(userId, personaId, orderId, amount, reason)` — earn points/cashback/stamp on order
-- `redeemPoints(userId, personaId, amount, rewardId)` — redeem points/cashback for rewards
-- `getRewards(personaId)` — list available rewards
-- `createReward(data)` — create a redeemable reward
-- `getLoyaltyHistory(userId, personaId, limit)` — transaction history
-- `expireOldPoints(personaId, daysOld)` — expire earned points older than N days
-- `formatLoyaltyContext(balance)` — inject into system prompt
-
-**Settings:** `loyalty_enabled`, `loyalty_type`, `loyalty_points_per_real`, `loyalty_cashback_percent`, `loyalty_minimum_redemption`
-
-**Integration:**
-- `ecommerce.finalizeOrder()` auto-calls `earnPoints()` when loyalty enabled
-- Chat engine injects loyalty context into system prompt via `formatLoyaltyContext()`
-- Chat commands: `/fidelidade`, `/pontos`, `/cashback`, `/loyalty`
-
-**DB Tables:** `loyalty_programs`, `loyalty_transactions`, `loyalty_rewards`
-
-**Admin API:** `/api/admin/loyalty/programs`, `/api/admin/loyalty/balance/:userId`, `/api/admin/loyalty/history/:userId`, `/api/admin/loyalty/earn`, `/api/admin/loyalty/redeem`, `/api/admin/loyalty/rewards`, `/api/admin/loyalty/stats`, `/api/admin/loyalty/expire`
-
-**Public API:** `/api/store/loyalty/balance`, `/api/store/loyalty/rewards`
-
-**LLM Tools:** `loyalty_balance`, `loyalty_reward_list`, `loyalty_redeem`, `loyalty_history`
-
-### Broadcast System (Disparos em Massa)
-
-**Module:** `src/broadcast/index.js`
-
-Send messages to customer segments via WhatsApp/Telegram.
-
-**Segments:** all, new (7d), inactive_7d, inactive_15d, inactive_30d, vip, tag
-
-**Key Functions:**
-- `createBroadcast(data)` — create campaign
-- `sendBroadcast(id)` — send to targets (calculates targets by segment)
-- `getBroadcastTargets(personaId, segment, segmentConfig)` — resolve target customers
-- `getBroadcastStats(personaId)` — stats by status
-
-**DB Tables:** `broadcasts`, `broadcast_logs`
-
-**Admin API:** `/api/admin/broadcasts`, `/api/admin/broadcasts/:id`, `/api/admin/broadcasts/:id/send`, `/api/admin/broadcasts/:id/logs`, `/api/admin/broadcast-stats`
-
-**Chat Command:** `/broadcast list`, `/broadcast send <id>`
-
-**LLM Tool:** `broadcast_create`
-
-### Reports Module (Financial Dashboard)
-
-**Module:** `src/erp/reports.js`
-
-**Key Functions:**
-- `getRevenueReport(personaId, startDate, endDate)` — gross, net, refunds, orders, avg ticket
-- `getOrdersByStatus(personaId)` — count and total per status
-- `getTopProducts(personaId, limit)` — top selling products
-- `getSalesTrend(personaId, days)` — daily revenue/orders
-- `getCustomerMetrics(personaId)` — new customers, retention, avg messages
-- `getConversionFunnel(personaId)` — conversations → carts → orders → delivered
-- `getFullDashboard(personaId)` — all of the above combined
-
-**Admin API:** `/api/admin/reports/dashboard`, `/api/admin/reports/revenue`, `/api/admin/reports/top-products`, `/api/admin/reports/sales-trend`, `/api/admin/reports/conversion`, `/api/admin/reports/customers`
-
-**Chat Command:** `/relatorios` (with subcommands: vendas, produtos, tendencia, funil)
-
-**LLM Tools:** `reports_dashboard`, `reports_top_products`, `reports_sales_trend`, `reports_conversion_funnel`
-
-### Customer Recovery Module
-
-**Module:** `src/erp/recovery.js`
-
-**Key Functions:**
-- `getInactiveCustomers(personaId, daysInactive)` — users who haven't messaged in N days
-- `getChurnRiskCustomers(personaId)` — cognitive states with churn_risk > 0.5
-- `getAtRiskCustomers(personaId)` — aggregated stats (inactive 7d, high churn, low engagement)
-- `seedRecoveryAutomations(personaId)` — seed 3 default recovery automations (7d, 15d, 30d)
-
-**Admin API:** `/api/admin/recovery/inactive`, `/api/admin/recovery/churn-risk`, `/api/admin/recovery/at-risk`, `/api/admin/recovery/seed-automations`
-
-**LLM Tool:** `customer_recovery`
-
-### Delivery Driver Module
-
-**Module:** `src/erp/delivery.js`
-
-**Key Functions:**
-- `createDriver(data)` — register delivery driver
-- `listDrivers(personaId)` — list active drivers
-- `assignDriver(orderId, driverId)` — assign driver to order
-- `updateAssignment(orderId, status, notes)` — update delivery status
-- `getOrderAssignment(orderId)` — get delivery tracking info
-
-**DB Tables:** `delivery_drivers`, `delivery_assignments`
-
-**Admin API:** `/api/admin/delivery/drivers`, `/api/admin/delivery/assign`, `/api/admin/delivery/status/:orderId`, `/api/admin/delivery/track/:orderId`
-
-**Public API:** `/api/store/delivery/track/:orderId`
-
-**LLM Tools:** `delivery_track`, `delivery_update_status`
-
-### Setup Wizard
-
-**Module:** `src/wizard/index.js`
-
-5-step setup: brand → persona → products → whatsapp → finish
-
-**Key Functions:**
-- `getWizardState(userId)` — get current setup progress
-- `saveWizardStep(userId, step, data)` — save step data (brand, persona, products, whatsapp)
-- `applyWizard(userId)` — apply all saved settings to DB
-- `resetWizard(userId)` — clear setup progress
-
-**Steps:** brand, persona, products, whatsapp, finish
-
-**Admin API:** `/api/admin/wizard`, `POST /api/admin/wizard/:step`, `POST /api/admin/wizard/apply`, `POST /api/admin/wizard/reset`
-
-### Database Tables (New)
-
-**loyalty_programs** — id, persona_id, name, type (points/cashback/stamp_card/tier), points_per_real, cashback_percent, redemption_threshold, is_active
-
-**loyalty_transactions** — id, user_id, persona_id, order_id, type (earn/redeem/expire/adjust/cashback_earn/cashback_redeem), points, cashback_amount, description
-
-**loyalty_rewards** — id, persona_id, name, description, points_cost, product_id, discount_percent, discount_fixed, is_active
-
-**broadcasts** — id, persona_id, title, message, segment, segment_config, status (draft/scheduled/sending/sent/failed), scheduled_at, sent_count, delivered_count, read_count, failed_count
-
-**broadcast_logs** — id, broadcast_id, user_id, phone, status, error_message, sent_at
-
-**delivery_drivers** — id, persona_id, name, phone, vehicle_type, is_active, current_lat, current_lng, metadata
-
-**delivery_assignments** — id, order_id, driver_id, status (assigned/preparing/picked_up/on_the_way/delivered/failed/cancelled), assigned_at, picked_up_at, delivered_at, notes
+- `catalog_search` filters by `context.personaId`
+- `session_id` is optional in commerce tools — falls back to `context.sessionId`
+- Payment methods configurable via settings: `store_payment_methods`, `store_pix_key`, `store_pix_name`, `store_bank_info`
+- PIX key injected into commerce prompt — LLM tells customers real PIX key, NEVER makes up payment info
+- Three.js r128 CDN (no ES modules, no import maps) — all JS inline in pet.html
+- Chat engine at `src/chat/engine.js` — Pet connects via Socket.IO + REST

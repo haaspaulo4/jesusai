@@ -135,7 +135,7 @@ The new diagnostic and execution backbone of MetaPersona. It introduces a 7-laye
 ### Jarvis Cockpit & Companion Classic (Pet)
 Dual frontend architecture:
 1. **Jarvis Cockpit**: A full-fledged web UI dashboard for orchestrating agents, configuring the environment, and managing the AI's operations directly from your browser.
-2. **Companion Classic (Pet)**: An Electron-based desktop widget with a 3D Holographic Brain (Three.js) that acts as a floating, context-aware companion on your screen. 
+2. **Companion Classic (Pet)**: An Electron-based desktop widget with a **3D Neural Link Brain** (Three.js) that acts as a floating, context-aware companion. The brain features MeshPhysicalMaterial with clearcoat, cinematic 3-point lighting, holographic atmosphere layers, energy tendrils, and a Neural Link crown with electrode nodes, signal traces, and a processor chip with blinking LEDs — all responding to persona state (idle, thinking, speaking, etc.) via smooth color/animation transitions. 
 
 ### Conclave System
 A multi-agent discussion architecture. The AI can instantiate a `conclave` where specialized sub-agents debate complex problems, critique solutions, and synthesize a master plan before taking action. It's essentially "Chain of Thought" powered by multiple distinct personas.
@@ -159,7 +159,7 @@ Business knowledge in 10 categories (products, services, pricing, team, policies
 | Layer | Technology |
 |-------|-----------|
 | Runtime | Node.js 18+ / Express |
-| Desktop Widget| Electron.js + Three.js (Holographic Brain) |
+| Desktop Widget | Electron.js + Three.js (Neural Link Brain) |
 | Database | MySQL 8.4 (mysql2/promise) |
 | LLM | Ollama Cloud API (native `/chat`, multi-key fallback, tool calling) |
 | RAG | Hybrid TF-IDF + Vector Embeddings (Ollama, MySQL vector storage) |

@@ -3,6 +3,9 @@
 <head>
 <meta charset="UTF-8">
 <title>JesusAI Companion Pet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <!-- Carrega Socket.IO para comunicação realtime com o backend do JesusAI -->
 <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -10,18 +13,29 @@
   :root {
     --accent-color: #c084fc;
     --accent-rgb: 192, 132, 252;
+    --accent-glow: 0 0 20px rgba(192, 132, 252, 0.4);
+    --bg-deep: rgba(8, 2, 18, 0.92);
+    --bg-card: rgba(20, 5, 40, 0.85);
+    --border-subtle: rgba(192, 132, 252, 0.18);
+    --border-active: rgba(192, 132, 252, 0.5);
+    --text-primary: #f0e6ff;
+    --text-secondary: #a78bfa;
+    --text-dim: #6d5a8a;
+    --font-ui: 'Inter', 'SF Pro Display', -apple-system, 'Segoe UI', system-ui, sans-serif;
+    --radius: 14px;
+    --radius-sm: 10px;
+    --radius-xs: 6px;
+    --transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-fast: all 0.18s ease;
   }
-  * {
-    box-sizing: border-box;
-  }
-  body {
-    margin: 0; padding: 0; box-sizing: border-box; }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body {
     width: 100%;
     height: 100%;
     overflow: hidden;
     background: transparent;
     user-select: none;
+    font-family: var(--font-ui);
   }
   #container {
     position: relative;
@@ -29,6 +43,8 @@
     height: 100%;
     overflow: hidden;
   }
+
+  /* ═══ PET WRAPPER ═══ */
   #pet-wrapper {
     position: absolute;
     bottom: 0;
@@ -44,110 +60,120 @@
     top: 0; left: 0;
     cursor: grab;
   }
-  #mic-btn {
+
+  /* ═══ ACTION BUTTONS ═══ */
+  .pet-action-btn {
     position: absolute;
-    bottom: 18px;
-    right: 18px;
-    width: 32px;
-    height: 32px;
+    width: 38px;
+    height: 38px;
     border-radius: 50%;
-    border: 2px solid rgba(var(--accent-rgb), 0.4);
-    background: rgba(20, 0, 40, 0.85);
+    border: 1.5px solid var(--border-subtle);
+    background: var(--bg-deep);
     cursor: pointer;
     z-index: 20;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: all 0.3s;
-    backdrop-filter: blur(5px);
+    transition: var(--transition);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
-  #mic-btn:hover {
-    border-color: rgba(var(--accent-rgb), 0.8);
-    box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.3);
-    transform: scale(1.1);
+  .pet-action-btn:hover {
+    border-color: var(--border-active);
+    box-shadow: var(--accent-glow);
+    transform: scale(1.12);
+  }
+  .pet-action-btn svg { width: 16px; height: 16px; }
+
+  #mic-btn {
+    bottom: 14px;
+    right: 14px;
   }
   #mic-btn.active {
-    border-color: #0f0;
-    background: rgba(0, 255, 0, 0.15);
-    box-shadow: 0 0 15px rgba(0, 255, 0, 0.4);
+    border-color: #22c55e;
+    background: rgba(34, 197, 94, 0.12);
+    box-shadow: 0 0 18px rgba(34, 197, 94, 0.35);
     animation: mic-pulse 1.5s ease-in-out infinite;
   }
-  #mic-btn svg { width: 16px; height: 16px; }
   @keyframes mic-pulse {
-    0%, 100% { box-shadow: 0 0 8px rgba(0,255,0,0.3); }
-    50% { box-shadow: 0 0 20px rgba(0,255,0,0.6); }
+    0%, 100% { box-shadow: 0 0 10px rgba(34, 197, 94, 0.25); }
+    50% { box-shadow: 0 0 24px rgba(34, 197, 94, 0.55); }
   }
 
-  /* Novo botão de chat */
   #chat-toggle-btn {
-    position: absolute;
-    bottom: 18px;
-    right: 56px;
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    border: 2px solid rgba(var(--accent-rgb), 0.4);
-    background: rgba(20, 0, 40, 0.85);
-    cursor: pointer;
-    z-index: 20;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.3s;
-    backdrop-filter: blur(5px);
-  }
-  #chat-toggle-btn:hover {
-    border-color: rgba(var(--accent-rgb), 0.8);
-    box-shadow: 0 0 12px rgba(var(--accent-rgb), 0.3);
-    transform: scale(1.1);
+    bottom: 14px;
+    right: 60px;
   }
   #chat-toggle-btn.active {
     border-color: #00e4ff;
-    background: rgba(0, 228, 255, 0.15);
-    box-shadow: 0 0 15px rgba(0, 228, 255, 0.4);
+    background: rgba(0, 228, 255, 0.1);
+    box-shadow: 0 0 18px rgba(0, 228, 255, 0.35);
   }
-  #chat-toggle-btn svg { width: 14px; height: 14px; }
 
+  /* ═══ STATUS TOOLTIP ═══ */
   #tooltip {
     position: absolute;
-    bottom: 2px;
+    bottom: 0;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(20, 0, 40, 0.92);
-    color: var(--accent-color);
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    font-size: 9px;
-    letter-spacing: 0.5px;
-    padding: 3px 8px;
-    border-radius: 4px;
-    border: 1px solid rgba(var(--accent-rgb), 0.4);
+    background: var(--bg-deep);
+    color: var(--text-secondary);
+    font-family: var(--font-ui);
+    font-size: 9.5px;
+    font-weight: 500;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+    padding: 4px 10px 3px;
+    border-radius: 6px;
+    border: 1px solid var(--border-subtle);
     white-space: nowrap;
     opacity: 0;
-    transition: opacity 0.25s ease;
+    transition: opacity 0.3s ease, transform 0.3s ease;
     pointer-events: none;
     z-index: 10;
+    backdrop-filter: blur(8px);
   }
-  #pet-wrapper:hover #tooltip { opacity: 1; }
+  #tooltip::before {
+    content: '';
+    display: inline-block;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #22c55e;
+    margin-right: 5px;
+    vertical-align: middle;
+    box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+    animation: status-dot 2s ease-in-out infinite;
+  }
+  @keyframes status-dot {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  #pet-wrapper:hover #tooltip {
+    opacity: 1;
+    transform: translateX(-50%) translateY(-2px);
+  }
 
-  /* Estilos do Chat Box Holográfico */
+  /* ═══ CHAT BOX ═══ */
   #chat-box {
     position: absolute;
-    top: 10px;
-    left: 10px;
-    width: 360px;
-    height: 410px;
-    background: rgba(15, 5, 25, 0.9);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(var(--accent-rgb), 0.35);
-    border-radius: 16px;
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5), 0 0 15px rgba(var(--accent-rgb), 0.15);
+    top: 8px;
+    left: 8px;
+    width: 380px;
+    height: 440px;
+    background: var(--bg-deep);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius);
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.6), var(--accent-glow), inset 0 1px 0 rgba(255,255,255,0.04);
     display: flex;
     flex-direction: column;
     overflow: hidden;
     z-index: 5;
     opacity: 0;
-    transform: scale(0.9) translateY(10px);
-    transition: all 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+    transform: scale(0.92) translateY(12px);
+    transition: all 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
     pointer-events: none;
   }
   #chat-box.open {
@@ -155,125 +181,258 @@
     transform: scale(1) translateY(0);
     pointer-events: auto;
   }
+
+  /* ═══ CHAT HEADER ═══ */
   #chat-header {
-    padding: 12px 16px;
-    background: rgba(30, 10, 50, 0.6);
-    border-bottom: 1px solid rgba(var(--accent-rgb), 0.2);
+    padding: 14px 16px;
+    background: linear-gradient(135deg, rgba(192, 132, 252, 0.08) 0%, rgba(30, 10, 50, 0.4) 100%);
+    border-bottom: 1px solid var(--border-subtle);
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 10px;
+  }
+  #chat-header::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(192, 132, 252, 0.4), transparent);
   }
   #chat-header h3 {
-    color: var(--accent-color);
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.5px;
-    text-shadow: 0 0 8px rgba(var(--accent-rgb), 0.5);
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    text-shadow: 0 0 12px rgba(var(--accent-rgb), 0.5);
   }
-  #chat-messages {
-    flex: 1;
-    padding: 12px;
-    overflow-y: auto;
-    overflow-x: hidden;
+  .chat-header-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #22c55e;
+    box-shadow: 0 0 8px rgba(34, 197, 94, 0.5);
+    animation: status-dot 2s ease-in-out infinite;
+  }
+  .chat-header-right {
     display: flex;
-    flex-direction: column;
+    align-items: center;
     gap: 8px;
-    scrollbar-width: thin;
-    scrollbar-color: rgba(var(--accent-rgb), 0.3) transparent;
   }
-  #chat-messages::-webkit-scrollbar {
-    width: 4px;
-  }
-  #chat-messages::-webkit-scrollbar-thumb {
-    background: rgba(var(--accent-rgb), 0.3);
-    border-radius: 2px;
-  }
-  .msg {
-    max-width: 80%;
-    padding: 8px 12px;
-    border-radius: 12px;
-    font-family: 'Segoe UI', system-ui, sans-serif;
-    font-size: 11.5px;
-    line-height: 1.4;
-    word-break: break-word;
-  }
-  .msg.user {
-    align-self: flex-end;
-    background: rgba(147, 51, 234, 0.25);
-    color: #f3e8ff;
-    border: 1px solid rgba(147, 51, 234, 0.4);
-    border-bottom-right-radius: 2px;
-  }
-  .msg.jarvis {
-    align-self: flex-start;
-    background: rgba(30, 20, 50, 0.55);
-    color: #e9d5ff;
-    border: 1px solid rgba(var(--accent-rgb), 0.25);
-    border-bottom-left-radius: 2px;
-  }
-  #chat-input-area {
-    padding: 10px;
-    background: rgba(20, 5, 30, 0.8);
-    border-top: 1px solid rgba(var(--accent-rgb), 0.15);
-    display: flex;
-    gap: 6px;
-  }
-  #chat-input-area input {
-    flex: 1;
-    background: rgba(10, 2, 20, 0.6);
-    border: 1px solid rgba(var(--accent-rgb), 0.25);
-    border-radius: 8px;
-    padding: 8px 12px;
-    color: #fff;
-    font-family: 'Segoe UI', sans-serif;
-    font-size: 11px;
-    outline: none;
-    transition: border-color 0.3s;
-  }
-  #chat-input-area input:focus {
-    border-color: rgba(var(--accent-rgb), 0.6);
-    box-shadow: 0 0 8px rgba(var(--accent-rgb), 0.2);
-  }
-  #chat-input-area button {
-    background: var(--accent-color);
-    border: none;
-    border-radius: 8px;
-    width: 32px;
-    height: 32px;
+  #chat-close-btn {
+    background: none;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: var(--radius-xs);
+    color: var(--text-dim);
+    width: 24px;
+    height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: background 0.3s, transform 0.2s;
+    font-size: 14px;
+    transition: var(--transition-fast);
   }
-  #chat-input-area button:hover {
-    background: #d8b4fe;
-    transform: scale(1.05);
+  #chat-close-btn:hover {
+    color: #fff;
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255,255,255,0.2);
   }
-  #chat-input-area button svg {
-    width: 14px;
-    height: 14px;
-    stroke: #120024;
+
+  /* ═══ CHAT MESSAGES ═══ */
+  #chat-messages {
+    flex: 1;
+    padding: 14px 12px;
+    overflow-y: auto;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(var(--accent-rgb), 0.2) transparent;
+  }
+  #chat-messages::-webkit-scrollbar { width: 3px; }
+  #chat-messages::-webkit-scrollbar-track { background: transparent; }
+  #chat-messages::-webkit-scrollbar-thumb {
+    background: rgba(var(--accent-rgb), 0.25);
+    border-radius: 4px;
+  }
+  .msg {
+    max-width: 82%;
+    padding: 10px 14px;
+    border-radius: 14px;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    line-height: 1.55;
+    word-break: break-word;
+    animation: msgSlideIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+    position: relative;
+  }
+  @keyframes msgSlideIn {
+    from { opacity: 0; transform: translateY(8px) scale(0.96); }
+    to { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .msg.user {
+    align-self: flex-end;
+    background: linear-gradient(135deg, rgba(147, 51, 234, 0.3) 0%, rgba(109, 40, 217, 0.25) 100%);
+    color: #f3e8ff;
+    border: 1px solid rgba(147, 51, 234, 0.35);
+    border-bottom-right-radius: var(--radius-xs);
+    backdrop-filter: blur(4px);
+  }
+  .msg.jarvis {
+    align-self: flex-start;
+    background: linear-gradient(135deg, rgba(30, 15, 50, 0.7) 0%, rgba(20, 8, 38, 0.6) 100%);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    border-bottom-left-radius: var(--radius-xs);
+    backdrop-filter: blur(4px);
+  }
+  .msg-jarvis-label {
+    font-size: 9px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+    display: block;
+  }
+  .msg.user .msg-time,
+  .msg.jarvis .msg-time {
+    font-size: 8px;
+    color: rgba(255,255,255,0.3);
+    margin-top: 4px;
+    text-align: right;
+  }
+
+  /* ═══ TYPING INDICATOR ═══ */
+  .typing-indicator {
+    align-self: flex-start;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 10px 16px;
+    background: var(--bg-card);
+    border: 1px solid var(--border-subtle);
+    border-radius: 14px;
+    border-bottom-left-radius: var(--radius-xs);
+    animation: msgSlideIn 0.3s ease both;
+  }
+  .typing-indicator span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-secondary);
+    animation: typingBounce 1.4s ease-in-out infinite;
+  }
+  .typing-indicator span:nth-child(2) { animation-delay: 0.15s; }
+  .typing-indicator span:nth-child(3) { animation-delay: 0.3s; }
+  @keyframes typingBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+    30% { transform: translateY(-6px); opacity: 1; }
+  }
+
+  /* ═══ CHAT INPUT ═══ */
+  #chat-input-area {
+    padding: 12px;
+    background: linear-gradient(180deg, rgba(15, 5, 25, 0.6) 0%, rgba(10, 2, 18, 0.9) 100%);
+    border-top: 1px solid var(--border-subtle);
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+  #chat-input-area input {
+    flex: 1;
+    background: rgba(10, 2, 20, 0.7);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    color: var(--text-primary);
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 400;
+    outline: none;
+    transition: var(--transition-fast);
+    letter-spacing: 0.2px;
+  }
+  #chat-input-area input::placeholder {
+    color: var(--text-dim);
+    font-weight: 400;
+  }
+  #chat-input-area input:focus {
+    border-color: var(--border-active);
+    box-shadow: 0 0 16px rgba(var(--accent-rgb), 0.15);
+    background: rgba(15, 5, 30, 0.8);
+  }
+  .chat-send-btn {
+    background: linear-gradient(135deg, var(--accent-color), #a855f7);
+    border: none;
+    border-radius: var(--radius-sm);
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+    box-shadow: 0 2px 12px rgba(var(--accent-rgb), 0.25);
+    flex-shrink: 0;
+  }
+  .chat-send-btn:hover {
+    transform: scale(1.08);
+    box-shadow: 0 4px 20px rgba(var(--accent-rgb), 0.4);
+  }
+  .chat-send-btn:active { transform: scale(0.95); }
+  .chat-send-btn svg {
+    width: 15px;
+    height: 15px;
+    stroke: #fff;
     stroke-width: 2;
+    fill: none;
+  }
+
+  /* ═══ EMOJI REACTION BAR ═══ */
+  .msg-reactions {
+    display: flex;
+    gap: 4px;
+    margin-top: 4px;
+  }
+  .msg-reaction {
+    font-size: 10px;
+    padding: 1px 4px;
+    border-radius: 8px;
+    background: rgba(var(--accent-rgb), 0.1);
+    border: 1px solid rgba(var(--accent-rgb), 0.15);
+    cursor: default;
   }
 </style>
 </head>
 <body>
 <div id="container">
   
-  <!-- Chat Box acoplado -->
+  <!-- Chat Box -->
   <div id="chat-box">
     <div id="chat-header">
+      <div class="chat-header-dot"></div>
       <h3>COMPANION CLASSIC</h3>
+      <div class="chat-header-right">
+        <button id="chat-close-btn" title="Fechar chat">&times;</button>
+      </div>
     </div>
     <div id="chat-messages">
-      <div class="msg jarvis" id="chat-welcome-msg">Às suas ordens. Em que posso ajudar?</div>
+      <div class="msg jarvis" id="chat-welcome-msg">
+        <span class="msg-jarvis-label">Companion</span>
+        Às suas ordens. Em que posso ajudar?
+      </div>
     </div>
     <div id="chat-input-area">
       <input type="text" id="chat-input" placeholder="Digite uma instrução..." autocomplete="off">
-      <button id="chat-send-btn" title="Enviar Mensagem">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+      <button class="chat-send-btn" id="chat-send-btn" title="Enviar">
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
           <line x1="22" y1="2" x2="11" y2="13"></line>
           <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
         </svg>
@@ -286,7 +445,7 @@
     <canvas id="zeus" width="400" height="400"></canvas>
     
     <!-- Botão microfone original -->
-    <button id="mic-btn" title="Ativar Companion (Voz + Cowork)">
+    <button id="mic-btn" class="pet-action-btn" title="Ativar Companion (Voz + Cowork)">
       <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" stroke-linecap="round">
         <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
         <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -295,8 +454,7 @@
       </svg>
     </button>
 
-    <!-- Novo botão para abrir chat -->
-    <button id="chat-toggle-btn" title="Abrir Chat Box">
+    <button id="chat-toggle-btn" class="pet-action-btn" title="Abrir Chat Box">
       <svg viewBox="0 0 24 24" fill="none" stroke="var(--accent-color)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
       </svg>
@@ -310,297 +468,504 @@
 const canvas = document.getElementById('zeus');
 const W = 400, H = 400;
 
-// Initialize Three.js WebGL Renderer with Alpha (Transparency)
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(45, 1, 0.1, 100);
-camera.position.z = 8;
+const camera = new THREE.PerspectiveCamera(38, 1, 0.1, 100);
+camera.position.set(0, 0.4, 7);
 
-const renderer = new THREE.WebGLRenderer({ canvas: canvas, alpha: true, antialias: true });
+const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true });
 renderer.setSize(W, H, false);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.4;
 
-// Add Lights
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.45);
-scene.add(ambientLight);
+// Cinematic lighting
+scene.add(new THREE.AmbientLight(0x0a0020, 0.8));
+const keyLight = new THREE.PointLight(0xffffff, 2.2, 20);
+keyLight.position.set(4, 5, 6);
+scene.add(keyLight);
+const fillLight = new THREE.PointLight(0xc084fc, 0.8, 15);
+fillLight.position.set(-5, 2, 3);
+scene.add(fillLight);
+const rimLight = new THREE.PointLight(0x818cf8, 0.6, 12);
+rimLight.position.set(0, -3, -6);
+scene.add(rimLight);
+const brainGlow = new THREE.PointLight(0xc084fc, 2.5, 6);
+brainGlow.position.set(0, 0, 0);
+scene.add(brainGlow);
 
-const pointLight = new THREE.PointLight(0xffffff, 2.2, 15);
-pointLight.position.set(0, 0, 0);
-scene.add(pointLight);
-
-const dirLight = new THREE.DirectionalLight(0xffffff, 1.4);
-dirLight.position.set(5, 5, 5);
-scene.add(dirLight);
-
-// 3D States matching the companion's emotional/cognitive states
 const STATES_3D = {
-  idle:      { color: 0xc084fc, speed: 0.8, scale: 1.0, amplitude: 0.08, particleSpeed: 0.2 },
-  listening: { color: 0x00f2fe, speed: 2.2, scale: 1.15, amplitude: 0.18, particleSpeed: 0.7 },
-  thinking:  { color: 0xffd000, speed: 3.5, scale: 1.22, amplitude: 0.28, particleSpeed: 1.2 },
-  speaking:  { color: 0xfb7185, speed: 2.4, scale: 1.18, amplitude: 0.22, particleSpeed: 0.8 },
-  excited:   { color: 0xf43f5e, speed: 4.2, scale: 1.32, amplitude: 0.38, particleSpeed: 2.0 },
-  frustrated:{ color: 0xef4444, speed: 3.6, scale: 1.22, amplitude: 0.32, particleSpeed: 1.4 },
-  curious:   { color: 0x10b981, speed: 1.4, scale: 1.05, amplitude: 0.12, particleSpeed: 0.4 }
+  idle:      { color: 0xc084fc, speed: 0.6, scale: 1.0, amplitude: 0.05, particleSpeed: 0.12, emissiveIntensity: 0.3, glowIntensity: 0.03 },
+  listening: { color: 0x22d3ee, speed: 1.8, scale: 1.1, amplitude: 0.14, particleSpeed: 0.5, emissiveIntensity: 0.5, glowIntensity: 0.07 },
+  thinking:  { color: 0xfbbf24, speed: 3.0, scale: 1.18, amplitude: 0.24, particleSpeed: 0.9, emissiveIntensity: 0.65, glowIntensity: 0.1 },
+  speaking:  { color: 0xfb7185, speed: 2.0, scale: 1.12, amplitude: 0.18, particleSpeed: 0.6, emissiveIntensity: 0.45, glowIntensity: 0.08 },
+  excited:   { color: 0xf43f5e, speed: 3.8, scale: 1.25, amplitude: 0.34, particleSpeed: 1.6, emissiveIntensity: 0.8, glowIntensity: 0.15 },
+  frustrated:{ color: 0xef4444, speed: 3.2, scale: 1.18, amplitude: 0.28, particleSpeed: 1.2, emissiveIntensity: 0.7, glowIntensity: 0.12 },
+  curious:   { color: 0x34d399, speed: 1.0, scale: 1.03, amplitude: 0.08, particleSpeed: 0.25, emissiveIntensity: 0.35, glowIntensity: 0.04 }
 };
 
 let currentState = 'idle';
-
-// Create 3D Meshes representing the Cognitive Energy Core (neural sphere)
 const coreGroup = new THREE.Group();
 scene.add(coreGroup);
 
-// Curated Glassmorphic / Glossy glowing Brain Material (MeshPhongMaterial with high shininess)
-const coreMaterial = new THREE.MeshPhongMaterial({
+// Brain material — glass-like organic
+const brainMat = new THREE.MeshPhysicalMaterial({
   color: 0xc084fc,
   emissive: 0x3b0764,
-  shininess: 120,
-  specular: 0xffffff,
+  emissiveIntensity: 0.3,
+  roughness: 0.2,
+  metalness: 0.05,
+  clearcoat: 0.9,
+  clearcoatRoughness: 0.15,
   transparent: true,
-  opacity: 0.72,
+  opacity: 0.82,
   side: THREE.DoubleSide,
-  flatShading: false
 });
 
-// Holographic cyber cortex wireframe material
-const wireMaterial = new THREE.MeshBasicMaterial({
-  color: 0xc084fc,
-  wireframe: true,
-  transparent: true,
-  opacity: 0.45
+const wireMat = new THREE.MeshBasicMaterial({
+  color: 0xc084fc, wireframe: true, transparent: true, opacity: 0.28
 });
 
-// Helper function to procedurally generate a highly detailed and realistic brain hemisphere geometry
-function createHemiGeometry() {
-  const geom = new THREE.SphereGeometry(1.0, 48, 48);
-  const pos = geom.attributes.position;
+const scanMat = new THREE.MeshBasicMaterial({
+  color: 0xc084fc, wireframe: true, transparent: true, opacity: 0.06,
+  side: THREE.DoubleSide
+});
+
+// ── Brain hemispheres ──
+function makeBrain(wrinkleScale) {
+  const g = new THREE.SphereGeometry(1.0, 64, 64);
+  const p = g.attributes.position;
   const v = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i);
-    
-    // Elongate along Z (front-back), scale down on X and Y slightly to make it hemisphere-shaped
-    v.z *= 1.35;
-    v.x *= 0.85;
-    v.y *= 0.95;
-    
-    // Brain lobes shaping:
-    // Frontal lobe is slightly larger/bulbous, occipital is slightly narrower
-    if (v.z < 0) {
-      // Occipital lobe (back of brain)
-      v.x *= 0.9;
-      v.y *= 0.85;
-    } else {
-      // Frontal lobe (front of brain)
-      v.y *= 1.05;
-    }
-    
-    // Procedural brain wrinkles (gyri and sulci)
-    // Multiscale trigonometric noise to generate brain fold geometry
-    const wrinkle = Math.sin(v.x * 6.5) * Math.cos(v.y * 6.5) * Math.sin(v.z * 6.5) * 0.12 +
-                    Math.sin(v.x * 12.0) * Math.cos(v.y * 12.0) * Math.sin(v.z * 12.0) * 0.04 +
-                    Math.cos(v.z * 4.0) * 0.05;
-                     
-    v.addScaledVector(v.clone().normalize(), wrinkle);
-    pos.setXYZ(i, v.x, v.y, v.z);
+  for (let i = 0; i < p.count; i++) {
+    v.fromBufferAttribute(p, i);
+    v.z *= 1.4; v.x *= 0.82; v.y *= 0.9;
+    if (v.z < 0) { v.x *= 0.86; v.y *= 0.82; }
+    else { v.y *= 1.08; }
+    const n = v.clone().normalize();
+    const w = (Math.sin(v.x*7)*Math.cos(v.y*7)*Math.sin(v.z*7)*0.1 +
+               Math.sin(v.x*14)*Math.cos(v.y*14)*Math.sin(v.z*14)*0.03 +
+               Math.cos(v.z*5)*0.04) * wrinkleScale;
+    v.addScaledVector(n, w);
+    p.setXYZ(i, v.x, v.y, v.z);
   }
-  geom.computeVertexNormals();
-  return geom;
+  g.computeVertexNormals();
+  return g;
 }
 
-// Generate the high-definition hemisphere geometry
-const hemiGeom = createHemiGeometry();
+const hemiGeom = makeBrain(1.0);
 
-// Left Hemisphere
-const leftHemi = new THREE.Mesh(hemiGeom, coreMaterial);
-leftHemi.position.x = -0.32;
+const leftHemi = new THREE.Mesh(hemiGeom, brainMat);
+leftHemi.position.x = -0.34;
 coreGroup.add(leftHemi);
 
-// Right Hemisphere
-const rightHemi = new THREE.Mesh(hemiGeom, coreMaterial);
-rightHemi.position.x = 0.32;
+const rightHemi = new THREE.Mesh(hemiGeom, brainMat);
+rightHemi.position.x = 0.34;
 coreGroup.add(rightHemi);
 
-// Helper function to generate a tight-wrinkled cerebellum geometry (biological folia)
-function createCerebellumGeometry() {
-  const geom = new THREE.SphereGeometry(0.45, 32, 32);
-  const pos = geom.attributes.position;
-  const v = new THREE.Vector3();
-  for (let i = 0; i < pos.count; i++) {
-    v.fromBufferAttribute(pos, i);
-    v.z *= 0.8; // Flatten Z slightly
-    const wrinkle = Math.sin(v.x * 15.0) * Math.cos(v.y * 15.0) * Math.sin(v.z * 15.0) * 0.04;
-    v.addScaledVector(v.clone().normalize(), wrinkle);
-    pos.setXYZ(i, v.x, v.y, v.z);
-  }
-  geom.computeVertexNormals();
-  return geom;
+// Wireframe shells
+const leftWire = new THREE.Mesh(hemiGeom, wireMat);
+leftWire.position.x = -0.34;
+leftWire.scale.setScalar(1.04);
+coreGroup.add(leftWire);
+
+const rightWire = new THREE.Mesh(hemiGeom, wireMat);
+rightWire.position.x = 0.34;
+rightWire.scale.setScalar(1.04);
+coreGroup.add(rightWire);
+
+// Scan plane — holographic cross-section
+const scanPlane = new THREE.Mesh(new THREE.PlaneGeometry(3.0, 0.003, 1, 1), scanMat);
+scanPlane.rotation.x = Math.PI / 2;
+coreGroup.add(scanPlane);
+
+// Cerebellum
+const cerebGeom = new THREE.SphereGeometry(0.4, 28, 28);
+const cp = cerebGeom.attributes.position;
+const cv = new THREE.Vector3();
+for (let i = 0; i < cp.count; i++) {
+  cv.fromBufferAttribute(cp, i);
+  cv.z *= 0.75;
+  cv.addScaledVector(cv.clone().normalize(), Math.sin(cv.x*16)*Math.cos(cv.y*16)*Math.sin(cv.z*16)*0.03);
+  cp.setXYZ(i, cv.x, cv.y, cv.z);
 }
-
-// Cerebellum Left & Right (rear bottom parts of the brain)
-const cerebGeom = createCerebellumGeometry();
-const leftCereb = new THREE.Mesh(cerebGeom, coreMaterial);
-leftCereb.position.set(-0.25, -0.62, -0.45);
+cerebGeom.computeVertexNormals();
+const leftCereb = new THREE.Mesh(cerebGeom, brainMat);
+leftCereb.position.set(-0.22, -0.56, -0.46);
 coreGroup.add(leftCereb);
-
-const rightCereb = new THREE.Mesh(cerebGeom, coreMaterial);
-rightCereb.position.set(0.25, -0.62, -0.45);
+const rightCereb = new THREE.Mesh(cerebGeom, brainMat);
+rightCereb.position.set(0.22, -0.56, -0.46);
 coreGroup.add(rightCereb);
 
-// Brain Stem (connecting bottom)
-const stemGeom = new THREE.CylinderGeometry(0.18, 0.12, 0.7, 16, 16);
-// Bend stem slightly backwards dynamically
-const stemPos = stemGeom.attributes.position;
+// Brain stem
+const stemG = new THREE.CylinderGeometry(0.15, 0.09, 0.6, 14, 14);
+const sp = stemG.attributes.position;
 const sv = new THREE.Vector3();
-for (let i = 0; i < stemPos.count; i++) {
-  sv.fromBufferAttribute(stemPos, i);
-  sv.z += (sv.y - 0.35) * 0.15;
-  stemPos.setXYZ(i, sv.x, sv.y, sv.z);
+for (let i = 0; i < sp.count; i++) {
+  sv.fromBufferAttribute(sp, i);
+  sv.z += (sv.y - 0.3) * 0.2;
+  sp.setXYZ(i, sv.x, sv.y, sv.z);
 }
-stemGeom.computeVertexNormals();
-const stem = new THREE.Mesh(stemGeom, coreMaterial);
-stem.position.set(0, -0.85, -0.2);
+stemG.computeVertexNormals();
+const stem = new THREE.Mesh(stemG, brainMat);
+stem.position.set(0, -0.82, -0.2);
 coreGroup.add(stem);
 
-// Glowing outer digital wireframe "cortex cage"
-const leftHemiWire = new THREE.Mesh(hemiGeom, wireMaterial);
-leftHemiWire.position.x = -0.32;
-leftHemiWire.scale.setScalar(1.05);
-coreGroup.add(leftHemiWire);
+// ── NEURAL LINK INTERFACE ──
+// A slim band that wraps the brain like a Neuralink crown
+// with glowing electrode nodes and thin signal traces
 
-const rightHemiWire = new THREE.Mesh(hemiGeom, wireMaterial);
-rightHemiWire.position.x = 0.32;
-rightHemiWire.scale.setScalar(1.05);
-coreGroup.add(rightHemiWire);
+const nlGroup = new THREE.Group();
+scene.add(nlGroup);
 
-// Glowing Orbital Hologram Rings (Neural Pathways)
-const ringMaterial = new THREE.MeshBasicMaterial({
-  color: 0xc084fc,
-  side: THREE.DoubleSide,
+// Crown band — single smooth torus hugging the brain
+const crownMat = new THREE.MeshPhysicalMaterial({
+  color: 0x1a1a2e,
+  emissive: 0xc084fc,
+  emissiveIntensity: 0.15,
+  roughness: 0.1,
+  metalness: 0.9,
+  clearcoat: 1.0,
+  clearcoatRoughness: 0.05,
   transparent: true,
-  opacity: 0.22,
-  wireframe: true
+  opacity: 0.92,
 });
 
-const rings = [];
-const ringGeom = new THREE.TorusGeometry(2.3, 0.015, 8, 48); // Thinner and slightly larger for elegance
+// Main band — follows the brain curvature at the equator
+const crownBandGeom = new THREE.TorusGeometry(1.15, 0.032, 12, 96);
+const crownBand = new THREE.Mesh(crownBandGeom, crownMat);
+crownBand.rotation.x = Math.PI / 2.15;
+crownBand.position.y = 0.15;
+nlGroup.add(crownBand);
 
-const ring1 = new THREE.Mesh(ringGeom, ringMaterial);
-ring1.rotation.x = Math.PI / 4;
-scene.add(ring1);
-rings.push(ring1);
+// Second thinner accent band above
+const accentBandGeom = new THREE.TorusGeometry(1.05, 0.015, 8, 80);
+const accentBand = new THREE.Mesh(accentBandGeom, new THREE.MeshBasicMaterial({
+  color: 0xc084fc, transparent: true, opacity: 0.4
+}));
+accentBand.rotation.x = Math.PI / 2.4;
+accentBand.position.y = 0.45;
+nlGroup.add(accentBand);
 
-const ring2 = new THREE.Mesh(ringGeom, ringMaterial);
-ring2.rotation.y = Math.PI / 4;
-scene.add(ring2);
-rings.push(ring2);
-
-// Surrounding Holographic Particle Swarm (Firing Synapses)
-const particleGeom = new THREE.BufferGeometry();
-const particleCount = 100; // Increased count for richer synaptic representation
-const particlePositions = new Float32Array(particleCount * 3);
-const particleSpeeds = [];
-
-for (let i = 0; i < particleCount; i++) {
-  // Generate random particles nestled around the brain hemispheres
-  const isLeft = Math.random() > 0.5;
-  const rx = (isLeft ? -0.32 : 0.32) + (Math.random() - 0.5) * 1.5;
-  const ry = (Math.random() - 0.5) * 1.6 - 0.2;
-  const rz = (Math.random() - 0.5) * 1.8;
-  
-  particlePositions[i*3] = rx;
-  particlePositions[i*3+1] = ry;
-  particlePositions[i*3+2] = rz;
-  
-  particleSpeeds.push({
-    baseX: rx,
-    baseY: ry,
-    baseZ: rz,
-    rangeX: 0.25 + Math.random() * 0.2,
-    rangeY: 0.25 + Math.random() * 0.2,
-    rangeZ: 0.25 + Math.random() * 0.2,
-    speedFactor: 0.8 + Math.random() * 0.6
-  });
+// Electrode nodes — 12 glowing nodes along the crown (10-20 EEG system positions)
+const nodePositions = [];
+for (let i = 0; i < 12; i++) {
+  const angle = (i / 12) * Math.PI * 2;
+  const r = 1.18 + (i % 3 === 0 ? 0.04 : 0);
+  const y = 0.15 + Math.sin(angle * 1.5) * 0.25;
+  nodePositions.push({ x: Math.cos(angle) * r, y: y, z: Math.sin(angle) * r, angle });
 }
 
-particleGeom.setAttribute('position', new THREE.BufferAttribute(particlePositions, 3));
-const particleMaterial = new THREE.PointsMaterial({
-  color: 0xc084fc,
-  size: 0.07,
-  transparent: true,
-  opacity: 0.65,
-  sizeAttenuation: true
+const nodeGlowMat = new THREE.MeshBasicMaterial({
+  color: 0xc084fc, transparent: true, opacity: 0.9
 });
-const particles = new THREE.Points(particleGeom, particleMaterial);
+
+const nlNodes = [];
+nodePositions.forEach((pos, i) => {
+  // Outer electrode — slightly larger for primary nodes
+  const isPrimary = i % 3 === 0;
+  const geom = new THREE.SphereGeometry(isPrimary ? 0.045 : 0.03, 16, 16);
+  const mesh = new THREE.Mesh(geom, nodeGlowMat.clone());
+  mesh.position.set(pos.x, pos.y, pos.z);
+  nlGroup.add(mesh);
+
+  // Outer glow sphere for primary nodes
+  if (isPrimary) {
+    const glowGeom = new THREE.SphereGeometry(0.08, 12, 12);
+    const glowMesh = new THREE.Mesh(glowGeom, new THREE.MeshBasicMaterial({
+      color: 0xc084fc, transparent: true, opacity: 0.18, side: THREE.BackSide
+    }));
+    glowMesh.position.set(pos.x, pos.y, pos.z);
+    nlGroup.add(glowMesh);
+    nlNodes.push({ mesh, glow: glowMesh, primary: true });
+  } else {
+    nlNodes.push({ mesh, glow: null, primary: false });
+  }
+});
+
+// Signal traces between adjacent nodes
+const traceMat = new THREE.MeshBasicMaterial({
+  color: 0xc084fc, transparent: true, opacity: 0.25
+});
+const traceGlowMat = new THREE.MeshBasicMaterial({
+  color: 0xc084fc, transparent: true, opacity: 0.08
+});
+
+const nlTraces = [];
+for (let i = 0; i < nodePositions.length; i++) {
+  const a = nodePositions[i];
+  const b = nodePositions[(i + 1) % nodePositions.length];
+
+  const midX = (a.x + b.x) / 2;
+  const midY = (a.y + b.y) / 2 + 0.06;
+  const midZ = (a.z + b.z) / 2;
+
+  const curve = new THREE.QuadraticBezierCurve3(
+    new THREE.Vector3(a.x, a.y, a.z),
+    new THREE.Vector3(midX, midY, midZ),
+    new THREE.Vector3(b.x, b.y, b.z)
+  );
+
+  // Thin trace
+  const trace = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 12, 0.005, 4, false),
+    traceMat.clone()
+  );
+  nlGroup.add(trace);
+
+  // Wider glow trace
+  const glowTrace = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 8, 0.02, 4, false),
+    traceGlowMat.clone()
+  );
+  nlGroup.add(glowTrace);
+
+  nlTraces.push({ thin: trace, glow: glowTrace });
+}
+
+// Cross-traces connecting opposite nodes (like neural pathways)
+const crossPairs = [[0, 6], [1, 7], [2, 8], [3, 9]];
+crossPairs.forEach(([i, j]) => {
+  const a = nodePositions[i];
+  const b = nodePositions[j];
+  const curve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(a.x, a.y, a.z),
+    new THREE.Vector3(0, a.y + 0.3, 0),
+    new THREE.Vector3(b.x, b.y, b.z)
+  ]);
+  const cross = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 16, 0.003, 4, false),
+    new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.12 })
+  );
+  nlGroup.add(cross);
+  nlTraces.push({ thin: cross, glow: null });
+});
+
+// Neural Link ribbon cable — thin filaments descending to processor
+const ribbonMat = new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.2 });
+
+const stemCable1 = new THREE.Mesh(
+  new THREE.TubeGeometry(
+    new THREE.CatmullRomCurve3([
+      new THREE.Vector3(-0.08, -0.85, -0.18),
+      new THREE.Vector3(-0.14, -1.5, -0.28),
+      new THREE.Vector3(-0.05, -2.2, -0.38),
+      new THREE.Vector3(0, -2.7, -0.45)
+    ]), 24, 0.008, 5, false
+  ), ribbonMat
+);
+nlGroup.add(stemCable1);
+
+const stemCable2 = new THREE.Mesh(
+  new THREE.TubeGeometry(
+    new THREE.CatmullRomCurve3([
+      new THREE.Vector3(0.08, -0.82, -0.2),
+      new THREE.Vector3(0.1, -1.4, -0.32),
+      new THREE.Vector3(0.04, -2.15, -0.4),
+      new THREE.Vector3(0, -2.7, -0.45)
+    ]), 24, 0.006, 5, false
+  ), ribbonMat.clone()
+);
+nlGroup.add(stemCable2);
+
+// Processor chip — the Neuralink implant
+const chipMat = new THREE.MeshPhysicalMaterial({
+  color: 0x0a0a1a,
+  emissive: 0xc084fc,
+  emissiveIntensity: 0.2,
+  roughness: 0.15,
+  metalness: 0.95,
+  clearcoat: 1.0,
+  clearcoatRoughness: 0.05,
+  transparent: true,
+  opacity: 0.95,
+});
+const chip = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.035, 0.22, 2, 1, 2), chipMat);
+chip.position.set(0, -2.75, -0.45);
+chip.rotation.x = -0.15;
+nlGroup.add(chip);
+
+// Chip beveled edge glow
+const chipEdge = new THREE.Mesh(
+  new THREE.BoxGeometry(0.38, 0.06, 0.28),
+  new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.08, side: THREE.BackSide })
+);
+chipEdge.position.copy(chip.position);
+chipEdge.rotation.copy(chip.rotation);
+nlGroup.add(chipEdge);
+
+// Chip LED indicators — 4 tiny dots
+const ledMat = new THREE.MeshBasicMaterial({ color: 0x22d3ee, transparent: true, opacity: 0.9 });
+const chipLEDs = [];
+[[-0.1, 0, 0.08], [0.1, 0, 0.08], [-0.1, 0, -0.06], [0.1, 0, -0.06]].forEach(pos => {
+  const led = new THREE.Mesh(new THREE.SphereGeometry(0.008, 8, 8), ledMat.clone());
+  led.position.set(pos[0], pos[1] - 2.735, pos[2] - 0.45);
+  nlGroup.add(led);
+  chipLEDs.push(led);
+});
+
+// ── OUTER ATMOSPHERE ──
+const atmosMat = new THREE.MeshBasicMaterial({
+  color: 0xc084fc, transparent: true, opacity: 0.02, side: THREE.BackSide
+});
+const atmos1 = new THREE.Mesh(new THREE.SphereGeometry(2.8, 24, 24), atmosMat);
+scene.add(atmos1);
+const atmos2 = new THREE.Mesh(
+  new THREE.SphereGeometry(2.2, 20, 20),
+  new THREE.MeshBasicMaterial({ color: 0xc084fc, transparent: true, opacity: 0.04, side: THREE.BackSide })
+);
+scene.add(atmos2);
+
+// ── PARTICLES ──
+const particleGeom = new THREE.BufferGeometry();
+const particleCount = 80;
+const pPos = new Float32Array(particleCount * 3);
+const pSpeeds = [];
+for (let i = 0; i < particleCount; i++) {
+  const isL = Math.random() > 0.5;
+  pPos[i*3]   = (isL ? -0.34 : 0.34) + (Math.random()-0.5)*1.4;
+  pPos[i*3+1] = (Math.random()-0.5)*1.8 - 0.1;
+  pPos[i*3+2] = (Math.random()-0.5)*1.8;
+  pSpeeds.push({
+    bx: pPos[i*3], by: pPos[i*3+1], bz: pPos[i*3+2],
+    rx: 0.15 + Math.random()*0.15, ry: 0.15 + Math.random()*0.15, rz: 0.15 + Math.random()*0.15,
+    sf: 0.6 + Math.random()*0.5, ph: Math.random()*Math.PI*2
+  });
+}
+particleGeom.setAttribute('position', new THREE.BufferAttribute(pPos, 3));
+const particleMat = new THREE.PointsMaterial({
+  color: 0xc084fc, size: 0.05, transparent: true, opacity: 0.55,
+  sizeAttenuation: true, blending: THREE.AdditiveBlending, depthWrite: false
+});
+const particles = new THREE.Points(particleGeom, particleMat);
 scene.add(particles);
 
-// Dynamic lerping variables for smooth animation transitions
-let currentSpeed = STATES_3D.idle.speed;
-let currentScale = STATES_3D.idle.scale;
-let currentAmplitude = STATES_3D.idle.amplitude;
-let currentColor = new THREE.Color(STATES_3D.idle.color);
-
+// ── LERP STATE ──
+let curSpeed = STATES_3D.idle.speed;
+let curScale = STATES_3D.idle.scale;
+let curAmp = STATES_3D.idle.amplitude;
+let curColor = new THREE.Color(STATES_3D.idle.color);
+let curEmissive = STATES_3D.idle.emissiveIntensity;
+let curGlow = STATES_3D.idle.glowIntensity;
 const clock = new THREE.Clock();
 
 function draw() {
   requestAnimationFrame(draw);
-  
-  const elapsed = clock.getElapsedTime();
-  
-  // Dynamic smooth lerp transitions
-  const target = STATES_3D[currentState] || STATES_3D.idle;
-  currentSpeed += (target.speed - currentSpeed) * 0.08;
-  currentScale += (target.scale - currentScale) * 0.08;
-  currentAmplitude += (target.amplitude - currentAmplitude) * 0.08;
-  
-  currentColor.lerp(new THREE.Color(target.color), 0.08);
-  
-  // Apply visual parameters
-  coreMaterial.color.copy(currentColor);
-  coreMaterial.emissive.copy(currentColor).multiplyScalar(0.35);
-  wireMaterial.color.copy(currentColor);
-  ringMaterial.color.copy(currentColor);
-  particleMaterial.color.copy(currentColor);
-  pointLight.color.copy(currentColor);
-  
-  // Animate brain wireframes with a glowing thought pulse (cyber cortex cage)
-  const wirePulse = 1.04 + Math.sin(elapsed * currentSpeed * 2.5) * 0.015 * currentAmplitude;
-  leftHemiWire.scale.setScalar(wirePulse);
-  rightHemiWire.scale.setScalar(wirePulse);
-  
-  leftHemiWire.rotation.y = elapsed * 0.05 * currentSpeed;
-  rightHemiWire.rotation.y = -elapsed * 0.05 * currentSpeed;
-  
-  // Rotate energy groups (Brain)
-  coreGroup.rotation.y = elapsed * currentSpeed * 0.22;
-  coreGroup.rotation.x = elapsed * currentSpeed * 0.1;
-  
-  // Organic cognitive breathing animation of the core brain hemispheres
-  const breathScale = 1.0 + Math.sin(elapsed * currentSpeed * 2.0) * 0.035 * currentAmplitude;
-  coreGroup.scale.setScalar(currentScale * breathScale);
-  
-  // Rotate orbital neural rings
-  ring1.rotation.x = elapsed * currentSpeed * 0.18;
-  ring1.rotation.y = elapsed * currentSpeed * 0.28;
-  ring2.rotation.y = -elapsed * currentSpeed * 0.22;
-  ring2.rotation.z = elapsed * currentSpeed * 0.12;
-  
-  // Orbit/Pulse particles (Firing Synapses)
-  const partAttr = particleGeom.attributes.position;
-  const pSpeedFactor = target.particleSpeed;
-  const time = elapsed * 4.0 * pSpeedFactor;
-  
+  const t = clock.getElapsedTime();
+  const s = STATES_3D[currentState] || STATES_3D.idle;
+  const lf = 0.06;
+
+  curSpeed += (s.speed - curSpeed) * lf;
+  curScale += (s.scale - curScale) * lf;
+  curAmp += (s.amplitude - curAmp) * lf;
+  curEmissive += (s.emissiveIntensity - curEmissive) * lf;
+  curGlow += (s.glowIntensity - curGlow) * lf;
+  curColor.lerp(new THREE.Color(s.color), lf);
+
+  // Colors
+  brainMat.color.copy(curColor);
+  brainMat.emissive.copy(curColor);
+  brainMat.emissiveIntensity = curEmissive;
+  wireMat.color.copy(curColor);
+  brainGlow.color.copy(curColor);
+  brainGlow.intensity = 1.5 + curEmissive * 3;
+  fillLight.color.copy(curColor);
+  particleMat.color.copy(curColor);
+
+  // Brain rotation & breath
+  const bs = 1 + Math.sin(t * curSpeed * 2) * 0.025 * curAmp;
+  coreGroup.scale.setScalar(curScale * bs);
+  coreGroup.rotation.y = t * curSpeed * 0.18;
+  coreGroup.rotation.x = Math.sin(t * 0.3) * 0.06 * curAmp;
+
+  // Wireframe pulse
+  const wp = 1.035 + Math.sin(t * curSpeed * 2.5) * 0.012 * curAmp;
+  leftWire.scale.setScalar(wp);
+  rightWire.scale.setScalar(wp);
+  leftWire.rotation.y = t * 0.035 * curSpeed;
+  rightWire.rotation.y = -t * 0.035 * curSpeed;
+
+  // Scan plane sweep
+  scanPlane.position.y = Math.sin(t * 1.2) * 0.8;
+  scanMat.color.copy(curColor);
+  scanMat.opacity = 0.03 + Math.abs(Math.sin(t * 2)) * 0.05 * curAmp;
+
+  // Neural Link animation
+  nlGroup.rotation.y = t * curSpeed * 0.18;
+  nlGroup.rotation.x = Math.sin(t * 0.3) * 0.06 * curAmp;
+
+  // Crown band subtle breath
+  const cbScale = 1.0 + Math.sin(t * curSpeed * 1.5) * 0.008 * curAmp;
+  crownBand.scale.setScalar(cbScale);
+  accentBand.scale.setScalar(cbScale * 0.98);
+  crownMat.emissive.copy(curColor);
+  crownMat.emissiveIntensity = 0.15 + curEmissive * 0.3;
+  accentBand.material.color.copy(curColor);
+  accentBand.material.opacity = 0.25 + curEmissive * 0.2;
+
+  // Nodes pulse
+  nlNodes.forEach((n, i) => {
+    const phase = i * 0.55;
+    const pulse = 0.7 + Math.sin(t * curSpeed * 2 + phase) * 0.3 * curAmp;
+    n.mesh.material.color.copy(curColor);
+    n.mesh.material.opacity = Math.min(1, pulse);
+    n.mesh.scale.setScalar(n.primary ? 0.9 + pulse * 0.3 : 0.7 + pulse * 0.4);
+    if (n.glow) {
+      n.glow.material.color.copy(curColor);
+      n.glow.material.opacity = 0.12 + pulse * 0.1;
+      n.glow.scale.setScalar(1.0 + Math.sin(t * 3 + phase) * 0.2 * curAmp);
+    }
+  });
+
+  // Traces glow
+  nlTraces.forEach((tr, i) => {
+    if (tr.thin) {
+      tr.thin.material.color.copy(curColor);
+      tr.thin.material.opacity = 0.18 + curEmissive * 0.12 + Math.sin(t * 2 + i * 0.4) * 0.06 * curAmp;
+    }
+    if (tr.glow) {
+      tr.glow.material.color.copy(curColor);
+      tr.glow.material.opacity = 0.04 + curEmissive * 0.06;
+    }
+  });
+
+  // Chip LED sequence
+  chipLEDs.forEach((led, i) => {
+    led.material.color.copy(curColor);
+    const blink = Math.sin(t * 4 + i * 1.8) > 0.3 ? 0.95 : 0.2;
+    led.material.opacity = blink;
+    led.scale.setScalar(0.8 + blink * 0.4);
+  });
+  chipMat.emissiveIntensity = 0.2 + Math.sin(t * 2) * 0.15 * curAmp;
+  chipEdge.material.color.copy(curColor);
+  chipEdge.material.opacity = curGlow * 2;
+
+  // Atmosphere
+  atmosMat.color.copy(curColor);
+  atmosMat.opacity = curGlow;
+  atmos1.scale.setScalar(1 + Math.sin(t * 1.5) * 0.02 * curAmp);
+  atmos2.material.color.copy(curColor);
+  atmos2.material.opacity = curGlow * 1.5;
+
+  // Particles
+  const pa = particleGeom.attributes.position;
+  const ps = s.particleSpeed;
+  const pt = t * 3.5 * ps;
   for (let i = 0; i < particleCount; i++) {
-    const s = particleSpeeds[i];
-    const offsetX = Math.sin(time * s.speedFactor + i) * s.rangeX * 0.25;
-    const offsetY = Math.cos(time * 0.8 * s.speedFactor + i) * s.rangeY * 0.25;
-    const offsetZ = Math.sin(time * 1.2 * s.speedFactor + i) * s.rangeZ * 0.25;
-    
-    partAttr.setXYZ(i, s.baseX + offsetX, s.baseY + offsetY, s.baseZ + offsetZ);
+    const d = pSpeeds[i];
+    pa.setXYZ(i,
+      d.bx + Math.sin(pt * d.sf + d.ph + i) * d.rx * 0.2,
+      d.by + Math.cos(pt * 0.7 * d.sf + d.ph + i) * d.ry * 0.2,
+      d.bz + Math.sin(pt * 1.1 * d.sf + d.ph + i) * d.rz * 0.2
+    );
   }
-  partAttr.needsUpdate = true;
-  particles.rotation.y = elapsed * 0.06;
-  
+  pa.needsUpdate = true;
+  particles.rotation.y = t * 0.04;
+  particleMat.opacity = 0.4 + curEmissive * 0.35;
+
+  // Camera float
+  camera.position.y = 0.4 + Math.sin(t * 0.35) * 0.06;
+
   renderer.render(scene, camera);
 }
-
 draw();
 
 // === Estado de Persona Dinâmico ===
@@ -655,8 +1020,8 @@ async function pollStatus() {
       }
       
       const welcomeMsg = document.getElementById('chat-welcome-msg');
-      if (welcomeMsg && welcomeMsg.textContent === 'Às suas ordens. Em que posso ajudar?' && currentWelcomeBody) {
-        welcomeMsg.textContent = currentWelcomeBody;
+      if (welcomeMsg && currentWelcomeBody) {
+        welcomeMsg.innerHTML = '<span class="msg-jarvis-label">' + currentPersonaName + '</span>' + currentWelcomeBody;
       }
 
       const micBtn = document.getElementById('mic-btn');
@@ -738,7 +1103,6 @@ socket.on('xp_update', (data) => {
 socket.on('badge_earned', (data) => {
   tooltip.textContent = `🏆 BADGE GANHA: ${data.name || 'Conquistador'}`;
   currentState = 'excited';
-  lightnings.push(createLightning());
   setTimeout(() => { currentState = 'idle'; }, 5000);
 });
 
@@ -879,6 +1243,39 @@ chatToggleBtn.addEventListener('click', (e) => {
   }
 });
 
+const chatCloseBtn = document.getElementById('chat-close-btn');
+if (chatCloseBtn) {
+  chatCloseBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    chatOpen = false;
+    chatToggleBtn.classList.remove('active');
+    chatBox.classList.remove('open');
+    if (window.jarvis && typeof window.jarvis.toggleChat === 'function') {
+      window.jarvis.toggleChat(false);
+    }
+  });
+}
+
+function showTypingIndicator() {
+  removeTypingIndicator();
+  const el = document.createElement('div');
+  el.className = 'typing-indicator';
+  el.id = 'typing-indicator';
+  el.innerHTML = '<span></span><span></span><span></span>';
+  chatMessages.appendChild(el);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const existing = document.getElementById('typing-indicator');
+  if (existing) existing.remove();
+}
+
+function getTimestamp() {
+  const now = new Date();
+  return now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
+}
+
 chatSendBtn.addEventListener('click', sendChatMessage);
 chatInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter') {
@@ -897,7 +1294,7 @@ async function sendChatMessage() {
 
   const userMsgDiv = document.createElement('div');
   userMsgDiv.className = 'msg user';
-  userMsgDiv.textContent = text;
+  userMsgDiv.innerHTML = text + '<div class="msg-time">' + getTimestamp() + '</div>';
   chatMessages.appendChild(userMsgDiv);
   chatMessages.scrollTop = chatMessages.scrollHeight;
 
@@ -905,6 +1302,7 @@ async function sendChatMessage() {
 
   currentState = 'thinking';
   tooltip.textContent = `${currentPersonaName} — Processando...`;
+  showTypingIndicator();
 
   try {
     const chatRes = await fetch('http://localhost:3000/api/pet/chat', {
@@ -921,12 +1319,14 @@ async function sendChatMessage() {
       throw new Error(`HTTP ${chatRes.status}`);
     }
 
+    removeTypingIndicator();
+
     const chatData = await chatRes.json();
     const responseText = chatData.response;
 
     const jarvisMsgDiv = document.createElement('div');
-    jarvisMsgDiv.className = `msg jarvis`;
-    jarvisMsgDiv.textContent = responseText;
+    jarvisMsgDiv.className = 'msg jarvis';
+    jarvisMsgDiv.innerHTML = '<span class="msg-jarvis-label">' + currentPersonaName + '</span>' + responseText + '<div class="msg-time">' + getTimestamp() + '</div>';
     chatMessages.appendChild(jarvisMsgDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
@@ -1016,6 +1416,7 @@ async function sendChatMessage() {
     }
 
   } catch (err) {
+    removeTypingIndicator();
     console.error('[Pet] Erro de rede ou chat:', err);
     currentState = 'frustrated';
     tooltip.textContent = `${currentPersonaName} — Erro de comunicação`;
@@ -1023,8 +1424,8 @@ async function sendChatMessage() {
     const errDiv = document.createElement('div');
     errDiv.className = 'msg jarvis';
     errDiv.style.color = '#f87171';
-    errDiv.style.border = '1px solid rgba(248, 113, 113, 0.4)';
-    errDiv.textContent = `Desculpe, Senhor. Não consegui conectar com meus sistemas centrais.`;
+    errDiv.style.borderColor = 'rgba(248, 113, 113, 0.35)';
+    errDiv.innerHTML = '<span class="msg-jarvis-label" style="color:#f87171">System</span>Desculpe, Senhor. Não consegui conectar com meus sistemas centrais.';
     chatMessages.appendChild(errDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
 
