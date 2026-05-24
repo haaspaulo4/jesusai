@@ -147,6 +147,15 @@ async function startBot(id) {
     });
 
     activeBots.set(id, { platform: 'telegram', bot: tgBot, name: bot.name });
+
+    try {
+      const { _activeBots } = require('../telegram/handler');
+      _activeBots.set('telegram', tgBot);
+      console.log(`[BotManager] Telegram bot registered in handler _activeBots`);
+    } catch (e) {
+      console.error('[BotManager] Could not register bot in _activeBots:', e.message);
+    }
+
     console.log(`[BotManager] Telegram bot "${bot.name}" (id:${id}) started`);
     return { id, platform: 'telegram', name: bot.name, status: 'running' };
   }

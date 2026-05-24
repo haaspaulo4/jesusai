@@ -21,13 +21,22 @@ const {
 const { isUserAdmin } = require('../chat/engine');
 const integrations = require('../llm/integrationManager');
 const { getSetting } = require('../settings');
-const { t, DEFAULT_LANG, SUPPORTED_LANGS, getSTTLang } = require('../i18n');
+const { t, DEFAULT_LANG, SUPPORTED_LANGS, getSTTLang, getTTSLang } = require('../i18n');
 const { handleChatCommand } = require('../chat/engine');
 const { transcribeAudio } = require('../stt');
+const {
+  cleanTextForTTS,
+  splitTextForTTS,
+  generateAudioBuffer,
+  generateTTSAudioUrl,
+  getAudioContentType,
+  MAX_TTS_LENGTH,
+} = require('../tts');
 
 const OLLAMA_BASE_URL = process.env.OLLAMA_BASE_URL || 'https://ollama.com/api';
 const OLLAMA_API_KEY = process.env.OLLAMA_API_KEY;
 const CHAT_MODEL = process.env.CHAT_MODEL || 'glm-5.1';
+const TELEGRAM_AUDIO = process.env.TELEGRAM_AUDIO !== 'false';
 
 function escapeMarkdown(text) {
   if (!text) return '';
@@ -217,6 +226,42 @@ function makeTelegramHandler(options = {}) {
         try {
           await bot.sendMessage(chatId, `🎭 Persona: ${result.personaName}`, { disable_notification: true });
         } catch {}
+      }
+
+      // ─── TTS Audio ──────────────────────────────────────────────────────
+      if (TELEGRAM_AUDIO && reply && !isGroup) {
+        try {
+          const kokoroVoice = result.ttsVoice || null;
+          const ttsLang = getTTSLang(result.language || lang);
+          const cleanReply = cleanTextForTTS(reply);
+          const audioChunks = splitTextForTTS(cleanReply, parseInt(process.env.MESSAGE_CHUNK_SIZE) || 1500);
+          const audioChunksFiltered = (audioChunks || []).filter(c => c.length > 0 && c.length <= MAX_TTS_LENGTH);
+
+          if (audioChunksFiltered.length > 0) {
+            console.log(`[TG:${botName}] Sending ${audioChunksFiltered.length} audio chunks, lang=${ttsLang}, voice=${kokoroVoice || 'default'}`);
+            for (const chunk of audioChunksFiltered) {
+              try {
+                const audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang, kokoroVoice });
+                if (audioBuffer && audioBuffer.length > 0) {
+                  const contentType = getAudioContentType(ttsLang, kokoroVoice);
+                  const ext = contentType.includes('mp3') ? 'mp3' : 'ogg';
+                  await bot.sendVoice(chatId, audioBuffer, {}, { filename: `voice.${ext}`, contentType });
+                  await new Promise(r => setTimeout(r, 300));
+                  continue;
+                }
+              } catch (err) {
+                console.error(`[TG:${botName}] Voice chunk failed:`, err.message);
+              }
+              try {
+                const audioUrl = generateTTSAudioUrl(chunk, ttsLang);
+                if (audioUrl) await bot.sendVoice(chatId, audioUrl);
+              } catch {}
+              await new Promise(r => setTimeout(r, 300));
+            }
+          }
+        } catch (ttsErr) {
+          console.error(`[TG:${botName}] TTS error:`, ttsErr.message);
+        }
       }
     } catch (err) {
       console.error(`[TG:${botName}] Message error:`, err.message);
