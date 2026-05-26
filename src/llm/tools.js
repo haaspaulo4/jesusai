@@ -1306,6 +1306,545 @@ const TOOL_DEFINITIONS = [
       },
     },
   },
+  {
+    type: 'function',
+    function: {
+      name: 'speed_audio',
+        description: 'Change audio playback speed. Use to speed up or slow down audio recordings.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the audio file in the workspace' },
+            rate: { type: 'number', description: 'Playback speed multiplier (0.5 to 4.0, e.g. 1.5 for 50% faster)' },
+            output_format: { type: 'string', enum: ['wav', 'mp3', 'ogg'], description: 'Output format (default: ogg)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path', 'rate'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'pitch_audio',
+        description: 'Change the pitch of an audio recording by semitones. Positive values raise pitch, negative values lower it.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the audio file in the workspace' },
+            semitones: { type: 'number', description: 'Pitch shift in semitones (-12 to +12). Positive = higher, negative = lower.' },
+            output_format: { type: 'string', enum: ['wav', 'mp3', 'ogg'], description: 'Output format (default: ogg)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path', 'semitones'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'normalize_audio',
+        description: 'Normalize audio loudness to EBU R128 standard (-16 LUFS). Ensures consistent volume across different audio clips.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the audio file in the workspace' },
+            target_lufs: { type: 'number', description: 'Target loudness in LUFS (default: -16). -23 for broadcast, -14 for podcasts.' },
+            output_format: { type: 'string', enum: ['wav', 'mp3', 'ogg'], description: 'Output format (default: wav)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'fade_audio',
+        description: 'Apply fade in/out effects to audio. Useful for smoothing the start and end of voice messages.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the audio file in the workspace' },
+            fade_in: { type: 'number', description: 'Fade-in duration in seconds (default: 0.5)' },
+            fade_out: { type: 'number', description: 'Fade-out duration in seconds (default: 0.5)' },
+            output_format: { type: 'string', enum: ['wav', 'mp3', 'ogg'], description: 'Output format (default: ogg)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'mix_audio',
+        description: 'Mix two audio tracks together (e.g. voice + background music). Adjusts volume independently for each track.',
+        parameters: {
+          type: 'object',
+          properties: {
+            voice_path: { type: 'string', description: 'Path to the voice/primary audio file' },
+            bg_path: { type: 'string', description: 'Path to the background audio file' },
+            voice_volume: { type: 'number', description: 'Voice volume multiplier (0.0 to 2.0, default: 1.0)' },
+            bg_volume: { type: 'number', description: 'Background volume multiplier (0.0 to 2.0, default: 0.3)' },
+            output_format: { type: 'string', enum: ['wav', 'mp3', 'ogg'], description: 'Output format (default: ogg)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['voice_path', 'bg_path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'denoise_audio',
+        description: 'Reduce noise in audio recordings. Use for cleaning up phone/microphone recordings.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the audio file in the workspace' },
+            strength: { type: 'string', enum: ['light', 'medium', 'heavy'], description: 'Noise reduction strength (default: light)' },
+            output_format: { type: 'string', enum: ['wav', 'mp3', 'ogg'], description: 'Output format (default: wav)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'remove_silence',
+        description: 'Remove silence from audio recordings. Useful for trimming pauses in voice messages.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the audio file in the workspace' },
+            min_silence: { type: 'number', description: 'Minimum silence duration in seconds to remove (default: 0.5)' },
+            threshold: { type: 'number', description: 'Silence threshold in dB (default: -30)' },
+            output_format: { type: 'string', enum: ['wav', 'mp3', 'ogg'], description: 'Output format (default: ogg)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'convert_video',
+        description: 'Convert video between formats (MP4, WebM, AVI, MKV, MOV). Can also resize and compress.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the video file in the workspace' },
+            output_format: { type: 'string', enum: ['mp4', 'webm', 'avi', 'mkv', 'mov'], description: 'Target format (default: mp4)' },
+            width: { type: 'integer', description: 'Output width in pixels' },
+            height: { type: 'integer', description: 'Output height in pixels' },
+            crf: { type: 'integer', description: 'Quality (0-51, lower=better, default: 23)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path', 'output_format'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'thumbnail_video',
+        description: 'Extract a thumbnail/screenshot from a video at a specific timestamp.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the video file in the workspace' },
+            timestamp: { type: 'number', description: 'Timestamp in seconds (default: 0)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'trim_video',
+        description: 'Trim/cut a video to a specific time range.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the video file in the workspace' },
+            start: { type: 'number', description: 'Start time in seconds (default: 0)' },
+            duration: { type: 'number', description: 'Duration in seconds to extract' },
+            output_format: { type: 'string', enum: ['mp4', 'webm', 'avi'], description: 'Output format (default: mp4)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path', 'start', 'duration'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'video_info',
+        description: 'Get detailed information about a video or audio file (duration, resolution, codec, bitrate, channels).',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the media file in the workspace' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'create_gif',
+        description: 'Create an animated GIF from a video file. Useful for reactions and social media content.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the video file in the workspace' },
+            start: { type: 'number', description: 'Start time in seconds (default: 0)' },
+            duration: { type: 'number', description: 'Duration in seconds (default: 5)' },
+            fps: { type: 'integer', description: 'Frames per second (default: 10)' },
+            width: { type: 'integer', description: 'Output width in pixels (default: 320)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'resize_image',
+        description: 'Resize an image to specified dimensions. Supports PNG, JPEG, WebP, AVIF, TIFF.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the image file in the workspace' },
+            width: { type: 'integer', description: 'Target width in pixels' },
+            height: { type: 'integer', description: 'Target height in pixels' },
+            output_format: { type: 'string', enum: ['png', 'jpeg', 'webp', 'avif'], description: 'Output format (default: png)' },
+            fit: { type: 'string', enum: ['cover', 'contain', 'fill', 'inside', 'outside'], description: 'Fit mode (default: inside)' },
+            quality: { type: 'integer', description: 'Quality 1-100 (default: 85)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path', 'width', 'height'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'convert_image',
+        description: 'Convert an image between formats (PNG, JPEG, WebP, AVIF, TIFF, GIF). Can also resize.',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the image file in the workspace' },
+            output_format: { type: 'string', enum: ['png', 'jpeg', 'webp', 'avif', 'tiff', 'gif'], description: 'Target format (default: png)' },
+            width: { type: 'integer', description: 'Target width in pixels (optional)' },
+            height: { type: 'integer', description: 'Target height in pixels (optional)' },
+            quality: { type: 'integer', description: 'Quality 1-100 (default: 85)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path', 'output_format'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'watermark_image',
+        description: 'Add a watermark/logo to an image. Supports position: topleft, topright, bottomleft, bottomright, center.',
+        parameters: {
+          type: 'object',
+          properties: {
+            base_path: { type: 'string', description: 'Path to the base image file' },
+            logo_path: { type: 'string', description: 'Path to the watermark/logo image file' },
+            position: { type: 'string', enum: ['topleft', 'topright', 'bottomleft', 'bottomright', 'center'], description: 'Position of watermark (default: bottomright)' },
+            opacity: { type: 'number', description: 'Opacity 0.0-1.0 (default: 0.7)' },
+            output_format: { type: 'string', enum: ['png', 'jpeg', 'webp'], description: 'Output format (default: png)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['base_path', 'logo_path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'generate_qrcode',
+        description: 'Generate a QR code image. Useful for PIX payments, links, invitations.',
+        parameters: {
+          type: 'object',
+          properties: {
+            data: { type: 'string', description: 'Data to encode (URL, text, PIX key, etc.)' },
+            size: { type: 'integer', description: 'Image size in pixels (default: 300)' },
+            dark_color: { type: 'string', description: 'Dark color hex (default: #000000)' },
+            light_color: { type: 'string', description: 'Light color hex (default: #FFFFFF)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['data'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'image_info',
+        description: 'Get image metadata (width, height, format, channels, size, orientation).',
+        parameters: {
+          type: 'object',
+          properties: {
+            input_path: { type: 'string', description: 'Path to the image file in the workspace' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['input_path'],
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'create_pdf',
+        description: 'Create a PDF document with text, sections, and images.',
+        parameters: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'Document title' },
+            content: { type: 'string', description: 'Main text content' },
+            sections: { type: 'array', items: { type: 'object', properties: { heading: { type: 'string' }, content: { type: 'string' } } }, description: 'Sections with headings and content' },
+            filename: { type: 'string', description: 'Output filename (default: document.pdf)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'create_docx',
+        description: 'Create a Word (DOCX) document with text, sections, and tables.',
+        parameters: {
+          type: 'object',
+          properties: {
+            title: { type: 'string', description: 'Document title' },
+            content: { type: 'string', description: 'Main text content (use \\n for paragraphs)' },
+            sections: { type: 'array', items: { type: 'object', properties: { heading: { type: 'string' }, content: { type: 'string' } } }, description: 'Document sections' },
+            table: { type: 'object', properties: { headers: { type: 'array', items: { type: 'string' } }, rows: { type: 'array', items: { type: 'array', items: { type: 'string' } } } }, description: 'Table data with headers and rows' },
+            filename: { type: 'string', description: 'Output filename (default: document.docx)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'create_xlsx',
+        description: 'Create an Excel spreadsheet (XLSX) with data.',
+        parameters: {
+          type: 'object',
+          properties: {
+            headers: { type: 'array', items: { type: 'string' }, description: 'Column headers' },
+            rows: { type: 'array', items: { type: 'array', items: { type: 'string' } }, description: 'Data rows' },
+            sheet_name: { type: 'string', description: 'Sheet name (default: Sheet1)' },
+            filename: { type: 'string', description: 'Output filename (default: spreadsheet.xlsx)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+        },
+      },
+    },
+    {
+      type: 'function',
+      function: {
+        name: 'create_archive',
+        description: 'Create a ZIP archive from multiple workspace files.',
+        parameters: {
+          type: 'object',
+          properties: {
+            files: { type: 'array', items: { type: 'object', properties: { path: { type: 'string', description: 'Path in workspace' }, name: { type: 'string', description: 'Name in archive' } } }, description: 'Files to include (path = workspace path, name = name in archive)' },
+            filename: { type: 'string', description: 'Output filename (default: archive.zip)' },
+            workspace_id: { type: 'string', description: 'Workspace ID (default: "default")' },
+          },
+          required: ['files'],
+        },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'schedule_appointment',
+      description: 'Agenda um serviço/horário para o usuário. Use para marcar consultas, reuniões, ou qualquer tipo de agendamento. Verifica disponibilidade automaticamente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          persona_id: { type: 'string', description: 'ID da persona para o agendamento' },
+          service_type_id: { type: 'string', description: 'ID do tipo de serviço (obtido com list_services)' },
+          date: { type: 'string', description: 'Data do agendamento (YYYY-MM-DD)' },
+          time: { type: 'string', description: 'Horário do agendamento (HH:MM)' },
+          customer_name: { type: 'string', description: 'Nome do cliente' },
+          customer_phone: { type: 'string', description: 'Telefone do cliente' },
+          customer_email: { type: 'string', description: 'Email do cliente' },
+          notes: { type: 'string', description: 'Observações do agendamento' },
+        },
+        required: ['persona_id', 'date', 'time'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_services',
+      description: 'Lista os tipos de serviço disponíveis para agendamento de uma persona.',
+      parameters: {
+        type: 'object',
+        properties: {
+          persona_id: { type: 'string', description: 'ID da persona' },
+        },
+        required: ['persona_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_available_slots',
+      description: 'Lista horários disponíveis para agendamento em uma data específica.',
+      parameters: {
+        type: 'object',
+        properties: {
+          persona_id: { type: 'string', description: 'ID da persona' },
+          date: { type: 'string', description: 'Data para verificar (YYYY-MM-DD)' },
+          service_type_id: { type: 'string', description: 'ID do tipo de serviço (opcional)' },
+        },
+        required: ['persona_id', 'date'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'list_appointments',
+      description: 'Lista agendamentos existentes. Pode filtrar por status, data, telefone do cliente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          persona_id: { type: 'string', description: 'ID da persona' },
+          status: { type: 'string', enum: ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'], description: 'Filtrar por status' },
+          date_from: { type: 'string', description: 'Data inicial (YYYY-MM-DD)' },
+          date_to: { type: 'string', description: 'Data final (YYYY-MM-DD)' },
+        },
+        required: ['persona_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'cancel_appointment',
+      description: 'Cancela um agendamento existente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          appointment_id: { type: 'string', description: 'ID do agendamento' },
+          reason: { type: 'string', description: 'Motivo do cancelamento' },
+        },
+        required: ['appointment_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'google_calendar_connect',
+      description: 'Gera a URL de autorização para conectar o Google Calendar do usuário. Use quando o usuário quiser sincronizar agenda com Google Calendar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          user_id: { type: 'string', description: 'ID do usuário' },
+        },
+        required: ['user_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'google_calendar_events',
+      description: 'Lista eventos do Google Calendar do usuário conectado. Requer que o usuário tenha conectado o Google Calendar previamente.',
+      parameters: {
+        type: 'object',
+        properties: {
+          user_id: { type: 'string', description: 'ID do usuário' },
+          calendar_id: { type: 'string', description: 'ID do calendário (padrão: primary)' },
+          time_min: { type: 'string', description: 'Data/hora mínima (ISO 8601)' },
+          time_max: { type: 'string', description: 'Data/hora máxima (ISO 8601)' },
+          max_results: { type: 'integer', description: 'Número máximo de eventos (padrão: 20)' },
+        },
+        required: ['user_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'google_calendar_create',
+      description: 'Cria um evento no Google Calendar do usuário. Requer que o usuário tenha conectado o Google Calendar.',
+      parameters: {
+        type: 'object',
+        properties: {
+          user_id: { type: 'string', description: 'ID do usuário' },
+          summary: { type: 'string', description: 'Título do evento' },
+          description: { type: 'string', description: 'Descrição do evento' },
+          start: { type: 'string', description: 'Data/hora início (ISO 8601 ou data YYYY-MM-DD para dia inteiro)' },
+          end: { type: 'string', description: 'Data/hora fim (ISO 8601 ou data YYYY-MM-DD para dia inteiro)' },
+          location: { type: 'string', description: 'Local do evento' },
+          attendees: { type: 'array', items: { type: 'object', properties: { email: { type: 'string' }, name: { type: 'string' } } }, description: 'Lista de participantes' },
+          all_day: { type: 'boolean', description: 'Se é evento de dia inteiro' },
+          calendar_id: { type: 'string', description: 'ID do calendário (padrão: primary)' },
+        },
+        required: ['user_id', 'summary', 'start', 'end'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'google_calendar_delete',
+      description: 'Remove um evento do Google Calendar do usuário.',
+      parameters: {
+        type: 'object',
+        properties: {
+          user_id: { type: 'string', description: 'ID do usuário' },
+          event_id: { type: 'string', description: 'ID do evento no Google Calendar' },
+          calendar_id: { type: 'string', description: 'ID do calendário (padrão: primary)' },
+        },
+        required: ['user_id', 'event_id'],
+      },
+    },
+  },
+  {
+    type: 'function',
+    function: {
+      name: 'google_calendar_check_busy',
+      description: 'Verifica horários ocupados no Google Calendar do usuário entre duas datas.',
+      parameters: {
+        type: 'object',
+        properties: {
+          user_id: { type: 'string', description: 'ID do usuário' },
+          time_min: { type: 'string', description: 'Data/hora mínima (ISO 8601)' },
+          time_max: { type: 'string', description: 'Data/hora máxima (ISO 8601)' },
+          calendar_id: { type: 'string', description: 'ID do calendário (padrão: primary)' },
+        },
+        required: ['user_id', 'time_min', 'time_max'],
+      },
+    },
+  },
 ];
 
 async function executeTool(name, args, context = {}) {
@@ -3081,6 +3620,356 @@ async function executeTool(name, args, context = {}) {
       }
     }
 
+    // ─── Audio Processing Tools ────────────────────────────────────────────
+    case 'speed_audio': {
+      try {
+        const { speedAudio, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'wav').toLowerCase();
+        const outputFormat = args.output_format || 'ogg';
+        const rate = parseFloat(args.rate) || 1.0;
+        const outputBuffer = await speedAudio(fileResult.content, rate, inputFormat, outputFormat);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, `_speed${rate}x.${outputFormat}`);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, rate, format: outputFormat, size: outputBuffer.length };
+      } catch (err) { return { error: `Erro ao alterar velocidade: ${err.message}` }; }
+    }
+
+    case 'pitch_audio': {
+      try {
+        const { changePitch, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'wav').toLowerCase();
+        const outputFormat = args.output_format || 'ogg';
+        const semitones = parseFloat(args.semitones) || 0;
+        const outputBuffer = await changePitch(fileResult.content, semitones, inputFormat, outputFormat);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, `_pitch${semitones > 0 ? '+' : ''}${semitones}.${outputFormat}`);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, semitones, format: outputFormat, size: outputBuffer.length };
+      } catch (err) { return { error: `Erro ao alterar tom: ${err.message}` }; }
+    }
+
+    case 'normalize_audio': {
+      try {
+        const { loudnormAudio, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'wav').toLowerCase();
+        const outputFormat = args.output_format || 'wav';
+        const targetLUFS = parseFloat(args.target_lufs) || -16;
+        const outputBuffer = await loudnormAudio(fileResult.content, inputFormat, outputFormat, targetLUFS);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, `_normalized.${outputFormat}`);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, target_lufs: targetLUFS, format: outputFormat, size: outputBuffer.length };
+      } catch (err) { return { error: `Erro ao normalizar áudio: ${err.message}` }; }
+    }
+
+    case 'fade_audio': {
+      try {
+        const { fadeAudio, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'wav').toLowerCase();
+        const outputFormat = args.output_format || 'ogg';
+        const fadeIn = parseFloat(args.fade_in) || 0.5;
+        const fadeOut = parseFloat(args.fade_out) || 0.5;
+        const outputBuffer = await fadeAudio(fileResult.content, fadeIn, fadeOut, inputFormat, outputFormat);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, `_fade.${outputFormat}`);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, fade_in: fadeIn, fade_out: fadeOut, format: outputFormat, size: outputBuffer.length };
+      } catch (err) { return { error: `Erro ao aplicar fade: ${err.message}` }; }
+    }
+
+    case 'mix_audio': {
+      try {
+        const { mixAudio, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const voiceResult = await wsManager.readFile(args.workspace_id || 'default', args.voice_path);
+        if (!voiceResult.success) return { error: `Voz: ${voiceResult.error}` };
+        const bgResult = await wsManager.readFile(args.workspace_id || 'default', args.bg_path);
+        if (!bgResult.success) return { error: `Background: ${bgResult.error}` };
+        const voiceFormat = (args.voice_path.split('.').pop() || 'wav').toLowerCase();
+        const bgFormat = (args.bg_path.split('.').pop() || 'mp3').toLowerCase();
+        const outputFormat = args.output_format || 'ogg';
+        const voiceVol = parseFloat(args.voice_volume) || 1.0;
+        const bgVol = parseFloat(args.bg_volume) || 0.3;
+        const outputBuffer = await mixAudio(voiceResult.content, bgResult.content, voiceFormat, bgFormat, voiceVol, bgVol, outputFormat);
+        const outputPath = `mixed_${Date.now()}.${outputFormat}`;
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, output: outputPath, voice: args.voice_path, background: args.bg_path, voice_volume: voiceVol, bg_volume: bgVol, format: outputFormat, size: outputBuffer.length };
+      } catch (err) { return { error: `Erro ao mixar áudios: ${err.message}` }; }
+    }
+
+    case 'denoise_audio': {
+      try {
+        const { denoiseAudio, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'wav').toLowerCase();
+        const outputFormat = args.output_format || 'wav';
+        const strength = args.strength || 'light';
+        const outputBuffer = await denoiseAudio(fileResult.content, inputFormat, outputFormat, strength);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, `_clean.${outputFormat}`);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, strength, format: outputFormat, size: outputBuffer.length };
+      } catch (err) { return { error: `Erro ao limpar ruído: ${err.message}` }; }
+    }
+
+    case 'remove_silence': {
+      try {
+        const { removeSilence, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'wav').toLowerCase();
+        const outputFormat = args.output_format || 'ogg';
+        const minSilence = parseFloat(args.min_silence) || 0.5;
+        const threshold = parseFloat(args.threshold) || -30;
+        const outputBuffer = await removeSilence(fileResult.content, inputFormat, outputFormat, minSilence, threshold);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, `_nosilence.${outputFormat}`);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, min_silence: minSilence, threshold, format: outputFormat, size: outputBuffer.length };
+      } catch (err) { return { error: `Erro ao remover silêncio: ${err.message}` }; }
+    }
+
+    // ─── Video Tools ────────────────────────────────────────────────────────
+    case 'convert_video': {
+      try {
+        const { convertVideo, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'mp4').toLowerCase();
+        const outputFormat = args.output_format || 'mp4';
+        const options = { crf: args.crf, preset: args.preset, width: args.width, height: args.height };
+        const outputBuffer = await convertVideo(fileResult.content, inputFormat, outputFormat, options);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, '.' + outputFormat);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, format: outputFormat, size: outputBuffer.length };
+      } catch (err) { return { error: `Erro ao converter vídeo: ${err.message}` }; }
+    }
+
+    case 'thumbnail_video': {
+      try {
+        const { thumbnailVideo, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'mp4').toLowerCase();
+        const timestamp = parseFloat(args.timestamp) || 0;
+        const outputBuffer = await thumbnailVideo(fileResult.content, inputFormat, timestamp);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, '_thumb.jpg');
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, timestamp, size: outputBuffer.length };
+      } catch (err) { return { error: `Erro ao gerar thumbnail: ${err.message}` }; }
+    }
+
+    case 'trim_video': {
+      try {
+        const { trimVideo, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'mp4').toLowerCase();
+        const outputFormat = args.output_format || 'mp4';
+        const start = parseFloat(args.start) || 0;
+        const duration = parseFloat(args.duration) || 30;
+        const outputBuffer = await trimVideo(fileResult.content, start, duration, inputFormat, outputFormat);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, `_trim.${outputFormat}`);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, start, duration, format: outputFormat, size: outputBuffer.length };
+      } catch (err) { return { error: `Erro ao cortar vídeo: ${err.message}` }; }
+    }
+
+    case 'video_info': {
+      try {
+        const { getMediaInfo, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = args.input_path.split('.').pop() || 'mp4';
+        return await getMediaInfo(fileResult.content, inputFormat);
+      } catch (err) { return { error: `Erro ao obter info: ${err.message}` }; }
+    }
+
+    case 'create_gif': {
+      try {
+        const { generateGif, isFfmpegAvailable } = require('../media/ffmpeg');
+        const available = await isFfmpegAvailable();
+        if (!available) return { error: 'ffmpeg não está disponível no servidor.' };
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const inputFormat = (args.input_path.split('.').pop() || 'mp4').toLowerCase();
+        const fps = parseInt(args.fps) || 10;
+        const width = parseInt(args.width) || 320;
+        const start = parseFloat(args.start) || 0;
+        const duration = parseFloat(args.duration) || 5;
+        const outputBuffer = await generateGif(fileResult.content, inputFormat, fps, width, start, duration);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, '.gif');
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuffer);
+        return { success: true, input: args.input_path, output: outputPath, fps, width, start, duration, size: outputBuffer.length };
+      } catch (err) { return { error: `Erro ao criar GIF: ${err.message}` }; }
+    }
+
+    // ─── Image Tools ────────────────────────────────────────────────────────
+    case 'resize_image': case 'convert_image': {
+      try {
+        const image = require('../media/image');
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        const format = args.output_format || 'png';
+        const options = { quality: args.quality };
+        if (args.width || args.height) {
+          const outputBuf = await image.resizeImage(fileResult.content, args.width, args.height, format, { ...options, fit: args.fit });
+          const outputPath = args.input_path.replace(/\.[^.]+$/, `_${args.width || ''}x${args.height || ''}.${format}`);
+          await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuf);
+          return { success: true, input: args.input_path, output: outputPath, format, width: args.width, height: args.height, size: outputBuf.length };
+        }
+        const outputBuf = await image.convertImage(fileResult.content, format, options);
+        const outputPath = args.input_path.replace(/\.[^.]+$/, '.' + format);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuf);
+        return { success: true, input: args.input_path, output: outputPath, format, size: outputBuf.length };
+      } catch (err) { return { error: `Erro ao processar imagem: ${err.message}` }; }
+    }
+
+    case 'watermark_image': {
+      try {
+        const image = require('../media/image');
+        const wsManager = require('../tools/workspace-manager');
+        const baseResult = await wsManager.readFile(args.workspace_id || 'default', args.base_path);
+        if (!baseResult.success) return { error: `Imagem base: ${baseResult.error}` };
+        const logoResult = await wsManager.readFile(args.workspace_id || 'default', args.logo_path);
+        if (!logoResult.success) return { error: `Logo: ${logoResult.error}` };
+        const position = args.position || 'bottomright';
+        const opacity = parseFloat(args.opacity) || 0.7;
+        const format = args.output_format || 'png';
+        const outputBuf = await image.watermarkImage(baseResult.content, logoResult.content, position, format, { opacity });
+        const outputPath = args.base_path.replace(/\.[^.]+$/, `_wm.${format}`);
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuf);
+        return { success: true, output: outputPath, position, opacity, format, size: outputBuf.length };
+      } catch (err) { return { error: `Erro ao aplicar watermark: ${err.message}` }; }
+    }
+
+    case 'generate_qrcode': {
+      try {
+        const { generateQRCode } = require('../media/image');
+        const wsManager = require('../tools/workspace-manager');
+        const size = parseInt(args.size) || 300;
+        const qrOptions = { darkColor: args.dark_color, lightColor: args.light_color, margin: 2 };
+        const outputBuf = await generateQRCode(args.data, size, qrOptions);
+        const outputPath = `qrcode_${Date.now()}.png`;
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuf);
+        return { success: true, output: outputPath, data: args.data, size, format: 'png', size_bytes: outputBuf.length };
+      } catch (err) { return { error: `Erro ao gerar QR code: ${err.message}` }; }
+    }
+
+    case 'image_info': {
+      try {
+        const { getImageInfo } = require('../media/image');
+        const wsManager = require('../tools/workspace-manager');
+        const fileResult = await wsManager.readFile(args.workspace_id || 'default', args.input_path);
+        if (!fileResult.success) return { error: fileResult.error };
+        return { success: true, info: await getImageInfo(fileResult.content) };
+      } catch (err) { return { error: `Erro ao obter info da imagem: ${err.message}` }; }
+    }
+
+    // ─── Document Tools ─────────────────────────────────────────────────────
+    case 'create_pdf': {
+      try {
+        const docs = require('../media/documents');
+        const wsManager = require('../tools/workspace-manager');
+        const outputBuf = await docs.createPDF({
+          title: args.title,
+          content: args.content,
+          sections: args.sections,
+          fontSize: args.font_size,
+          width: args.width,
+          height: args.height,
+        });
+        const outputPath = args.filename || 'document.pdf';
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuf);
+        return { success: true, output: outputPath, format: 'pdf', size: outputBuf.length };
+      } catch (err) { return { error: `Erro ao criar PDF: ${err.message}` }; }
+    }
+
+    case 'create_docx': {
+      try {
+        const docs = require('../media/documents');
+        const wsManager = require('../tools/workspace-manager');
+        const outputBuf = await docs.createDOCX({
+          title: args.title,
+          content: args.content,
+          sections: args.sections,
+          table: args.table,
+        });
+        const outputPath = args.filename || 'document.docx';
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuf);
+        return { success: true, output: outputPath, format: 'docx', size: outputBuf.length };
+      } catch (err) { return { error: `Erro ao criar DOCX: ${err.message}` }; }
+    }
+
+    case 'create_xlsx': {
+      try {
+        const docs = require('../media/documents');
+        const wsManager = require('../tools/workspace-manager');
+        const outputBuf = await docs.createXLSX({
+          headers: args.headers,
+          rows: args.rows,
+        }, { sheetName: args.sheet_name });
+        const outputPath = args.filename || 'spreadsheet.xlsx';
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuf);
+        return { success: true, output: outputPath, format: 'xlsx', headers: args.headers?.length, rows: args.rows?.length, size: outputBuf.length };
+      } catch (err) { return { error: `Erro ao criar XLSX: ${err.message}` }; }
+    }
+
+    case 'create_archive': {
+      try {
+        const docs = require('../media/documents');
+        const wsManager = require('../tools/workspace-manager');
+        const files = [];
+        for (const f of (args.files || [])) {
+          const fileResult = await wsManager.readFile(args.workspace_id || 'default', f.path);
+          if (!fileResult.success) return { error: `Arquivo não encontrado: ${f.path}` };
+          files.push({ name: f.name || f.path, data: fileResult.content });
+        }
+        const outputBuf = await docs.createArchive(files, 'zip');
+        const outputPath = args.filename || 'archive.zip';
+        await wsManager.writeFile(args.workspace_id || 'default', outputPath, outputBuf);
+        return { success: true, output: outputPath, format: 'zip', file_count: files.length, size: outputBuf.length };
+      } catch (err) { return { error: `Erro ao criar arquivo ZIP: ${err.message}` }; }
+    }
+
     // ─── Workspace Tools ─────────────────────────────────────────────────
     case 'workspace_init': {
       try {
@@ -3229,6 +4118,113 @@ async function executeTool(name, args, context = {}) {
       } catch (err) {
         return { error: `Erro ao limpar workspace: ${err.message}` };
       }
+    }
+
+    // ─── Scheduling Tools ─────────────────────────────────────────────
+    case 'schedule_appointment': {
+      try {
+        const scheduling = require('../services/scheduling');
+        const startTime = `${args.date}T${args.time}:00`;
+        const appointment = await scheduling.bookSlot(args.persona_id, args.service_type_id, startTime, {
+          customerName: args.customer_name || context.userName || '',
+          customerPhone: args.customer_phone || '',
+          customerEmail: args.customer_email || '',
+          notes: args.notes || '',
+          ownerId: context.userId,
+        }, { syncToGoogle: true });
+        return { success: true, appointment, message: `Agendamento confirmado para ${args.date} às ${args.time}` };
+      } catch (err) { return { error: `Erro ao agendar: ${err.message}` }; }
+    }
+
+    case 'list_services': {
+      try {
+        const scheduling = require('../services/scheduling');
+        const services = await scheduling.getServiceTypes(args.persona_id);
+        return { services };
+      } catch (err) { return { error: `Erro ao listar serviços: ${err.message}` }; }
+    }
+
+    case 'list_available_slots': {
+      try {
+        const scheduling = require('../services/scheduling');
+        const slots = await scheduling.availableSlots(args.persona_id, args.service_type_id, args.date);
+        return { slots };
+      } catch (err) { return { error: `Erro ao buscar horários: ${err.message}` }; }
+    }
+
+    case 'list_appointments': {
+      try {
+        const scheduling = require('../services/scheduling');
+        const appointments = await scheduling.listAppointments(args.persona_id, {
+          status: args.status,
+          date_from: args.date_from,
+          date_to: args.date_to,
+        });
+        return { appointments };
+      } catch (err) { return { error: `Erro ao listar agendamentos: ${err.message}` }; }
+    }
+
+    case 'cancel_appointment': {
+      try {
+        const scheduling = require('../services/scheduling');
+        const result = await scheduling.cancelAppointment(args.appointment_id, args.reason || '');
+        return { success: true, message: 'Agendamento cancelado com sucesso' };
+      } catch (err) { return { error: `Erro ao cancelar: ${err.message}` }; }
+    }
+
+    // ─── Google Calendar Tools ─────────────────────────────────────────
+    case 'google_calendar_connect': {
+      try {
+        const googleCalendar = require('../google/calendar');
+        const url = await googleCalendar.getAuthUrl(args.user_id || context.userId);
+        return { success: true, url, message: 'Acesse o link para conectar seu Google Calendar' };
+      } catch (err) { return { error: `Erro ao conectar Google Calendar: ${err.message}` }; }
+    }
+
+    case 'google_calendar_events': {
+      try {
+        const googleCalendar = require('../google/calendar');
+        const events = await googleCalendar.listEvents(args.user_id || context.userId, args.calendar_id || 'primary', {
+          timeMin: args.time_min,
+          timeMax: args.time_max,
+          maxResults: args.max_results || 20,
+        });
+        return { events };
+      } catch (err) { return { error: `Erro ao listar eventos: ${err.message}` }; }
+    }
+
+    case 'google_calendar_create': {
+      try {
+        const googleCalendar = require('../google/calendar');
+        const event = await googleCalendar.createEvent(args.user_id || context.userId, {
+          summary: args.summary,
+          description: args.description,
+          location: args.location,
+          start: args.start,
+          end: args.end,
+          allDay: args.all_day || false,
+          timeZone: 'America/Sao_Paulo',
+          attendees: args.attendees || [],
+          sendUpdates: 'all',
+        }, args.calendar_id || 'primary');
+        return { success: true, event, message: `Evento "${args.summary}" criado no Google Calendar` };
+      } catch (err) { return { error: `Erro ao criar evento: ${err.message}` }; }
+    }
+
+    case 'google_calendar_delete': {
+      try {
+        const googleCalendar = require('../google/calendar');
+        await googleCalendar.deleteEvent(args.user_id || context.userId, args.event_id, args.calendar_id || 'primary');
+        return { success: true, message: 'Evento removido do Google Calendar' };
+      } catch (err) { return { error: `Erro ao remover evento: ${err.message}` }; }
+    }
+
+    case 'google_calendar_check_busy': {
+      try {
+        const googleCalendar = require('../google/calendar');
+        const busy = await googleCalendar.checkFreeBusy(args.user_id || context.userId, args.time_min, args.time_max, args.calendar_id || 'primary');
+        return { busy };
+      } catch (err) { return { error: `Erro ao verificar disponibilidade: ${err.message}` }; }
     }
 
     default: {

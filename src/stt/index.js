@@ -1,3 +1,4 @@
+const logger = require('../logger').child({ module: 'stt' });
 const { getSetting } = require('../settings');
 const { execFile } = require('child_process');
 const { promisify } = require('util');
@@ -130,7 +131,7 @@ async function transcribeWithWhisperCpp(audioBuffer, filename, language) {
 
     return null;
   } catch (err) {
-    console.error('[STT] whisper.cpp failed:', err.message);
+      logger.error('whisper.cpp failed', { error: err.message });
     return null;
   } finally {
     try { fs.unlinkSync(tmpInput); } catch {}
@@ -148,8 +149,12 @@ async function transcribeWithLocalWhisperServer(audioBuffer, filename, language)
   const lang = whisperCppLang(language);
 
   try {
+    const FormData = require('form-data');
     const formData = new FormData();
-    formData.append('file', new Blob([audioBuffer]), filename);
+    const ext = (filename || 'audio.ogg').split('.').pop().toLowerCase();
+    const contentTypeMap = { ogg: 'audio/ogg', opus: 'audio/opus', mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', flac: 'audio/flac', webm: 'audio/webm', mp4: 'audio/mp4' };
+    const ct = contentTypeMap[ext] || 'audio/ogg';
+    formData.append('file', audioBuffer, { filename: filename || 'audio.ogg', contentType: ct });
     formData.append('model', process.env.LOCAL_WHISPER_MODEL || 'whisper-1');
     formData.append('language', lang);
     formData.append('response_format', 'json');
@@ -160,6 +165,7 @@ async function transcribeWithLocalWhisperServer(audioBuffer, filename, language)
 
     const response = await fetch(`${serverUrl}/v1/audio/transcriptions`, {
       method: 'POST',
+      headers: { ...formData.getHeaders() },
       body: formData,
       signal: controller.signal,
     });
@@ -175,9 +181,9 @@ async function transcribeWithLocalWhisperServer(audioBuffer, filename, language)
     return data.text?.trim() || null;
   } catch (err) {
     if (err.name === 'AbortError') {
-      console.error('[STT] Local Whisper server timeout');
+      logger.error('Local Whisper server timeout');
     } else {
-      console.error('[STT] Local Whisper server failed:', err.message);
+      logger.error('Local Whisper server failed', { error: err.message });
     }
     return null;
   }
@@ -188,8 +194,12 @@ async function transcribeWithGroq(audioBuffer, filename, language) {
   const GROQ_BASE_URL = process.env.GROQ_BASE_URL || 'https://api.groq.com/openai/v1';
   if (!GROQ_API_KEY) return null;
 
+  const FormData = require('form-data');
   const formData = new FormData();
-  formData.append('file', new Blob([audioBuffer]), filename);
+  const ext = (filename || 'audio.ogg').split('.').pop().toLowerCase();
+  const contentTypeMap = { ogg: 'audio/ogg', opus: 'audio/opus', mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', flac: 'audio/flac', webm: 'audio/webm', mp4: 'audio/mp4' };
+  const ct = contentTypeMap[ext] || 'audio/ogg';
+  formData.append('file', audioBuffer, { filename: filename || 'audio.ogg', contentType: ct });
   formData.append('model', 'whisper-large-v3');
   formData.append('language', language);
   formData.append('response_format', 'json');
@@ -197,7 +207,10 @@ async function transcribeWithGroq(audioBuffer, filename, language) {
 
   const response = await fetch(`${GROQ_BASE_URL}/audio/transcriptions`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${GROQ_API_KEY}` },
+    headers: {
+      Authorization: `Bearer ${GROQ_API_KEY}`,
+      ...formData.getHeaders(),
+    },
     body: formData,
   });
 
@@ -215,8 +228,12 @@ async function transcribeWithOpenAI(audioBuffer, filename, language) {
   const OPENAI_BASE_URL = process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1';
   if (!OPENAI_API_KEY) return null;
 
+  const FormData = require('form-data');
   const formData = new FormData();
-  formData.append('file', new Blob([audioBuffer]), filename);
+  const ext = (filename || 'audio.ogg').split('.').pop().toLowerCase();
+  const contentTypeMap = { ogg: 'audio/ogg', opus: 'audio/opus', mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', flac: 'audio/flac', webm: 'audio/webm', mp4: 'audio/mp4' };
+  const ct = contentTypeMap[ext] || 'audio/ogg';
+  formData.append('file', audioBuffer, { filename: filename || 'audio.ogg', contentType: ct });
   formData.append('model', 'whisper-1');
   formData.append('language', language);
   formData.append('response_format', 'json');
@@ -224,7 +241,10 @@ async function transcribeWithOpenAI(audioBuffer, filename, language) {
 
   const response = await fetch(`${OPENAI_BASE_URL}/audio/transcriptions`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${OPENAI_API_KEY}` },
+    headers: {
+      Authorization: `Bearer ${OPENAI_API_KEY}`,
+      ...formData.getHeaders(),
+    },
     body: formData,
   });
 
@@ -241,7 +261,7 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
   if (!audioBuffer || audioBuffer.length === 0) return null;
 
   if (audioBuffer.length > MAX_AUDIO_SIZE) {
-    console.warn(`[STT] Audio too large: ${audioBuffer.length} bytes (max ${MAX_AUDIO_SIZE})`);
+    logger.warn(`Audio too large: ${audioBuffer.length} bytes (max ${MAX_AUDIO_SIZE})`);
     return null;
   }
 
@@ -259,7 +279,7 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
       }
     }
   } catch (err) {
-    console.warn('[STT] Audio normalization failed, using original:', err.message);
+    logger.warn('Audio normalization failed, using original', { error: err.message });
   }
 
   filename = sanitizeFilename(filename);
@@ -267,7 +287,7 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
 
   const sttSetting = await getSetting('stt_enabled', 'true');
   if (sttSetting === 'false') {
-    console.log('[STT] STT disabled by setting');
+    logger.info('STT disabled by setting');
     return null;
   }
 
@@ -276,18 +296,18 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
     const text = await integrations.callSTT(processedBuffer, filename, language);
     if (text) return postProcessTranscript(text, lang);
   } catch (err) {
-    console.error('[STT] IntegrationManager STT failed:', err.message);
+    logger.error('IntegrationManager STT failed', { error: err.message });
   }
 
   if (WHISPER_CPP_PATH && WHISPER_MODEL_PATH) {
     try {
       const text = await transcribeWithWhisperCpp(processedBuffer, filename, language);
       if (text) {
-        console.log('[STT] whisper.cpp transcription successful');
+        logger.info('whisper.cpp transcription successful');
         return postProcessTranscript(text, lang);
       }
     } catch (err) {
-      console.error('[STT] whisper.cpp failed:', err.message);
+    logger.error('whisper.cpp failed', { error: err.message });
     }
   }
 
@@ -296,11 +316,11 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
     try {
       const text = await transcribeWithLocalWhisperServer(processedBuffer, filename, language);
       if (text) {
-        console.log('[STT] Local Whisper server transcription successful');
+        logger.info('Local Whisper server transcription successful');
         return postProcessTranscript(text, lang);
       }
     } catch (err) {
-      console.error('[STT] Local Whisper server failed:', err.message);
+      logger.error('whisper.cpp failed', { error: err.message });
     }
   }
 
@@ -309,7 +329,7 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
       const text = await transcribeWithGroq(processedBuffer, filename, language);
       if (text) return postProcessTranscript(text, lang);
     } catch (err) {
-      console.error('[STT] Groq failed:', err.message);
+      logger.error('Groq failed', { error: err.message });
     }
   }
 
@@ -318,11 +338,11 @@ async function transcribeAudio(audioBuffer, filename = 'audio.ogg', language = '
       const text = await transcribeWithOpenAI(processedBuffer, filename, language);
       if (text) return postProcessTranscript(text, lang);
     } catch (err) {
-      console.error('[STT] OpenAI failed:', err.message);
+      logger.error('OpenAI failed', { error: err.message });
     }
   }
 
-  console.log('[STT] No transcription service available');
+  logger.info('No transcription service available');
   return null;
 }
 
@@ -337,7 +357,7 @@ async function transcribeForRAG(audioBuffer, filename = 'audio.ogg', language = 
     const text = await integrations.callSTT(audioBuffer, filename, language);
     if (text) return text.trim();
   } catch (err) {
-    console.error('[STT-RAG] IntegrationManager STT failed:', err.message);
+    logger.error('STT-RAG IntegrationManager STT failed', { error: err.message });
   }
 
   return await transcribeAudio(audioBuffer, filename, language);

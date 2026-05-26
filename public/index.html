@@ -10,6 +10,7 @@
   <script src="https://unpkg.com/vue@3/dist/vue.global.prod.js"></script>
   <script src="https://cdn.socket.io/4.8.3/socket.io.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.2.4/purify.min.js"></script>
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
   <link rel="stylesheet" href="css/style.css">
   <script>
     tailwind.config = {
@@ -23,6 +24,22 @@
       }
     }
   </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    .landing-page{position:relative;overflow:hidden}
+    #landing-canvas{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none}
+    .scanlines-overlay{position:fixed;inset:0;z-index:1;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,228,255,0.008) 2px,rgba(0,228,255,0.008) 4px)}
+    .animate-gradient{background-size:200% auto;animation:gradient-shift 4s ease infinite}
+    @keyframes gradient-shift{0%,100%{background-position:0% 50%}50%{background-position:100% 50%}}
+    .animate-fade-in{animation:fadeInUp 0.8s ease both}
+    @keyframes fadeInUp{from{opacity:0;transform:translateY(30px)}to{opacity:1;transform:translateY(0)}}
+    .landing-page section,.landing-page nav,.landing-page footer{position:relative;z-index:2}
+    .agent-card{position:relative;overflow:hidden;transition:all 0.4s cubic-bezier(0.2,0.8,0.2,1)}
+    .agent-card:hover{transform:translateY(-8px)}
+    .step-circle{width:40px;height:40px;border-radius:50%;background:#030712;border:2px solid;display:flex;align-items:center;justify-content:center;font-family:'Orbitron',sans-serif;font-size:13px;font-weight:700;flex-shrink:0}
+  </style>
 </head>
 <body class="bg-surface-900 text-white font-sans min-h-screen">
 
@@ -38,14 +55,17 @@
     </div>
   </div>
 
-  <!-- ==================== LANDING ==================== -->
-  <div v-if="view==='landing'" class="min-h-screen">
+      <!-- ==================== LANDING ==================== -->
+  <div v-if="view==='landing'" class="min-h-screen landing-page">
+    <canvas id="landing-canvas"></canvas>
+    <div class="scanlines-overlay"></div>
+
     <nav class="fixed top-0 left-0 right-0 z-50 backdrop-blur-lg bg-surface-900/80 border-b border-white/5">
       <div class="max-w-7xl mx-auto px-4 h-14 flex items-center justify-between">
         <div class="flex items-center gap-2">
           <img v-if="brandLogoUrl" :src="brandLogoUrl" class="h-8 w-8 rounded" />
           <span v-else class="text-xl">{{ brandIcon }}</span>
-          <span class="font-bold text-lg">{{ brandName }}</span>
+          <span class="font-bold text-lg" style="font-family:'Orbitron',sans-serif">{{ brandName }}</span>
         </div>
         <div class="flex items-center gap-4">
           <a href="#how" class="hidden sm:inline text-sm text-gray-400 hover:text-white transition">{{ t('howItWorks') }}</a>
@@ -62,50 +82,147 @@
       </div>
     </nav>
 
-    <section class="pt-24 pb-16 px-4">
+    <!-- HERO -->
+    <section class="pt-28 pb-20 px-4">
       <div class="max-w-4xl mx-auto text-center">
-        <div class="inline-flex items-center gap-2 bg-brand-500/10 border border-brand-500/20 rounded-full px-4 py-1.5 mb-6">
-          <span class="w-2 h-2 bg-brand-500 rounded-full animate-pulse"></span>
-          <span class="text-sm text-brand-400">{{ currentLang === 'en-US' ? 'AI Agent Infrastructure' : currentLang === 'es-ES' ? 'Infraestructura de Agentes IA' : 'Infraestrutura de Agentes IA' }}</span>
+        <div class="inline-flex items-center gap-2 bg-cyan-400/10 border border-cyan-400/20 rounded-full px-4 py-1.5 mb-8 animate-fade-in">
+          <span class="w-2 h-2 bg-cyan-400 rounded-full animate-pulse"></span>
+          <span class="text-sm text-cyan-400" style="font-family:'JetBrains Mono',monospace">{{ currentLang === 'en-US' ? 'Cognitive Operating System' : currentLang === 'es-ES' ? 'Sistema Operativo Cognitivo' : 'Sistema Operacional Cognitivo' }}</span>
         </div>
-        <h1 class="text-4xl sm:text-5xl font-bold mb-6 leading-tight">
-          {{ currentLang === 'en-US' ? 'AI agents that' : currentLang === 'es-ES' ? 'Agentes IA que' : 'Agentes IA que' }} <span class="text-brand-400">{{ currentLang === 'en-US' ? 'teach, sell, coach and evolve.' : currentLang === 'es-ES' ? 'enseñan, venden, orientan y evolucionan.' : 'ensinam, vendem, orientam e evoluem.' }}</span>
+        <h1 class="text-4xl sm:text-6xl font-black mb-6 leading-tight animate-fade-in" style="font-family:'Orbitron',sans-serif;animation-delay:0.2s">
+          <span class="block text-white/40 text-lg sm:text-xl font-normal mb-2" style="font-family:'JetBrains Mono',monospace;letter-spacing:0.15em">{{ currentLang === 'en-US' ? 'NOT A CHATBOT.' : currentLang === 'es-ES' ? 'NO ES UN CHATBOT.' : 'NÃO É UM CHATBOT.' }}</span>
+          {{ currentLang === 'en-US' ? 'Agents with' : currentLang === 'es-ES' ? 'Agentes con' : 'Agentes com' }}
+          <span class="animate-gradient bg-gradient-to-r from-cyan-400 via-brand-400 to-purple-400 bg-clip-text text-transparent">{{ currentLang === 'en-US' ? 'memory, goals & autonomy' : currentLang === 'es-ES' ? 'memoria, objetivos y autonomía' : 'memória, objetivos e autonomia' }}</span>
         </h1>
-        <p class="text-lg text-gray-400 mb-8 max-w-2xl mx-auto">{{ currentLang === 'en-US' ? 'Language tutors, sales coaches, therapists, exam prep — cognitive agents with memory, goals, skills and autonomy. Not chatbots.' : currentLang === 'es-ES' ? 'Tutores de idiomas, coaches de ventas, terapeutas, preparación de exámenes — agentes cognitivos con memoria, objetivos, skills y autonomía. No chatbots.' : 'Tutores de idiomas, coaches de vendas, terapeutas, preparação para provas — agentes cognitivos com memória, objetivos, skills e autonomia. Não chatbots.' }}</p>
-        <div class="flex flex-col sm:flex-row gap-3 justify-center">
-          <button @click="showAuth('register')" class="bg-brand-500 hover:bg-brand-600 text-white px-8 py-3 rounded-xl font-medium transition flex items-center justify-center gap-2">
+        <p class="text-lg text-gray-400 mb-10 max-w-2xl mx-auto animate-fade-in" style="animation-delay:0.4s">{{ currentLang === 'en-US' ? 'Describe what you need. The meta-persona builds a complete cognitive agent — personality, knowledge, goals, skills, voice. It remembers, adapts, schedules, sells, teaches, and evolves. On WhatsApp, Telegram, or web.' : currentLang === 'es-ES' ? 'Describe lo que necesitas. La meta-persona construye un agente cognitivo completo — personalidad, conocimiento, objetivos, skills, voz. Recuerda, adapta, agenda, vende, enseña y evoluciona. En WhatsApp, Telegram o web.' : 'Descreva o que precisa. A meta-persona constrói um agente cognitivo completo — personalidade, conhecimento, objetivos, skills, voz. Lembra, adapta, agenda, vende, ensina e evolui. No WhatsApp, Telegram ou web.' }}</p>
+        <div class="flex flex-col sm:flex-row gap-3 justify-center animate-fade-in" style="animation-delay:0.6s">
+          <button @click="showAuth('register')" class="bg-cyan-400 hover:bg-cyan-300 text-surface-900 px-8 py-3 rounded-xl font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-cyan-400/25">
             {{ t('startFree') }}
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
           </button>
-          <a href="#how" class="border border-white/20 hover:border-white/40 text-white px-8 py-3 rounded-xl font-medium transition">{{ t('seeHow') }}</a>
+          <a href="#how" class="border border-white/20 hover:border-cyan-400/40 hover:bg-white/5 text-white px-8 py-3 rounded-xl font-medium transition">{{ t('seeHow') }}</a>
         </div>
       </div>
     </section>
 
-    <section id="how" class="py-16 px-4 bg-surface-800/50">
+    <!-- LIVE DEMO STRIP -->
+    <section class="py-6 px-4 border-y border-white/5 bg-surface-900">
+      <div class="max-w-5xl mx-auto flex flex-wrap justify-center gap-x-8 gap-y-2 text-sm" style="font-family:'JetBrains Mono',monospace">
+        <span class="text-cyan-400/80">synapse.<span class="text-white/30">engine</span></span>
+        <span class="text-brand-400/80">goal.<span class="text-white/30">stack</span></span>
+        <span class="text-purple-400/80">cognitive.<span class="text-white/30">layer</span></span>
+        <span class="text-green-400/80">rag.<span class="text-white/30">pipeline</span></span>
+        <span class="text-pink-400/80">skill.<span class="text-white/30">runtime</span></span>
+        <span class="text-orange-400/80">event.<span class="text-white/30">bus</span></span>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section id="how" class="py-20 px-4 bg-surface-800/50">
       <div class="max-w-5xl mx-auto">
-        <div class="text-center mb-12">
-          <span class="text-brand-400 text-sm font-medium">{{ t('howItWorks') }}</span>
-          <h2 class="text-3xl font-bold mt-2">{{ currentLang === 'en-US' ? 'From a phrase to an operational agent in seconds.' : currentLang === 'es-ES' ? 'De una frase a un agente operacional en segundos.' : 'De uma frase a um agente operacional em segundos.' }}</h2>
+        <div class="text-center mb-14">
+          <span class="text-cyan-400 text-sm font-medium" style="font-family:'JetBrains Mono',monospace">{{ t('howItWorks') }}</span>
+          <h2 class="text-3xl font-bold mt-2" style="font-family:'Orbitron',sans-serif">{{ currentLang === 'en-US' ? 'One sentence. Full agent.' : currentLang === 'es-ES' ? 'Una frase. Agente completo.' : 'Uma frase. Agente completo.' }}</h2>
+          <p class="text-gray-500 mt-3 max-w-xl mx-auto text-sm">{{ currentLang === 'en-US' ? 'No config files. No prompt engineering. Just describe what you need — the meta-persona architects the rest.' : currentLang === 'es-ES' ? 'Sin archivos de configuración. Sin prompt engineering. Solo describe lo que necesitas — la meta-persona arquitecta el resto.' : 'Sem arquivos de configuração. Sem prompt engineering. Só descreva o que precisa — a meta-persona arquiteta o resto.' }}</p>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-5 gap-4 items-center">
-          <div class="bg-surface-800 rounded-xl p-4 text-center"><div class="text-2xl mb-2">💬</div><div class="text-sm font-medium">{{ currentLang === 'en-US' ? 'Describe' : currentLang === 'es-ES' ? 'Describe' : 'Descreva' }}</div><div class="text-xs text-gray-500">{{ currentLang === 'en-US' ? '"I want a sales AI"' : currentLang === 'es-ES' ? '"Quiero una IA de ventas"' : '"Quero uma IA de vendas"' }}</div></div>
-          <div class="text-brand-400 text-center hidden sm:block">→</div>
-          <div class="bg-surface-800 rounded-xl p-4 text-center"><div class="text-2xl mb-2">🧠</div><div class="text-sm font-medium">{{ currentLang === 'en-US' ? 'Meta-persona creates' : currentLang === 'es-ES' ? 'Meta-persona crea' : 'Meta-persona cria' }}</div><div class="text-xs text-gray-500">{{ currentLang === 'en-US' ? 'Complete persona' : currentLang === 'es-ES' ? 'Persona completa' : 'Persona completa' }}</div></div>
-          <div class="text-brand-400 text-center hidden sm:block">→</div>
-          <div class="bg-surface-800 rounded-xl p-4 text-center"><div class="text-2xl mb-2">⚡</div><div class="text-sm font-medium">{{ currentLang === 'en-US' ? 'Operates' : currentLang === 'es-ES' ? 'Opera' : 'Opera' }}</div><div class="text-xs text-gray-500">{{ currentLang === 'en-US' ? 'Schedules, tracks, acts' : currentLang === 'es-ES' ? 'Agenda, acompaña, actúa' : 'Agenda, acompanha, age' }}</div></div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-8">
+          <div class="agent-card bg-surface-800/80 border border-white/5 rounded-xl p-6 text-center hover:border-cyan-400/40">
+            <div class="step-circle mx-auto mb-4 border-cyan-400 text-cyan-400" style="box-shadow:0 0 15px rgba(0,228,255,0.3)">01</div>
+            <div class="text-3xl mb-3">💬</div>
+            <h3 class="font-medium mb-1">{{ currentLang === 'en-US' ? 'Describe' : currentLang === 'es-ES' ? 'Describe' : 'Descreva' }}</h3>
+            <p class="text-sm text-gray-400">{{ currentLang === 'en-US' ? '"I need a sales agent for my real estate office that qualifies leads on WhatsApp"' : currentLang === 'es-ES' ? '"Necesito un agente de ventas para mi inmobiliaria que califique leads en WhatsApp"' : '"Preciso de um agente de vendas para meu imobiliário que qualifique leads no WhatsApp"' }}</p>
+          </div>
+          <div class="agent-card bg-surface-800/80 border border-white/5 rounded-xl p-6 text-center hover:border-brand-400/40">
+            <div class="step-circle mx-auto mb-4 border-brand-400 text-brand-400" style="box-shadow:0 0 15px rgba(212,168,67,0.3)">02</div>
+            <div class="text-3xl mb-3">🧠</div>
+            <h3 class="font-medium mb-1">{{ currentLang === 'en-US' ? 'Meta-persona builds' : currentLang === 'es-ES' ? 'Meta-persona construye' : 'Meta-persona constrói' }}</h3>
+            <p class="text-sm text-gray-400">{{ currentLang === 'en-US' ? 'Persona + onboarding + knowledge + goals + conversation stages + gamification + automations' : currentLang === 'es-ES' ? 'Persona + onboarding + conocimiento + objetivos + etapas de conversación + gamificación + automatizaciones' : 'Persona + onboarding + conhecimento + objetivos + estágios de conversa + gamificação + automações' }}</p>
+          </div>
+          <div class="agent-card bg-surface-800/80 border border-white/5 rounded-xl p-6 text-center hover:border-purple-400/40">
+            <div class="step-circle mx-auto mb-4 border-purple-400 text-purple-400" style="box-shadow:0 0 15px rgba(167,139,250,0.3)">03</div>
+            <div class="text-3xl mb-3">⚡</div>
+            <h3 class="font-medium mb-1">{{ currentLang === 'en-US' ? 'It operates' : currentLang === 'es-ES' ? 'Opera' : 'Opera' }}</h3>
+            <p class="text-sm text-gray-400">{{ currentLang === 'en-US' ? 'Remembers every user. Tracks goals. Sends follow-ups. Books meetings. Closes deals. 24/7.' : currentLang === 'es-ES' ? 'Recuerda cada usuario. Rastrea objetivos. Envía seguimientos. Agenda reuniones. Cierra tratos. 24/7.' : 'Lembra de cada usuário. Rastreia objetivos. Envia follow-ups. Agenda reuniões. Fecha negócios. 24/7.' }}</p>
+          </div>
         </div>
       </div>
     </section>
 
-    <section id="features" class="py-16 px-4">
+    <!-- WHAT MAKES IT DIFFERENT -->
+    <section class="py-20 px-4">
       <div class="max-w-5xl mx-auto">
-        <div class="text-center mb-12">
-          <span class="text-brand-400 text-sm font-medium">{{ currentLang === 'en-US' ? 'What your AI can do' : currentLang === 'es-ES' ? 'Lo que tu IA puede hacer' : 'O que sua IA consegue fazer' }}</span>
-          <h2 class="text-3xl font-bold mt-2">{{ currentLang === 'en-US' ? 'Agent, not assistant.' : currentLang === 'es-ES' ? 'Agente, no asistente.' : 'Agente, não assistente.' }}</h2>
+        <div class="text-center mb-14">
+          <span class="text-purple-400 text-sm font-medium" style="font-family:'JetBrains Mono',monospace">{{ currentLang === 'en-US' ? 'WHY THIS IS DIFFERENT' : currentLang === 'es-ES' ? 'POR QUÉ ES DIFERENTE' : 'POR QUE ISSO É DIFERENTE' }}</span>
+          <h2 class="text-3xl font-bold mt-2" style="font-family:'Orbitron',sans-serif">{{ currentLang === 'en-US' ? 'Not another chatbot wrapper.' : currentLang === 'es-ES' ? 'No es otro wrapper de chatbot.' : 'Não é mais um wrapper de chatbot.' }}</h2>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div class="agent-card bg-surface-800/50 border border-white/5 rounded-xl p-5 hover:border-cyan-400/30">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-lg bg-cyan-400/10 flex items-center justify-center text-cyan-400 shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg></div>
+              <div>
+                <h3 class="font-medium mb-1">{{ currentLang === 'en-US' ? 'Synapse Engine' : currentLang === 'es-ES' ? 'Synapse Engine' : 'Synapse Engine' }}</h3>
+                <p class="text-sm text-gray-400">{{ currentLang === 'en-US' ? '7 context layers compiled into every prompt. Emotion, intent, churn risk, engagement — the agent perceives the human.' : currentLang === 'es-ES' ? '7 capas de contexto compiladas en cada prompt. Emoción, intención, riesgo de churn, engagement — el agente percibe al humano.' : '7 camadas de contexto compiladas em cada prompt. Emoção, intenção, churn risk, engagement — o agente percebe o humano.' }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="agent-card bg-surface-800/50 border border-white/5 rounded-xl p-5 hover:border-brand-400/30">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-lg bg-brand-400/10 flex items-center justify-center text-brand-400 shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M13 10V3L4 14h7v7l9-11h-7z"/></svg></div>
+              <div>
+                <h3 class="font-medium mb-1">{{ currentLang === 'en-US' ? 'Goal Stack' : currentLang === 'es-ES' ? 'Goal Stack' : 'Goal Stack' }}</h3>
+                <p class="text-sm text-gray-400">{{ currentLang === 'en-US' ? 'Hierarchical goals injected into every response. Strategic → tactical → operational. The agent always knows what it\'s working toward.' : currentLang === 'es-ES' ? 'Objetivos jerárquicos inyectados en cada respuesta. Estratégicos → tácticos → operacionales. El agente siempre sabe hacia dónde va.' : 'Objetivos hierárquicos injetados em cada resposta. Estratégicos → táticos → operacionais. O agente sempre sabe pra onde vai.' }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="agent-card bg-surface-800/50 border border-white/5 rounded-xl p-5 hover:border-purple-400/30">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-lg bg-purple-400/10 flex items-center justify-center text-purple-400 shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"/></svg></div>
+              <div>
+                <h3 class="font-medium mb-1">{{ currentLang === 'en-US' ? 'Organizational Memory' : currentLang === 'es-ES' ? 'Memoria Organizacional' : 'Memória Organizacional' }}</h3>
+                <p class="text-sm text-gray-400">{{ currentLang === 'en-US' ? 'Not document RAG. The company\'s operational brain — products, pricing, policies, FAQ — searched and injected per persona.' : currentLang === 'es-ES' ? 'No es RAG de documentos. El cerebro operacional de la empresa — productos, precios, políticas, FAQ — buscado e inyectado por persona.' : 'Não é RAG de documentos. O cérebro operacional da empresa — produtos, preços, políticas, FAQ — buscado e injetado por persona.' }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="agent-card bg-surface-800/50 border border-white/5 rounded-xl p-5 hover:border-green-400/30">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-lg bg-green-400/10 flex items-center justify-center text-green-400 shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg></div>
+              <div>
+                <h3 class="font-medium mb-1">{{ currentLang === 'en-US' ? 'Proactive Engine' : currentLang === 'es-ES' ? 'Motor Proactivo' : 'Motor Proativo' }}</h3>
+                <p class="text-sm text-gray-400">{{ currentLang === 'en-US' ? 'The agent reaches out — study reminders, follow-ups, abandoned cart recovery, streak notifications. Not reactive. Proactive.' : currentLang === 'es-ES' ? 'El agente toma la iniciativa — recordatorios de estudio, seguimientos, recuperación de carritos, notificaciones de rachas. No reactivo. Proactivo.' : 'O agente toma a iniciativa — lembretes de estudo, follow-ups, recuperação de carrinho, notificações de streaks. Não reativo. Proativo.' }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="agent-card bg-surface-800/50 border border-white/5 rounded-xl p-5 hover:border-pink-400/30">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-lg bg-pink-400/10 flex items-center justify-center text-pink-400 shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"/></svg></div>
+              <div>
+                <h3 class="font-medium mb-1">{{ currentLang === 'en-US' ? 'WhatsApp Commerce' : currentLang === 'es-ES' ? 'Comercio por WhatsApp' : 'Comércio por WhatsApp' }}</h3>
+                <p class="text-sm text-gray-400">{{ currentLang === 'en-US' ? 'Catalog, cart, checkout, delivery zones, coupons, loyalty points, cashback — sell products directly in the conversation.' : currentLang === 'es-ES' ? 'Catálogo, carrito, checkout, zonas de entrega, cupones, puntos de lealtad, cashback — vende productos directamente en la conversación.' : 'Catálogo, carrinho, checkout, zonas de entrega, cupons, pontos de fidelidade, cashback — venda produtos direto na conversa.' }}</p>
+              </div>
+            </div>
+          </div>
+          <div class="agent-card bg-surface-800/50 border border-white/5 rounded-xl p-5 hover:border-orange-400/30">
+            <div class="flex items-start gap-3">
+              <div class="w-10 h-10 rounded-lg bg-orange-400/10 flex items-center justify-center text-orange-400 shrink-0"><svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg></div>
+              <div>
+                <h3 class="font-medium mb-1">{{ currentLang === 'en-US' ? '80+ LLM Tools' : currentLang === 'es-ES' ? '80+ Herramientas LLM' : '80+ Ferramentas LLM' }}</h3>
+                <p class="text-sm text-gray-400">{{ currentLang === 'en-US' ? 'Tasks, calendar, CRM, skills, conclave debates, vision, quizzes, ERP, B2B prospecting — the agent acts, it doesn\'t just talk.' : currentLang === 'es-ES' ? 'Tareas, calendario, CRM, skills, debates de conclave, visión, quizzes, ERP, prospección B2B — el agente actúa, no solo habla.' : 'Tarefas, calendário, CRM, skills, debates de conclave, visão, quizzes, ERP, prospecção B2B — o agente age, não só fala.' }}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- USE CASES -->
+    <section id="features" class="py-20 px-4 bg-surface-800/50">
+      <div class="max-w-5xl mx-auto">
+        <div class="text-center mb-14">
+          <span class="text-brand-400 text-sm font-medium" style="font-family:'JetBrains Mono',monospace">{{ currentLang === 'en-US' ? 'WHAT CAN YOU BUILD' : currentLang === 'es-ES' ? 'QUÉ PUEDES CONSTRUIR' : 'O QUE VOCÊ PODE CONSTRUIR' }}</span>
+          <h2 class="text-3xl font-bold mt-2" style="font-family:'Orbitron',sans-serif">{{ currentLang === 'en-US' ? 'One platform. Infinite agents.' : currentLang === 'es-ES' ? 'Una plataforma. Infinitos agentes.' : 'Uma plataforma. Infinitos agentes.' }}</h2>
         </div>
         <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          <div v-for="f in features" :key="f.title" class="bg-surface-800/50 border border-white/5 rounded-xl p-5 hover:border-brand-500/30 transition">
+          <div v-for="f in features" :key="f.title" class="agent-card bg-surface-800/50 border border-white/5 rounded-xl p-5 hover:border-brand-500/30 transition">
             <div class="text-2xl mb-3">{{ f.icon }}</div>
             <h3 class="font-medium mb-1">{{ f.title }}</h3>
             <p class="text-sm text-gray-400">{{ f.desc }}</p>
@@ -114,9 +231,22 @@
       </div>
     </section>
 
-    <section class="py-16 px-4 bg-surface-800/50">
+    <!-- BLUEPRINT STRIP -->
+    <section class="py-12 px-4">
+      <div class="max-w-4xl mx-auto text-center">
+        <div class="inline-flex items-center gap-2 bg-purple-400/10 border border-purple-400/20 rounded-full px-4 py-1.5 mb-6">
+          <span class="text-sm text-purple-400" style="font-family:'JetBrains Mono',monospace">{{ currentLang === 'en-US' ? 'BLUEPRINTS' : currentLang === 'es-ES' ? 'BLUEPRINTS' : 'BLUEPRINTS' }}</span>
+        </div>
+        <h2 class="text-2xl font-bold mb-4" style="font-family:'Orbitron',sans-serif">{{ currentLang === 'en-US' ? 'Start from a template. Or start from zero.' : currentLang === 'es-ES' ? 'Empieza desde una plantilla. O empieza desde cero.' : 'Comece de um template. Ou comece do zero.' }}</h2>
+        <p class="text-gray-400 mb-8">{{ currentLang === 'en-US' ? 'Sales coach. Language tutor. Nutritionist. AI store. Real estate agent. Therapist. Exam prep. Choose a blueprint and customize, or describe from scratch — the meta-persona builds it either way.' : currentLang === 'es-ES' ? 'Coach de ventas. Tutor de idiomas. Nutricionista. Tienda IA. Agente inmobiliario. Terapeuta. Preparación de exámenes. Elige un blueprint y personaliza, o describe desde cero — la meta-persona lo construye de cualquier forma.' : 'Coach de vendas. Tutor de idiomas. Nutricionista. Loja IA. Agente imobiliário. Terapeuta. Preparação para provas. Escolha um blueprint e customize, ou descreva do zero — a meta-persona constrói de qualquer forma.' }}</p>
+        <button @click="showAuth('register')" class="bg-purple-400 hover:bg-purple-300 text-surface-900 px-8 py-3 rounded-xl font-bold transition shadow-lg shadow-purple-400/25">{{ currentLang === 'en-US' ? 'Start building' : currentLang === 'es-ES' ? 'Empezar a construir' : 'Começar a construir' }}</button>
+      </div>
+    </section>
+
+    <!-- SUPPORT -->
+    <section class="py-20 px-4 bg-surface-800/50">
       <div class="max-w-3xl mx-auto text-center">
-        <h2 class="text-2xl font-bold mb-4">{{ t('supportProject') }}</h2>
+        <h2 class="text-2xl font-bold mb-4" style="font-family:'Orbitron',sans-serif">{{ t('supportProject') }}</h2>
         <p class="text-gray-400 mb-6">{{ t('contributeDesc') }}</p>
         <button @click="showDonate=true" class="bg-brand-500 hover:bg-brand-600 text-white px-6 py-2.5 rounded-xl font-medium transition">{{ t('contributeBtn') }}</button>
       </div>
@@ -124,7 +254,7 @@
 
     <footer class="py-8 px-4 border-t border-white/5">
       <div class="max-w-5xl mx-auto text-center text-sm text-gray-500">
-        {{ brandName }} — {{ currentLang === 'en-US' ? 'Cognitive agent platform with multimodal RAG and multi-persona.' : currentLang === 'es-ES' ? 'Plataforma de agentes cognitivos con RAG multimodal y multi-persona.' : 'Plataforma de agentes cognitivos com RAG multimodal e multi-persona.' }}
+        {{ brandName }} — {{ currentLang === 'en-US' ? 'Cognitive Operating System. Not a chatbot.' : currentLang === 'es-ES' ? 'Sistema Operativo Cognitivo. No un chatbot.' : 'Sistema Operacional Cognitivo. Não um chatbot.' }}
         <span class="block mt-2">
           <a href="/privacidade" class="text-brand-400 hover:underline">Privacidade</a> ·
           <a href="/cookies" class="text-brand-400 hover:underline">Cookies</a> ·
@@ -133,7 +263,6 @@
       </div>
     </footer>
   </div>
-
   <!-- ==================== AUTH MODAL ==================== -->
   <div v-if="showAuthModal" class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm" @click.self="showAuthModal=false">
     <div class="bg-surface-800 border border-white/10 rounded-2xl p-6 w-full max-w-sm mx-4">
@@ -223,6 +352,10 @@
         <button @click="sidebarTab='search'" :class="['flex-1 py-2 text-xs font-medium transition flex flex-col items-center gap-0.5', sidebarTab==='search' ? 'text-brand-400 border-b-2 border-brand-400' : 'text-gray-500 hover:text-gray-300']" :title="t('search')">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
           <span class="text-[10px]">{{ t('search') }}</span>
+        </button>
+        <button @click="sidebarTab='cockpit'" :class="['flex-1 py-2 text-xs font-medium transition flex flex-col items-center gap-0.5', sidebarTab==='cockpit' ? 'text-brand-400 border-b-2 border-brand-400' : 'text-gray-500 hover:text-gray-300']" title="Cockpit">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <span class="text-[10px]">Cockpit</span>
         </button>
       </div>
 
@@ -488,6 +621,97 @@
                 <span v-if="item.size" class="text-[9px] text-gray-600">{{ formatFileSize(item.size) }}</span>
               </div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cockpit (dashboard tab) -->
+      <div v-show="sidebarTab==='cockpit'" class="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+        <!-- System Stats -->
+        <div class="bg-surface-700/50 border border-white/5 rounded-lg p-3">
+          <div class="text-xs font-medium text-brand-400 mb-2">Sistema</div>
+          <div class="grid grid-cols-3 gap-2">
+            <div class="text-center">
+              <div class="text-lg font-bold text-white">{{ cockpitStats.cpu || '--' }}</div>
+              <div class="text-[10px] text-gray-500">CPU</div>
+            </div>
+            <div class="text-center">
+              <div class="text-lg font-bold text-white">{{ cockpitStats.ram || '--' }}</div>
+              <div class="text-[10px] text-gray-500">RAM</div>
+            </div>
+            <div class="text-center">
+              <div class="text-lg font-bold text-white">{{ cockpitStats.uptime || '--' }}</div>
+              <div class="text-[10px] text-gray-500">Uptime</div>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 mt-2 text-xs">
+            <span class="inline-block w-2 h-2 rounded-full" :class="cockpitStats.apiOnline ? 'bg-green-400' : 'bg-red-400'"></span>
+            <span :class="cockpitStats.apiOnline ? 'text-green-400' : 'text-red-400'">API {{ cockpitStats.apiOnline ? 'Online' : 'Offline' }}</span>
+          </div>
+        </div>
+
+        <!-- Cognitive State -->
+        <div class="bg-surface-700/50 border border-white/5 rounded-lg p-3">
+          <div class="text-xs font-medium text-brand-400 mb-2">Estado Cognitivo</div>
+          <div class="grid grid-cols-2 gap-2 text-xs">
+            <div>
+              <span class="text-gray-500">Emocao:</span>
+              <span class="text-white ml-1">{{ cockpitCognitive.emotion || '--' }}</span>
+            </div>
+            <div>
+              <span class="text-gray-500">Engajamento:</span>
+              <span class="text-white ml-1">{{ cockpitCognitive.engagement || '--' }}</span>
+            </div>
+            <div>
+              <span class="text-gray-500">Intencao:</span>
+              <span class="text-white ml-1">{{ cockpitCognitive.intent || '--' }}</span>
+            </div>
+            <div>
+              <span class="text-gray-500">Risco Churn:</span>
+              <span class="text-white ml-1">{{ cockpitCognitive.churnRisk || '--' }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Personas -->
+        <div class="bg-surface-700/50 border border-white/5 rounded-lg p-3">
+          <div class="text-xs font-medium text-brand-400 mb-2">Personas</div>
+          <div v-if="cockpitPersonas.length === 0" class="text-[10px] text-gray-500">Carregando...</div>
+          <div v-for="p in cockpitPersonas" :key="p.id" @click="switchPersona(p.id)" :class="['flex items-center gap-2 p-1.5 rounded cursor-pointer transition mb-0.5', p.id === currentPersonaId ? 'bg-brand-500/15 border border-brand-500/30' : 'hover:bg-surface-600']">
+            <img v-if="p.avatarUrl" :src="p.avatarUrl" class="w-5 h-5 rounded-full" @error="$event.target.style.display='none'">
+            <span class="text-xs" :class="p.id === currentPersonaId ? 'text-brand-300' : 'text-gray-300'">{{ p.name }}</span>
+            <span v-if="p.id === currentPersonaId" class="ml-auto w-1.5 h-1.5 rounded-full bg-green-400"></span>
+          </div>
+        </div>
+
+        <!-- Knowledge & Skills -->
+        <div class="bg-surface-700/50 border border-white/5 rounded-lg p-3">
+          <div class="text-xs font-medium text-brand-400 mb-2">Conhecimento</div>
+          <div class="flex items-center justify-between text-xs">
+            <span class="text-gray-400">Documentos:</span>
+            <span class="text-white">{{ cockpitKnowledge.total || '--' }}</span>
+          </div>
+          <div class="flex items-center justify-between text-xs mt-1">
+            <span class="text-gray-400">Skills:</span>
+            <span class="text-white">{{ cockpitSkills.length || '--' }}</span>
+          </div>
+        </div>
+
+        <!-- Event Log (Terminal) -->
+        <div class="bg-surface-700/50 border border-white/5 rounded-lg p-3">
+          <div class="flex items-center justify-between mb-2">
+            <div class="text-xs font-medium text-brand-400">Terminal</div>
+            <button @click="cockpitLog = []" class="text-[10px] text-gray-500 hover:text-gray-300 transition">Limpar</button>
+          </div>
+          <div class="bg-surface-900 rounded px-2 py-1.5 max-h-32 overflow-y-auto font-mono text-[10px] leading-relaxed" ref="cockpitTerminal">
+            <div v-if="cockpitLog.length === 0" class="text-gray-600">Aguardando eventos...</div>
+            <div v-for="(entry, i) in cockpitLog.slice(-50)" :key="i" :class="entry.type === 'error' ? 'text-red-400' : entry.type === 'xp' ? 'text-yellow-400' : entry.type === 'badge' ? 'text-purple-400' : 'text-gray-400'">
+              <span class="text-gray-600">[{{ entry.time }}]</span> {{ entry.msg }}
+            </div>
+          </div>
+          <div class="flex gap-1 mt-2">
+            <input v-model="cockpitInput" @keydown.enter="sendCockpitCommand" type="text" placeholder="/dashboard, /tasks, /goals..." class="flex-1 bg-surface-900 border border-white/10 rounded px-2 py-1 text-[10px] font-mono focus:outline-none focus:border-brand-500 text-gray-300">
+            <button @click="sendCockpitCommand" class="bg-brand-500 hover:bg-brand-600 text-white rounded px-2 py-1 text-[10px] font-medium transition">Enviar</button>
           </div>
         </div>
       </div>
@@ -874,5 +1098,75 @@
 </div>
 
 <script src="js/app.js?v=6"></script>
+<script>
+// Neural Canvas Animation
+(function(){
+  const canvas = document.getElementById('landing-canvas');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  let w, h, particles = [], mouse = {x: null, y: null};
+  const PARTICLE_COUNT = 80;
+  const CONNECTION_DIST = 150;
+
+  function resize(){
+    w = canvas.width = window.innerWidth;
+    h = canvas.height = window.innerHeight;
+  }
+
+  class Particle {
+    constructor(){
+      this.x = Math.random() * w;
+      this.y = Math.random() * h;
+      this.vx = (Math.random() - 0.5) * 0.5;
+      this.vy = (Math.random() - 0.5) * 0.5;
+      this.r = Math.random() * 2 + 1;
+    }
+    update(){
+      this.x += this.vx;
+      this.y += this.vy;
+      if(this.x < 0 || this.x > w) this.vx *= -1;
+      if(this.y < 0 || this.y > h) this.vy *= -1;
+    }
+    draw(){
+      ctx.beginPath();
+      ctx.arc(this.x, this.y, this.r, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(0, 228, 255, 0.5)';
+      ctx.fill();
+    }
+  }
+
+  function init(){
+    resize();
+    particles = [];
+    for(let i = 0; i < PARTICLE_COUNT; i++) particles.push(new Particle());
+  }
+
+  function animate(){
+    ctx.clearRect(0, 0, w, h);
+    for(let i = 0; i < particles.length; i++){
+      particles[i].update();
+      particles[i].draw();
+      for(let j = i + 1; j < particles.length; j++){
+        const dx = particles[i].x - particles[j].x;
+        const dy = particles[i].y - particles[j].y;
+        const dist = Math.sqrt(dx*dx + dy*dy);
+        if(dist < CONNECTION_DIST){
+          ctx.beginPath();
+          ctx.moveTo(particles[i].x, particles[i].y);
+          ctx.lineTo(particles[j].x, particles[j].y);
+          ctx.strokeStyle = `rgba(0, 228, 255, ${0.15 * (1 - dist/CONNECTION_DIST)})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+    }
+    requestAnimationFrame(animate);
+  }
+
+  window.addEventListener('resize', resize);
+  init();
+  animate();
+})();
+</script>
 </body>
 </html>

@@ -1,4 +1,5 @@
 ﻿require('dotenv').config();
+const logger = require('../logger').child({ module: 'integrations' });
 const { pool } = require('../db');
 
 const SERVICE_TYPES = {
@@ -70,11 +71,11 @@ class IntegrationManager {
       for (const [type, list] of Object.entries(this.integrations)) {
         summary[type] = { total: list.length, healthy: list.filter(k => k.healthy).length };
       }
-      console.log('[Integrations] Loaded:', JSON.stringify(summary));
+      logger.info('Loaded integrations', { summary });
       this._startHealthChecks();
 
     } catch (err) {
-      console.error('[Integrations] Load failed:', err.message);
+      logger.error('Load failed', { error: err.message });
       this._loadFromEnv();
       this.loaded = true;
     }
@@ -110,7 +111,7 @@ class IntegrationManager {
               lastHealthCheck: null, rateLimitRemaining: null, extraConfig: {},
             });
           }
-          console.log(`[Integrations] Loaded ${envKeys.length} Ollama keys from .env`);
+          logger.info(`Loaded ${envKeys.length} Ollama keys from .env`);
         } else if (process.env.OLLAMA_API_KEY) {
           // Fallback: single key
           this.integrations[type].push({
@@ -290,19 +291,19 @@ class IntegrationManager {
         if (err.message?.includes('429') || err.message?.includes('rate limit') || err.message?.includes('403') || err.message?.includes('subscription')) {
           integ.healthy = false;
           setTimeout(() => { integ.healthy = true; integ.consecutiveFailures = 0; }, 30000);
-          console.warn(`[Integrations] ${integ.label} rate/subscription error, trying next...`);
+          logger.warn(`${integ.label} rate/subscription error, trying next...`);
           lastErr = err;
           continue;
         }
 
         if (integ.consecutiveFailures >= 3) {
           integ.healthy = false;
-          console.warn(`[Integrations] ${integ.label} marked unhealthy after ${integ.consecutiveFailures} failures`);
+          logger.warn(`${integ.label} marked unhealthy after ${integ.consecutiveFailures} failures`);
           setTimeout(() => { integ.healthy = true; integ.consecutiveFailures = 0; }, 300000);
         }
 
         lastErr = err;
-        console.warn(`[Integrations] ${integ.label} failed: ${err.message}, trying next...`);
+        logger.warn(`${integ.label} failed: ${err.message}, trying next...`);
         continue;
       }
     }
@@ -325,7 +326,7 @@ class IntegrationManager {
         return await this._callLLMWithService(messages, options, st);
       } catch (err) {
         lastErr = err;
-        console.warn(`[IntegrationManager] ${st} failed: ${err ? err.message : err}`);
+        logger.warn(`${st} failed: ${err ? err.message : err}`);
       }
     }
     throw lastErr || new Error('No LLM integrations are available or active');
@@ -423,7 +424,10 @@ class IntegrationManager {
 
     return this.callWithFallback(serviceType, async (integ) => {
       const formData = new FormData();
-      formData.append('file', audioBuffer, filename);
+      const ext = (filename || 'audio.ogg').split('.').pop().toLowerCase();
+      const contentTypeMap = { ogg: 'audio/ogg', opus: 'audio/opus', mp3: 'audio/mpeg', wav: 'audio/wav', m4a: 'audio/mp4', flac: 'audio/flac', webm: 'audio/webm', mp4: 'audio/mp4' };
+      const ct = contentTypeMap[ext] || 'audio/ogg';
+      formData.append('file', audioBuffer, { filename: filename || 'audio.ogg', contentType: ct });
       formData.append('model', integ.model || 'whisper-large-v3');
       if (language) formData.append('language', language);
       formData.append('response_format', 'json');
@@ -470,8 +474,8 @@ class IntegrationManager {
     this.lastNotification = now;
 
     const label = SERVICE_TYPES[serviceType]?.label || serviceType;
-    console.error(`[Integrations] ⚠️  TODAS AS INTEGRAÇÕES DE "${label}" FALHARAM!`);
-    console.error(`[Integrations] Adicione novas chaves em /api/admin/integrations`);
+    logger.error(`ALL INTEGRATIONS FOR "${label}" HAVE FAILED!`);
+    logger.error('Add new keys at /api/admin/integrations');
 
     if (this.onServiceDown && typeof this.onServiceDown === 'function') {
       this.onServiceDown(serviceType, this.integrations[serviceType]);
@@ -521,7 +525,7 @@ class IntegrationManager {
           lines.push(`  [${integ.healthy ? '✓' : '✗'}] ${SERVICE_TYPES[type]?.label || type}: ${integ.label} ${integ.healthy ? 'OK' : (integ.lastError?.substring(0, 60) || 'unhealthy')}`);
         }
       }
-      console.log(`[Integrations] Health check:\n${lines.join('\n')}`);
+      logger.info(`Health check:\n${lines.join('\n')}`);
     }
   }
 
@@ -665,7 +669,7 @@ class IntegrationManager {
     };
 
     this.integrations[serviceType].push(integ);
-    console.log(`[Integrations] Added ${SERVICE_TYPES[serviceType].label}: "${integ.label}"`);
+    logger.info(`Added ${SERVICE_TYPES[serviceType].label}: "${integ.label}"`);
     return { id: result.insertId, label: integ.label, type: serviceType };
   }
 
@@ -675,7 +679,7 @@ class IntegrationManager {
 
     await pool.execute('DELETE FROM api_keys WHERE id = ?', [keyId]);
     this.integrations[found.type] = this.integrations[found.type].filter(k => k.id !== keyId);
-    console.log(`[Integrations] Removed ${found.label}`);
+    logger.info(`Removed ${found.label}`);
   }
 
   async toggleIntegration(keyId, isActive) {
@@ -684,7 +688,7 @@ class IntegrationManager {
 
     await pool.execute('UPDATE api_keys SET is_active = ? WHERE id = ?', [isActive ? 1 : 0, keyId]);
     found.active = !!isActive;
-    console.log(`[Integrations] ${found.label} ${isActive ? 'enabled' : 'disabled'}`);
+    logger.info(`${found.label} ${isActive ? 'enabled' : 'disabled'}`);
   }
 
   async updateIntegration(keyId, updates) {

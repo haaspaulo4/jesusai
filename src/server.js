@@ -150,6 +150,13 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/uploads/media', express.static(path.join(__dirname, '..', 'public', 'uploads', 'media')));
 
+app.get('/api/config', (req, res) => {
+  res.json({
+    googleClientId: process.env.GOOGLE_CLIENT_ID || '',
+    serverUrl: process.env.SERVER_URL || '',
+  });
+});
+
 app.get('/privacidade', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'privacidade.html')));
 app.get('/cookies', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'cookies.html')));
 app.get('/termos', (req, res) => res.sendFile(path.join(__dirname, '..', 'public', 'termos.html')));
@@ -294,6 +301,47 @@ app.get('/api/health/tts', async (req, res) => {
     status.healthy = healthy;
   }
   res.json(status);
+});
+
+app.get('/api/system-stats', async (req, res) => {
+  try {
+    const os = require('os');
+    const cpuUsage = process.cpuUsage();
+    const mem = process.memoryUsage();
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const cpuPercent = Math.min(99, ((cpuUsage.user + cpuUsage.system) / 1000 / (process.uptime() * 1000)) * 100).toFixed(1);
+    const memPercent = ((mem.rss / totalMem) * 100).toFixed(1);
+    const loadAvg = os.loadavg();
+
+    const stats = {
+      cpu: parseFloat(cpuPercent),
+      ram_percent: parseFloat(memPercent),
+      ram_used_mb: Math.round(mem.rss / 1024 / 1024),
+      ram_total_mb: Math.round(totalMem / 1024 / 1024),
+      uptime: Math.floor(process.uptime()),
+      uptime_formatted: `${Math.floor(process.uptime() / 3600)}h ${Math.floor((process.uptime() % 3600) / 60)}m`,
+      load_avg: loadAvg.map(l => l.toFixed(2)),
+      node_version: process.version,
+      active_handles: process._getActiveHandles?.()?.length || 0,
+      active_requests: process._getActiveRequests?.()?.length || 0,
+      timestamp: new Date().toISOString()
+    };
+
+    try {
+      const { pool } = require('./db');
+      const [sessions] = await pool.execute('SELECT COUNT(*) as count FROM sessions WHERE last_activity > DATE_SUB(NOW(), INTERVAL 1 HOUR)');
+      stats.active_sessions = sessions[0].count;
+      const [users] = await pool.execute('SELECT COUNT(*) as count FROM users');
+      stats.total_users = users[0].count;
+      const [msgs] = await pool.execute('SELECT COUNT(*) as count FROM messages WHERE timestamp > DATE_SUB(NOW(), INTERVAL 1 HOUR)');
+      stats.messages_last_hour = msgs[0].count;
+    } catch {}
+
+    res.json(stats);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 async function start() {

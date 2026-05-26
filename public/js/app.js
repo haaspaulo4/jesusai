@@ -1,5 +1,15 @@
 const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
 
+(async () => {
+  try {
+    const configRes = await fetch('/api/config');
+    if (configRes.ok) {
+      const config = await configRes.json();
+      window.GOOGLE_CLIENT_ID = config.googleClientId || '';
+    }
+  } catch {}
+})();
+
 const app = createApp({
   setup() {
     const view = ref('landing');
@@ -117,8 +127,18 @@ const app = createApp({
     const mediaUploadProgress = ref(0);
     const mediaUploadFiles = ref([]);
 
+    // Cockpit dashboard state
+    const cockpitStats = reactive({ cpu: '--', ram: '--', uptime: '--', apiOnline: false });
+    const cockpitCognitive = reactive({ emotion: '--', engagement: '--', intent: '--', churnRisk: '--' });
+    const cockpitPersonas = ref([]);
+    const cockpitKnowledge = reactive({ total: '--', sources: [] });
+    const cockpitSkills = ref([]);
+    const cockpitLog = ref([]);
+    const cockpitInput = ref('');
+
     const inputEl = ref(null);
     const messagesContainer = ref(null);
+    const mediaFileInput = ref(null);
 
     let socketIo = null;
     let chatHistory = [];
@@ -358,22 +378,87 @@ const app = createApp({
     }
 
     async function doGoogleAuth() {
-      authLoading.value = true;
-      authError.value = '';
-      try {
-        const res = await api('/auth/google', {
-          method: 'POST',
-          body: JSON.stringify({ googleId: 'web_' + Date.now(), name: '', email: '' }),
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          window.location.href = '/auth/google';
-          return;
+      if (window.google && window.google.accounts) {
+        try {
+          const tokenClient = window.google.accounts.oauth2.initTokenClient({
+            client_id: window.GOOGLE_CLIENT_ID,
+            scope: 'openid email profile https://www.googleapis.com/auth/calendar',
+            callback: async (tokenResponse) => {
+              if (tokenResponse.error) {
+                authError.value = tokenResponse.error;
+                authLoading.value = false;
+                return;
+              }
+              try {
+                const credential = tokenResponse.access_token;
+                const userInfo = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+                  headers: { Authorization: `Bearer ${credential}` }
+                }).then(r => r.json());
+
+                const res = await api('/auth/google', {
+                  method: 'POST',
+                  body: JSON.stringify({
+                    idToken: tokenResponse.id_token || '',
+                    email: userInfo.email,
+                    name: userInfo.name,
+                    googleId: userInfo.sub,
+                    avatar: userInfo.picture,
+                  }),
+                });
+
+                if (res.ok) {
+                  const data = await res.json();
+                  authToken.value = data.token;
+                  currentUserId.value = data.user.id;
+                  localStorage.setItem('mp_token', data.token);
+                  localStorage.setItem('mp_user_id', data.user.id);
+                  if (data.refreshToken) localStorage.setItem('mp_refresh_token', data.refreshToken');
+                  if (data.user.name && profileName.value === '') profileName.value = data.user.name;
+                  showAuthModal.value = false;
+                  enterApp();
+                } else {
+                  const data = await res.json().catch(() => ({}));
+                  authError.value = data.error || 'Google auth failed.';
+                }
+              } catch (err) {
+                authError.value = 'Failed to process Google login.';
+              } finally {
+                authLoading.value = false;
+              }
+            },
+          });
+          tokenClient.requestAccessToken();
+        } catch (err) {
+          authError.value = 'Google Sign-In failed.';
+          authLoading.value = false;
         }
-      } catch (err) {
-        authError.value = err.message;
-      } finally {
-        authLoading.value = false;
+      } else {
+        authLoading.value = true;
+        authError.value = '';
+        try {
+          const res = await api('/auth/google', {
+            method: 'POST',
+            body: JSON.stringify({ idToken: '', email: '', name: '', googleId: 'web_' + Date.now() }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            authToken.value = data.token;
+            currentUserId.value = data.user.id;
+            localStorage.setItem('mp_token', data.token);
+            localStorage.setItem('mp_user_id', data.user.id);
+            if (data.refreshToken) localStorage.setItem('mp_refresh_token', data.refreshToken);
+            if (data.user.name && profileName.value === '') profileName.value = data.user.name;
+            showAuthModal.value = false;
+            enterApp();
+          } else {
+            const data = await res.json().catch(() => ({}));
+            authError.value = data.error || 'Google auth failed. Please use email/password.';
+          }
+        } catch (err) {
+          authError.value = 'Google auth unavailable. Please use email/password.';
+        } finally {
+          authLoading.value = false;
+        }
       }
     }
 
@@ -447,8 +532,31 @@ const app = createApp({
         });
         socketIo.on('disconnect', () => {});
         socketIo.on('connect_error', () => {});
-        socketIo.on('xp_update', () => {});
-        socketIo.on('badge_earned', () => {});
+        socketIo.on('xp_update', (data) => {
+          const now = new Date();
+          cockpitLog.value.push({ time: `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`, msg: `+${data.amount} XP — ${data.reason || ''}`, type: 'xp' });
+        });
+        socketIo.on('badge_earned', (data) => {
+          cockpitLog.value.push({ time: new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}), msg: `Badge: ${data.name || 'Conquistador'}`, type: 'badge' });
+        });
+        socketIo.on('cognitive_state', (data) => {
+          if (data.emotion) cockpitCognitive.emotion = data.emotion;
+          if (data.engagement_score != null) cockpitCognitive.engagement = `${Math.round(data.engagement_score * 100)}%`;
+          if (data.intent) cockpitCognitive.intent = data.intent;
+          if (data.churn_risk != null) cockpitCognitive.churnRisk = `${Math.round(data.churn_risk * 100)}%`;
+        });
+        socketIo.on('agent_thinking', () => {
+          cockpitCognitive.emotion = 'Pensando...';
+        });
+        socketIo.on('agent_step', (data) => {
+          if (data && data.tool) cockpitLog.value.push({ time: new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}), msg: `[tool] ${data.tool}`, type: 'tool' });
+        });
+        socketIo.on('stage_advance', (data) => {
+          cockpitLog.value.push({ time: new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}), msg: `[stage] ${data.new_stage || data.stage}`, type: 'system' });
+        });
+        socketIo.on('goal_update', (data) => {
+          cockpitLog.value.push({ time: new Date().toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'}), msg: `[goal] ${data.title || data.goal_id}: ${data.progress != null ? data.progress + '%' : 'updated'}`, type: 'system' });
+        });
       } catch (e) {}
     }
 
@@ -855,14 +963,16 @@ const app = createApp({
     function formatMarkdown(text) {
       if (!text) return '';
       let html = text
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+      html = html.replace(/```([\s\S]*?)```/g, '<pre class="bg-surface-800 p-2 rounded overflow-x-auto text-xs my-1"><code>$1</code></pre>');
+      html = html
         .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
         .replace(/\*(.*?)\*/g, '<em>$1</em>')
         .replace(/`([^`]+)`/g, '<code class="bg-surface-600 px-1 rounded text-brand-300 text-xs">$1</code>');
       html = html.replace(/((?:1|2|3)?\s*[A-Z][a-z\u00E1\u00E0\u00E2\u00E3\u00E9\u00E8\u00EA\u00ED\u00EF\u00F3\u00F4\u00F5\u00FA\u00FC\u00E7]+(?:\s+\w+)?\s+\d+:\d+(?:-\d+)?)/g, '<span class="text-brand-400 font-medium">$1</span>');
       html = html.replace(/\n\n/g, '</p><p>').replace(/\n/g, '<br>');
       const raw = `<p>${html}</p>`;
-      return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(raw, { ALLOWED_TAGS: ['p', 'strong', 'em', 'code', 'br', 'span'], ALLOWED_ATTR: ['class'] }) : raw;
+      return typeof DOMPurify !== 'undefined' ? DOMPurify.sanitize(raw, { ALLOWED_TAGS: ['p', 'strong', 'em', 'code', 'br', 'span', 'pre'], ALLOWED_ATTR: ['class'] }) : raw;
     }
 
     async function loadConversations() {
@@ -1062,19 +1172,7 @@ const app = createApp({
           if (data.onboarding && data.response) {
             onboardingQuestion.value = data.response;
             showOnboarding.value = true;
-        if (data.humanOverride) {
-          messages.value[botIdx].content = '👨‍💼 ' + (data.response || 'Um atendente humano está cuidando desta conversa.');
-          messages.value[botIdx].overrideType = data.overrideType || 'full';
-        }
-        if (data.needsApproval) {
-          messages.value[botIdx].approvalPending = true;
-          messages.value[botIdx].content = '⏳ ' + (data.response || '') + '\n\n*(Aguardando aprovação humana)*';
-        }
-        if (data.observed) {
-          messages.value[botIdx].observed = true;
-        }
-
-        if (data.sessionId) {
+            if (data.sessionId) {
               sessionId.value = data.sessionId;
               localStorage.setItem('mp_session_id', data.sessionId);
             }
@@ -1480,10 +1578,109 @@ const app = createApp({
       } catch {}
     }
 
+    // === Cockpit dashboard functions ===
+    async function loadCockpitStats() {
+      try {
+        const res = await api('/system-stats');
+        if (res.ok) {
+          const data = await res.json();
+          cockpitStats.cpu = data.cpu ? `${data.cpu}%` : '--';
+          cockpitStats.ram = data.ram_percent ? `${data.ram_percent}%` : '--';
+          cockpitStats.uptime = data.uptime_formatted || '--';
+        }
+      } catch {}
+      try {
+        const res = await api('/health');
+        cockpitStats.apiOnline = res.ok;
+      } catch { cockpitStats.apiOnline = false; }
+    }
+
+    async function loadCockpitPersonas() {
+      try {
+        const res = await api('/personas');
+        if (res.ok) {
+          cockpitPersonas.value = await res.json();
+        }
+      } catch {}
+    }
+
+    async function loadCockpitKnowledge() {
+      try {
+        const res = await api('/admin/knowledge');
+        if (res.ok) {
+          const data = await res.json();
+          cockpitKnowledge.total = data.totalDocuments ?? (data.sources ? data.sources.length : '--');
+          cockpitKnowledge.sources = data.sources || [];
+        } else {
+          cockpitKnowledge.total = '?';
+          cockpitKnowledge.sources = [];
+        }
+      } catch { cockpitKnowledge.total = '?'; cockpitKnowledge.sources = []; }
+    }
+
+    async function loadCockpitSkills() {
+      try {
+        const res = await api('/admin/skills');
+        if (res.ok) {
+          const data = await res.json();
+          cockpitSkills.value = data.skills || [];
+        } else {
+          cockpitSkills.value = [];
+        }
+      } catch { cockpitSkills.value = []; }
+    }
+
+    let cockpitInterval = null;
+    function startCockpitPolling() {
+      loadCockpitStats();
+      loadCockpitPersonas();
+      loadCockpitKnowledge();
+      loadCockpitSkills();
+      if (!cockpitInterval) {
+        cockpitInterval = setInterval(() => {
+          loadCockpitStats();
+          loadCockpitKnowledge();
+        }, 15000);
+      }
+    }
+
+    async function sendCockpitCommand() {
+      const text = cockpitInput.value.trim();
+      if (!text) return;
+      cockpitInput.value = '';
+      const now = new Date();
+      const ts = `${now.getHours().toString().padStart(2,'0')}:${now.getMinutes().toString().padStart(2,'0')}`;
+      cockpitLog.value.push({ time: ts, msg: text, type: 'user' });
+      if (text.startsWith('/')) {
+        try {
+          const res = await api('/chat', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message: text, sessionId: sessionId.value || 'cockpit_session', language: currentLang.value, personaId: 'meta-persona' }),
+          });
+          if (res.ok) {
+            const data = await res.json();
+            const responseText = data.response || data.error || 'Sem resposta';
+            cockpitLog.value.push({ time: ts, msg: responseText.substring(0, 300), type: data.error ? 'error' : 'bot' });
+          } else {
+            cockpitLog.value.push({ time: ts, msg: `HTTP ${res.status}`, type: 'error' });
+          }
+        } catch (err) {
+          cockpitLog.value.push({ time: ts, msg: `Erro: ${err.message}`, type: 'error' });
+        }
+      } else {
+        cockpitLog.value.push({ time: ts, msg: 'Use comandos como /dashboard, /tasks, /goals, /suggestions', type: 'system' });
+      }
+    }
+
     onMounted(() => {
       if (authToken.value) {
         enterApp();
       }
+
+      watch(sidebarTab, (tab) => {
+        if (tab === 'cockpit') startCockpitPolling();
+      });
 
       if ('speechSynthesis' in window) {
         speechSynthesis.onvoiceschanged = () => speechSynthesis.getVoices();
@@ -1522,6 +1719,9 @@ const app = createApp({
       // Media
       mediaGallery, mediaFilter, mediaViewerItem, mediaLoading, mediaFolders,
       showMediaUpload, mediaUploading, mediaUploadProgress, mediaUploadFiles,
+      // Cockpit
+      cockpitStats, cockpitCognitive, cockpitPersonas, cockpitKnowledge, cockpitSkills, cockpitLog, cockpitInput,
+      sendCockpitCommand,
 
       showAuth, skipAuth, doAuth, doGoogleAuth, logout, enterApp,
       changePassword,
@@ -1533,8 +1733,9 @@ const app = createApp({
       saveProfile, saveApiKey, removeApiKey, copyPix, formatDate, saveLang, acceptCookies,
       submitOnboardingAnswer, checkFollowUp, answerFollowUp, dismissFollowUp,
       sendQuickAction, loadQuickActions, loadContextualWelcome,
-      isRecording, toggleMic,
-      showCookieBanner,
+       isRecording, toggleMic,
+       showCookieBanner,
+       mediaFileInput,
       // Quiz functions
       loadQuizzes, startQuiz, selectQuizAnswer, toggleQuizAnswer, nextQuizQuestion, prevQuizQuestion, submitQuiz, closeQuiz,
       // Media functions

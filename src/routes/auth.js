@@ -2,36 +2,13 @@ const express = require('express');
 const { generateToken, generateRefreshToken, authMiddleware, getUser, updateUser, getUserWithRole, findOrCreateFromGoogle, generateLinkCode, linkAccount, findLinkedUser, pool, verifyToken, safeUser } = require('../auth');
 const { register, login } = require('../auth/index');
 const bcrypt = require('bcryptjs');
+const { validate, registerSchema, loginSchema, googleAuthSchema } = require('../validation');
 
 const router = express.Router();
 
-router.post('/register', async (req, res) => {
+router.post('/register', validate(registerSchema), async (req, res) => {
   try {
     const { email, password, name } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email e senha são obrigatórios' });
-    }
-    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
-    if (!emailRegex.test(email)) {
-      return res.status(400).json({ error: 'Email inválido' });
-    }
-    if (email.length > 255 || /[<>"';&]/.test(email)) {
-      return res.status(400).json({ error: 'Email contém caracteres inválidos' });
-    }
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Senha deve ter no mínimo 8 caracteres' });
-    }
-    if (!/[A-Z]/.test(password)) {
-      return res.status(400).json({ error: 'Senha deve conter pelo menos uma letra maiúscula' });
-    }
-    if (!/[0-9]/.test(password)) {
-      return res.status(400).json({ error: 'Senha deve conter pelo menos um número' });
-    }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) {
-      return res.status(400).json({ error: 'Senha deve conter pelo menos um caractere especial' });
-    }
-
     const user = await register(email, password, name);
     const token = generateToken(user);
     const refreshToken = generateRefreshToken(user);
@@ -42,14 +19,9 @@ router.post('/register', async (req, res) => {
   }
 });
 
-router.post('/login', async (req, res) => {
+router.post('/login', validate(loginSchema), async (req, res) => {
   try {
     const { email, password } = req.body;
-
-    if (!email || !password) {
-      return res.status(400).json({ error: 'Email e senha são obrigatórios' });
-    }
-
     const { id, email: userEmail, name } = await login(email, password);
     const fullUser = await getUserWithRole(id);
     const token = generateToken(fullUser);
@@ -61,17 +33,9 @@ router.post('/login', async (req, res) => {
   }
 });
 
-router.post('/google', async (req, res) => {
+router.post('/google', validate(googleAuthSchema), async (req, res) => {
   try {
     const { idToken, email, name, googleId, avatar } = req.body;
-
-    if (!idToken || !email || !googleId) {
-      return res.status(400).json({ error: 'Dados do Google incompletos' });
-    }
-
-    if (!email.includes('@') || email.length > 255 || /[<>"';&]/.test(email)) {
-      return res.status(400).json({ error: 'Email inválido' });
-    }
 
     let verifiedEmail = email;
     let verifiedGoogleId = googleId;
@@ -199,8 +163,8 @@ router.get('/link-status', authMiddleware, async (req, res) => {
 router.post('/link', async (req, res) => {
   try {
     const { code, botUserId, source } = req.body;
-    if (!code || !botUserId || !source) {
-      return res.status(400).json({ error: 'Código, botUserId e source são obrigatórios' });
+    if (!code || !botUserId) {
+      return res.status(400).json({ error: 'Código e botUserId são obrigatórios' });
     }
     if (!['whatsapp', 'telegram'].includes(source)) {
       return res.status(400).json({ error: 'Source deve ser whatsapp ou telegram' });
@@ -232,17 +196,8 @@ router.post('/change-password', authMiddleware, async (req, res) => {
     if (!currentPassword || !newPassword) {
       return res.status(400).json({ error: 'Senha atual e nova senha são obrigatórias' });
     }
-    if (newPassword.length < 8) {
-      return res.status(400).json({ error: 'Nova senha deve ter no mínimo 8 caracteres' });
-    }
-    if (!/[A-Z]/.test(newPassword)) {
-      return res.status(400).json({ error: 'Nova senha deve conter pelo menos uma letra maiúscula' });
-    }
-    if (!/[0-9]/.test(newPassword)) {
-      return res.status(400).json({ error: 'Nova senha deve conter pelo menos um número' });
-    }
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword)) {
-      return res.status(400).json({ error: 'Nova senha deve conter pelo menos um caractere especial' });
+    if (newPassword.length < 8 || !/[A-Z]/.test(newPassword) || !/[0-9]/.test(newPassword) || !/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(newPassword)) {
+      return res.status(400).json({ error: 'Nova senha deve ter mínimo 8 caracteres, 1 maiúscula, 1 número e 1 caractere especial' });
     }
     const user = await getUserWithRole(req.userId);
     if (!user) return res.status(404).json({ error: 'Usuário não encontrado' });
@@ -383,6 +338,146 @@ router.post('/consent/revoke', authMiddleware, async (req, res) => {
   } catch (err) {
     console.error('[Auth] Revoke consent error:', err.message);
     res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Google Calendar OAuth ───
+const googleCalendar = require('../google/calendar');
+
+router.get('/google/calendar', authMiddleware, async (req, res) => {
+  try {
+    const url = await googleCalendar.getAuthUrl(req.userId);
+    res.json({ url });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/google/callback', async (req, res) => {
+  try {
+    const { code, state } = req.query;
+    if (!code) return res.status(400).json({ error: 'Authorization code required' });
+
+    const result = await googleCalendar.handleCallback(code);
+
+    let userId = result.userId;
+    if (state) {
+      try { userId = JSON.parse(Buffer.from(state, 'base64').toString()).userId; } catch {}
+    }
+    if (!userId) return res.status(400).json({ error: 'User identification failed' });
+
+    await googleCalendar.saveUserTokens(userId, result.tokens);
+
+    await pool.execute('UPDATE users SET google_calendar_sync = 1 WHERE id = ?', [userId]);
+
+    const html = `<!DOCTYPE html><html><head><script>window.opener?.postMessage({type:'google_calendar_connected'},'*');window.close();</script></head><body><h3>Google Calendar conectado!</h3><p>Você pode fechar esta janela.</p></body></html>`;
+    res.send(html);
+  } catch (err) {
+    console.error('[Auth] Google Calendar callback error:', err.message);
+    res.status(500).send('<h3>Erro ao conectar Google Calendar.</h3><p>' + err.message + '</p>');
+  }
+});
+
+router.get('/google/status', authMiddleware, async (req, res) => {
+  try {
+    const connected = await googleCalendar.isGoogleCalendarConnected(req.userId);
+    res.json({ connected });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/google/calendar', authMiddleware, async (req, res) => {
+  try {
+    await googleCalendar.disconnectGoogleCalendar(req.userId);
+    res.json({ success: true, message: 'Google Calendar desconectado' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Google Calendar Events ───
+router.get('/google/calendars', authMiddleware, async (req, res) => {
+  try {
+    const calendars = await googleCalendar.listCalendars(req.userId);
+    res.json({ calendars });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/google/events', authMiddleware, async (req, res) => {
+  try {
+    const { calendarId, timeMin, timeMax, maxResults } = req.query;
+    const events = await googleCalendar.listEvents(req.userId, calendarId || 'primary', {
+      timeMin, timeMax, maxResults: parseInt(maxResults) || 50,
+    });
+    res.json({ events });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/google/events', authMiddleware, async (req, res) => {
+  try {
+    const { calendarId, ...eventData } = req.body;
+    const event = await googleCalendar.createEvent(req.userId, eventData, calendarId || 'primary');
+    res.json({ event });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.delete('/google/events/:eventId', authMiddleware, async (req, res) => {
+  try {
+    const { calendarId } = req.query;
+    await googleCalendar.deleteEvent(req.userId, req.params.eventId, calendarId || 'primary');
+    res.json({ success: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ─── Scheduling Public Routes ───
+const scheduling = require('../services/scheduling');
+
+router.get('/scheduling/services/:personaId', async (req, res) => {
+  try {
+    const services = await scheduling.getServiceTypes(req.params.personaId);
+    res.json({ services });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.get('/scheduling/slots/:personaId', async (req, res) => {
+  try {
+    const { date, serviceTypeId } = req.query;
+    if (!date) return res.status(400).json({ error: 'Date parameter required (YYYY-MM-DD)' });
+    const slots = await scheduling.availableSlots(req.params.personaId, serviceTypeId, date);
+    res.json({ slots });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+router.post('/scheduling/book/:personaId', async (req, res) => {
+  try {
+    const { serviceTypeId, startTime, customerName, customerPhone, customerEmail, notes } = req.body;
+    if (!startTime) return res.status(400).json({ error: 'startTime required' });
+
+    const ownerId = req.userId || req.body.ownerId || null;
+    const appointment = await scheduling.bookSlot(req.params.personaId, serviceTypeId, startTime, {
+      customerName: customerName || '',
+      customerPhone: customerPhone || '',
+      customerEmail: customerEmail || '',
+      notes: notes || '',
+      ownerId,
+    }, { syncToGoogle: true });
+
+    res.json({ appointment });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
   }
 });
 

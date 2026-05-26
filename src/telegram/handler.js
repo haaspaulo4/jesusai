@@ -1,3 +1,4 @@
+const logger = require('../logger').child({ module: 'telegram' });
 const { searchVerses } = require('../rag/store');
 const { getActivePersona, buildSystemPrompt } = require('../persona/config');
 const personaManager = require('../persona/manager');
@@ -126,7 +127,7 @@ function makeTelegramHandler(options = {}) {
           await bot.sendMessage(chatId, `🎤 _${t('transcribed', DEFAULT_LANG, { text: voiceText })}_`, { parse_mode: 'Markdown' });
         }
       } catch (err) {
-        console.error(`[TG:${botName}] Voice processing error:`, err.message);
+        logger.error(`TG:${botName} voice processing error`, { error: err.message });
         if (!isGroup) {
           await bot.sendMessage(chatId, t('audioProcessFail', DEFAULT_LANG));
         }
@@ -161,7 +162,7 @@ function makeTelegramHandler(options = {}) {
         personaId: instancePersonaId || undefined,
       });
 
-      console.log(`[TG:${botName}] processMessage result: response=${(result.response || '').substring(0, 80)}, ttsVoice=${result.ttsVoice}, ttsLang=${result.ttsLang}, TELEGRAM_AUDIO=${TELEGRAM_AUDIO}`);
+      logger.info(`processMessage result: response=${(result.response || '').substring(0, 80)}, ttsVoice=${result.ttsVoice}, ttsLang=${result.ttsLang}, TELEGRAM_AUDIO=${TELEGRAM_AUDIO}`);
 
       let reply = result.response;
 
@@ -236,54 +237,75 @@ function makeTelegramHandler(options = {}) {
         } catch {}
       }
 
-      // ─── TTS Audio ──────────────────────────────────────────────────────
       if (TELEGRAM_AUDIO && reply && !isGroup) {
         try {
           const kokoroVoice = result.ttsVoice || null;
-          const ttsLang = getTTSLang(result.language || lang);
+          const ttsLang = getTTSLang(result.language || DEFAULT_LANG);
+          logger.info(`TG:${botName} TTS starting, lang=${ttsLang}, voice=${kokoroVoice}, replyLen=${reply.length}`);
           const cleanReply = cleanTextForTTS(reply);
+          logger.info(`TG:${botName} TTS cleanReply len=${cleanReply.length}, preview=${cleanReply.substring(0, 60)}`);
           const audioChunks = splitTextForTTS(cleanReply, parseInt(process.env.MESSAGE_CHUNK_SIZE) || 1500);
           const audioChunksFiltered = (audioChunks || []).filter(c => c.length > 0 && c.length <= MAX_TTS_LENGTH);
+          logger.info(`TG:${botName} TTS chunks=${audioChunksFiltered.length}`);
 
           if (audioChunksFiltered.length > 0) {
-            console.log(`[TG:${botName}] Sending ${audioChunksFiltered.length} audio chunks, lang=${ttsLang}, voice=${kokoroVoice || 'default'}`);
-            for (const chunk of audioChunksFiltered) {
+            let sentAny = false;
+            for (let i = 0; i < audioChunksFiltered.length; i++) {
+              const chunk = audioChunksFiltered[i];
               try {
-                let audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang, kokoroVoice });
-                if (audioBuffer && audioBuffer.length > 0) {
-                  // Convert WAV to OGG/Opus for Telegram voice messages
-                  try {
-                    const oggBuffer = await convertToOggOpus(audioBuffer);
-                    await bot.sendVoice(chatId, oggBuffer, {}, { filename: 'voice.ogg', contentType: 'audio/ogg' });
-                  } catch (convErr) {
-                    // Fallback: send as audio file (WAV) if conversion fails
-                    console.error(`[TG:${botName}] OGG conversion failed, sending as audio:`, convErr.message);
-                    await bot.sendAudio(chatId, audioBuffer, {}, { filename: 'voice.wav', contentType: 'audio/wav' });
-                  }
-                  await new Promise(r => setTimeout(r, 500));
+                logger.info(`TG:${botName} TTS generating audio chunk ${i + 1}/${audioChunksFiltered.length} (len=${chunk.length})`);
+                const audioBuffer = await generateAudioBuffer(chunk, { lang: ttsLang, kokoroVoice });
+                if (!audioBuffer || audioBuffer.length === 0) {
+                  logger.warn(`TG:${botName} TTS engine returned empty/null buffer for chunk ${i + 1}`);
                   continue;
                 }
-              } catch (err) {
-                console.error(`[TG:${botName}] Audio chunk failed:`, err.message);
-              }
-              // Fallback: try URL-based TTS
-              try {
-                const audioUrl = generateTTSAudioUrl(chunk, ttsLang);
-                if (audioUrl) {
-                  await bot.sendVoice(chatId, audioUrl);
-                  await new Promise(r => setTimeout(r, 500));
+                logger.info(`TG:${botName} TTS audio buffer OK, size=${audioBuffer.length}, contentType=${audioBuffer.contentType}`);
+
+                try {
+                  const inputFormat = audioBuffer.contentType && audioBuffer.contentType.includes('mp3') ? 'mp3' : 'wav';
+                  const oggBuffer = await convertToOggOpus(audioBuffer, inputFormat);
+                  logger.info(`TG:${botName} OGG conversion OK, size=${oggBuffer.length}`);
+                  await bot.sendVoice(chatId, oggBuffer, { caption: '' }, { filename: 'voice.ogg', contentType: 'audio/ogg' });
+                  sentAny = true;
+                  logger.info(`TG:${botName} sendVoice succeeded (size=${oggBuffer.length})`);
+                } catch (convErr) {
+                  logger.warn(`TG:${botName} OGG conversion failed, trying sendAudio`, { error: convErr.message });
+                  const fallbackExt = audioBuffer.contentType?.includes('mp3') ? 'mp3' : 'wav';
+                  const fallbackCt = audioBuffer.contentType || 'audio/wav';
+                  try {
+                    await bot.sendAudio(chatId, audioBuffer, { caption: '' }, { filename: `voice.${fallbackExt}`, contentType: fallbackCt });
+                    sentAny = true;
+                    logger.info(`TG:${botName} sendAudio succeeded (fallback)`);
+                  } catch (sendErr) {
+                    logger.error(`TG:${botName} sendAudio fallback also failed`, { error: sendErr.message });
+                  }
                 }
+
+                await new Promise(r => setTimeout(r, 500));
+              } catch (chunkErr) {
+                logger.error(`TG:${botName} TTS chunk ${i + 1} error`, { error: chunkErr.message, stack: chunkErr.stack });
+              }
+            }
+
+            if (!sentAny) {
+              logger.warn(`TG:${botName} no audio sent after ${audioChunksFiltered.length} chunks`);
+              try {
+                await bot.sendMessage(chatId, t('audioNotAvailable', DEFAULT_LANG));
               } catch {}
             }
+          } else {
+            logger.warn(`TG:${botName} no audio chunks after filtering (cleanReply was empty?)`);
           }
         } catch (ttsErr) {
-          console.error(`[TG:${botName}] TTS error:`, ttsErr.message);
+          logger.error(`TG:${botName} TTS error`, { error: ttsErr.message, stack: ttsErr.stack });
         }
+      } else if (!TELEGRAM_AUDIO) {
+        logger.info(`TG:${botName} TTS skipped: TELEGRAM_AUDIO=${TELEGRAM_AUDIO}`);
       }
     } catch (err) {
-      console.error(`[TG:${botName}] Message error:`, err.message);
+      logger.error(`TG:${botName} handler error`, { error: err.message });
       try {
-        await bot.sendMessage(chatId, 'Perdoe-me, houve uma dificuldade técnica. Tente novamente em breve.');
+        await bot.sendMessage(chatId, 'Desculpe, ocorreu um erro ao processar sua mensagem.').catch(() => {});
       } catch {}
     }
   };

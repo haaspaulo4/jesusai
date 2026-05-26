@@ -1118,6 +1118,23 @@ async function initDatabase() {
       KEY idx_appt_customer_phone (customer_phone)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
 
+  // Google Calendar integration
+  try { await pool.execute(`
+    CREATE TABLE IF NOT EXISTS user_google_tokens (
+      user_id VARCHAR(60) PRIMARY KEY,
+      access_token TEXT NOT NULL,
+      refresh_token TEXT,
+      token_expiry TIMESTAMP NULL DEFAULT NULL,
+      scope VARCHAR(500) DEFAULT NULL,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci`); } catch {}
+
+  try { await pool.execute("ALTER TABLE scheduling_appointments ADD COLUMN google_event_id VARCHAR(200) DEFAULT NULL"); } catch {}
+  try { await pool.execute("ALTER TABLE scheduling_appointments ADD INDEX idx_appt_google_event (google_event_id)"); } catch {}
+  try { await pool.execute("ALTER TABLE users ADD COLUMN google_calendar_sync TINYINT(1) DEFAULT 0"); } catch {}
+
   console.log('[DB] Additional schemas initialized');
 
   // Performance indexes — Phase 2 (added 2026-05-20)
