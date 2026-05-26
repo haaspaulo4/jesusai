@@ -26,8 +26,8 @@ const caches = {
   // Settings: refreshed every 60s, max 50 entries
   settings: createCache({ max: 50, ttl: 60 * 1000 }),
 
-  // Personas: TTL-based, max 50 entries (bounded by persona count)
-  personas: createCache({ max: 50, ttl: 5 * 60 * 1000 }),
+  // Personas: no TTL (reload on demand), max 50 entries
+  personas: createCache({ max: 50, ttl: 0 }),
 
   // Sessions: hot sessions from recent messages, max 200 entries
   sessions: createCache({ max: 200, ttl: 5 * 60 * 1000 }),

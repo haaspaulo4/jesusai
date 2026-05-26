@@ -22,6 +22,7 @@ const { pool } = require('../db');
 const chatEngine = require('../chat/engine');
 const { generateSessionId } = chatEngine;
 const multer = require('multer');
+const { validate, chatSchema, ratingSchema, switchPersonaSchema, createPersonaSchema } = require('../validation');
 
 const optionalAuth = (req, res, next) => {
   const auth = req.headers.authorization;
@@ -73,17 +74,8 @@ router.post('/stt', authMiddleware, upload.single('audio'), async (req, res) => 
   }
 });
 
-router.post('/chat', authMiddleware, async (req, res) => {
+router.post('/chat', authMiddleware, validate(chatSchema), async (req, res) => {
   const { message, sessionId, language, personaId } = req.body;
-
-  if (typeof message !== 'string') {
-    return res.status(400).json({ error: 'Message must be a string' });
-  }
-
-  if (message.length > 5000) {
-    return res.status(400).json({ error: 'Message too long (max 5000 characters)' });
-  }
-
   const lang = SUPPORTED_LANGS.includes(language) ? language : DEFAULT_LANG;
   const uid = req.userId;
 
@@ -481,17 +473,20 @@ router.get('/voices/:lang', (req, res) => {
 router.get('/personas', async (req, res) => {
   try {
     const personas = await metaRag.listAvailablePersonas();
-    res.json(personas.filter(p => p.isActive));
+    const active = personas.filter(p => p.isActive);
+    console.log(`[Personas] Listed ${personas.length} total, ${active.length} active`);
+    res.json(active);
   } catch (err) {
+    console.error('[Personas] List error:', err.message);
     res.status(500).json({ error: 'Failed to list personas' });
   }
 });
 
-router.post('/persona/switch', authMiddleware, async (req, res) => {
+router.post('/persona/switch', authMiddleware, validate(switchPersonaSchema), async (req, res) => {
   try {
-    const { personaId, sessionId } = req.body;
+    const { personaId } = req.body;
+    const { sessionId } = req.body;
     const userId = req.userId || 'user_default';
-    if (!personaId) return res.status(400).json({ error: 'personaId is required' });
 
     if (personaId === 'meta-persona' && req.userRole !== 'admin') {
       return res.status(403).json({ error: 'Meta-persona is restricted to admin users' });
@@ -518,12 +513,10 @@ router.post('/persona/switch', authMiddleware, async (req, res) => {
   }
 });
 
-router.post('/persona/create', authMiddleware, async (req, res) => {
+router.post('/persona/create', authMiddleware, validate(createPersonaSchema), async (req, res) => {
   try {
-    const { description, name, lang } = req.body;
-    if (!description) return res.status(400).json({ error: 'description is required' });
-    if (description.length > 2000) return res.status(400).json({ error: 'Description too long (max 2000 characters)' });
-    if (name && name.length > 100) return res.status(400).json({ error: 'Name too long (max 100 characters)' });
+    const { description, language } = req.body;
+    const name = req.body.name;
     const userId = req.userId;
     const userRole = req.userRole;
     if (userRole !== 'admin' && userRole !== 'premium') {
@@ -531,7 +524,7 @@ router.post('/persona/create', authMiddleware, async (req, res) => {
     }
     const options = {};
     if (name) options.name = name;
-    if (lang) options.lang = lang;
+    if (language) options.lang = language;
     const persona = await metaRag.createPersonaFromDescription(description, userId, options);
     res.json({
       id: persona.id,
@@ -608,12 +601,10 @@ router.get('/persona/:id/public', async (req, res) => {
 
 // ========== RATINGS ==========
 
-router.post('/rating', authMiddleware, async (req, res) => {
+router.post('/rating', authMiddleware, validate(ratingSchema), async (req, res) => {
   try {
-    const { sessionId, messageId, rating, feedback, category, source } = req.body;
-    if (!rating || rating < 1 || rating > 5) {
-      return res.status(400).json({ error: 'Rating must be between 1 and 5' });
-    }
+    const { sessionId, rating, category } = req.body;
+    const { messageId, feedback, source } = req.body;
 
     await surveyEngine.createRating({
       userId: req.userId,
@@ -881,6 +872,8 @@ router.post('/pet/switch', async (req, res) => {
       welcomeBody,
       ttsVoice: result.ttsVoice || 'pm_alex',
       ttsLang: result.ttsLang || 'pt-BR',
+      avatarUrl: result.avatarUrl || `https://api.dicebear.com/9.x/adventurer/svg?seed=${result.id}`,
+      accentColor: result.accentColor || '#c084fc',
     });
   } catch (err) {
     console.error('[Pet API] Switch error:', err.message);
@@ -1075,6 +1068,51 @@ router.post('/pet/stt', upload.single('audio'), async (req, res) => {
   } catch (err) {
     console.error('[Pet API] STT error:', err.message);
     res.status(500).json({ error: 'Transcription failed' });
+  }
+});
+
+// === PET MEMORY ENDPOINT ===
+router.get('/pet/memory', async (req, res) => {
+  try {
+    let uid = 'pet_anon';
+    try {
+      const [rows] = await pool.execute('SELECT id FROM users WHERE role = ? ORDER BY created_at ASC LIMIT 1', ['admin']);
+      if (rows.length > 0) uid = rows[0].id;
+    } catch {}
+
+    const { sessionId, personaId: pid, q } = req.query;
+    const sid = sessionId || 'pet_session_' + uid;
+
+    const memory = { session: [], permanent: [], summary: null };
+
+    try {
+      const sessionCtx = await buildMemoryContext(sid);
+      if (sessionCtx) memory.summary = sessionCtx;
+    } catch {}
+
+    try {
+      const history = await getHistoryForLLM(sid, 10);
+      memory.session = history.map(m => ({ role: m.role, content: m.content.substring(0, 200) }));
+    } catch {}
+
+    if (q) {
+      try {
+        const { searchOrgMemory } = require('../orgmemory');
+        const results = await searchOrgMemory(q, uid, pid || null, 5);
+        memory.permanent = results;
+      } catch {}
+    } else {
+      try {
+        const { listOrgMemory } = require('../orgmemory');
+        const results = await listOrgMemory(uid, pid || null, 10);
+        memory.permanent = results;
+      } catch {}
+    }
+
+    res.json(memory);
+  } catch (err) {
+    console.error('[Pet API] Memory error:', err.message);
+    res.status(500).json({ error: 'Failed to retrieve memory' });
   }
 });
 

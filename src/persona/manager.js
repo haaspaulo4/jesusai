@@ -101,7 +101,7 @@ async function loadPersonas() {
 }
 
 async function getPersona(personaId) {
-  if (!loaded) await loadPersonas();
+  if (!loaded || cache.size === 0) await loadPersonas();
   const defaultId = process.env.PERSONA || 'jesus';
   return cache.get(personaId) || cache.get(defaultId) || [...cache.values()][0];
 }
@@ -112,7 +112,7 @@ function getActivePersona() {
 }
 
 async function listPersonas() {
-  if (!loaded) await loadPersonas();
+  if (!loaded || cache.size === 0) await loadPersonas();
   return [...cache.values()].map(p => ({
     id: p.id,
     name: p.name,
